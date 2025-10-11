@@ -31,7 +31,10 @@ import {
   Navigation,
   Info,
   Zap,
-  CheckCircle
+  CheckCircle,
+  Home,
+  Menu,
+  X
 } from 'lucide-react';
 
 interface CoreFeature {
@@ -89,6 +92,8 @@ const Dashboard: NextPage = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [activeBottomTab, setActiveBottomTab] = useState<string>('dashboard');
   
   // Real activity states
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
@@ -237,16 +242,6 @@ const Dashboard: NextPage = () => {
         phone: "+233 30 278 2641",
         services: ["Emergency Care", "Internal Medicine", "Surgery", "Radiology"],
         emergencyServices: true
-      },
-      {
-        name: "Greater Accra Regional Hospital",
-        coordinates: [5.6520, -0.1670] as [number, number],
-        type: "hospital",
-        address: "Ridge, Near Parliament House",
-        city: "Accra",
-        phone: "+233 30 222 4200",
-        services: ["Emergency Care", "General Medicine", "Surgery", "Maternity"],
-        emergencyServices: true
       }
     ];
 
@@ -272,138 +267,17 @@ const Dashboard: NextPage = () => {
       setFacilitiesError(null);
       
       const [lat, lng] = userLocation;
-      let allFacilities: Facility[] = [];
-      
-      // Get known Ghana facilities first
       const knownFacilities = getKnownGhanaFacilities(lat, lng);
-      allFacilities.push(...knownFacilities);
-      
-      // Try to fetch from OpenStreetMap
-      try {
-        const overpassQuery = `
-          [out:json][timeout:30];
-          (
-            node["amenity"="hospital"](around:10000,${lat},${lng});
-            way["amenity"="hospital"](around:10000,${lat},${lng});
-            node["amenity"="clinic"](around:10000,${lat},${lng});
-            way["amenity"="clinic"](around:10000,${lat},${lng});
-            node["amenity"="pharmacy"](around:10000,${lat},${lng});
-            way["amenity"="pharmacy"](around:10000,${lat},${lng});
-          );
-          out center body;
-        `;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
-        
-        const overpassResponse = await fetch(
-          `https://overpass-api.de/api/interpreter`,
-          {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Accept': 'application/json'
-            },
-            body: `data=${encodeURIComponent(overpassQuery)}`,
-            signal: controller.signal
-          }
-        );
-        
-        clearTimeout(timeoutId);
-        
-        if (overpassResponse.ok) {
-          const overpassData = await overpassResponse.json();
-          
-          if (overpassData.elements && Array.isArray(overpassData.elements)) {
-            overpassData.elements.forEach((element: any) => {
-              try {
-                const coords = element.lat && element.lon 
-                  ? [element.lat, element.lon] 
-                  : element.center 
-                  ? [element.center.lat, element.center.lon]
-                  : null;
-                  
-                if (!coords || !element.tags) return;
-                
-                const name = element.tags.name || element.tags['name:en'] || 'Healthcare Facility';
-                if (name.length < 3) return;
-                
-                const amenity = element.tags.amenity || 'clinic';
-                const distance = calculateDistance(lat, lng, coords[0], coords[1]);
-                
-                if (distance > 10) return;
-                
-                let type: string = 'clinic';
-                if (amenity === 'hospital') {
-                  type = 'hospital';
-                } else if (amenity === 'pharmacy') {
-                  type = 'pharmacy';
-                }
-                
-                const services: string[] = [];
-                if (element.tags.emergency === 'yes') services.push('Emergency Care');
-                if (type === 'hospital') {
-                  if (services.length === 0) services.push('Inpatient Care', 'General Medicine');
-                } else if (type === 'pharmacy') {
-                  if (services.length === 0) services.push('Prescriptions', 'OTC Medications');
-                } else {
-                  if (services.length === 0) services.push('Outpatient Care', 'Consultations');
-                }
-                
-                allFacilities.push({
-                  id: `osm_${element.type}_${element.id}`,
-                  name,
-                  type,
-                  address: element.tags['addr:street'] || 'Address not available',
-                  city: element.tags['addr:city'] || 'Accra',
-                  region: 'Greater Accra',
-                  distance,
-                  rating: 3.5 + Math.random() * 1.5,
-                  reviews: Math.floor(Math.random() * 300) + 20,
-                  phone: element.tags.phone || 'Not available',
-                  hours: element.tags.opening_hours || (type === 'hospital' ? '24/7' : 'Call for hours'),
-                  services,
-                  coordinates: coords as [number, number],
-                  emergencyServices: element.tags.emergency === 'yes' || type === 'hospital',
-                  insurance: ['NHIS', 'Private']
-                });
-              } catch (elementError) {
-                console.warn('Error processing element:', elementError);
-              }
-            });
-          }
-        }
-      } catch (overpassError: any) {
-        console.warn('Overpass API error:', overpassError);
-      }
-      
-      // Remove duplicates and sort by distance
-      const uniqueFacilities = allFacilities.filter((facility, index, self) => {
-        return index === self.findIndex(f => {
-          const nameSimilar = f.name.toLowerCase().trim() === facility.name.toLowerCase().trim();
-          const locationClose = Math.abs(f.distance - facility.distance) < 0.05;
-          return nameSimilar && locationClose;
-        });
-      });
-      
-      uniqueFacilities.sort((a, b) => a.distance - b.distance);
-      
-      // Get top 5 nearest facilities
-      setNearbyFacilities(uniqueFacilities.slice(0, 5));
+      knownFacilities.sort((a, b) => a.distance - b.distance);
+      setNearbyFacilities(knownFacilities.slice(0, 3));
       
     } catch (error) {
       console.error('Error fetching nearby facilities:', error);
       setFacilitiesError('Unable to load nearby facilities');
-      
-      // Fallback to known facilities only
-      if (userLocation) {
-        const fallbackFacilities = getKnownGhanaFacilities(userLocation[0], userLocation[1]);
-        setNearbyFacilities(fallbackFacilities.slice(0, 5));
-      }
     } finally {
       setIsLoadingFacilities(false);
     }
-  }, [userLocation, status, calculateDistance, getKnownGhanaFacilities]);
+  }, [userLocation, status, getKnownGhanaFacilities]);
   
   // Fetch facilities when location is available
   useEffect(() => {
@@ -428,7 +302,6 @@ const Dashboard: NextPage = () => {
       
       const data = await response.json();
       
-      // Transform API data to match ActivityItem interface with actions
       const transformedActivities = data.activities.map((activity: any) => ({
         id: activity.id,
         type: activity.activityType,
@@ -436,7 +309,6 @@ const Dashboard: NextPage = () => {
         time: getRelativeTime(new Date(activity.createdAt)),
         icon: getActivityIcon(activity.activityType),
         action: () => {
-          // Add resume functionality based on activity type
           if (activity.activityType === 'facility_found') {
             router.push('/facilities');
           } else if (activity.activityType === 'symptom_checked') {
@@ -536,7 +408,7 @@ const Dashboard: NextPage = () => {
   // Enhanced quick stats with insights
   const quickStats: QuickStat[] = [
     { 
-      label: "Facilities Found", 
+      label: "Facilities", 
       value: activityCounts.facilities.toString(), 
       icon: MapPin, 
       color: "stat-blue",
@@ -544,7 +416,7 @@ const Dashboard: NextPage = () => {
       insight: activityCounts.facilities === 0 ? "Start exploring nearby healthcare" : "Continue exploring"
     },
     { 
-      label: "Symptoms Checked", 
+      label: "Symptoms", 
       value: activityCounts.symptoms.toString(), 
       icon: Bot, 
       color: "stat-purple",
@@ -552,7 +424,7 @@ const Dashboard: NextPage = () => {
       insight: activityCounts.symptoms === 0 ? "Get AI-powered health insights" : "Stay informed"
     },
     { 
-      label: "Emergency Access", 
+      label: "Emergency", 
       value: activityCounts.emergency.toString(), 
       icon: Phone, 
       color: "stat-red",
@@ -560,7 +432,7 @@ const Dashboard: NextPage = () => {
     }
   ];
 
-  // Update time every minute (not every second)
+  // Update time every minute
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -618,7 +490,6 @@ const Dashboard: NextPage = () => {
       return { status: 'Open 24/7', isOpen: true };
     }
     
-    // Simple open/closed logic (8 AM - 6 PM for regular facilities)
     const isOpen = hour >= 8 && hour < 18;
     
     if (isOpen) {
@@ -632,16 +503,96 @@ const Dashboard: NextPage = () => {
     return { status: 'Closed', isOpen: false };
   };
 
+  const handleBottomNavClick = (path: string, tab: string) => {
+    setActiveBottomTab(tab);
+    router.push(path);
+  };
+
   return (
     <div className="dashboard-container">
       <DashboardHeader activeTab="/dashboard" />
+      
+      {/* Mobile Navigation Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="mobile-nav-overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Side Menu */}
+      <div className={`mobile-side-menu ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className="mobile-menu-header">
+          <div className="mobile-menu-user">
+            <div className="mobile-menu-avatar">
+              {userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
+            <div className="mobile-menu-user-info">
+              <div className="mobile-menu-user-name">{userName}</div>
+              {userEmail && <div className="mobile-menu-user-email">{userEmail}</div>}
+            </div>
+          </div>
+          <button 
+            className="mobile-menu-close"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <nav className="mobile-menu-nav">
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}
+          >
+            <Home size={20} />
+            <span>Dashboard</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/facilities'); setIsMobileMenuOpen(false); }}
+          >
+            <MapPin size={20} />
+            <span>Find Facilities</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/symptom-checker'); setIsMobileMenuOpen(false); }}
+          >
+            <Bot size={20} />
+            <span>Symptom Checker</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/emergency'); setIsMobileMenuOpen(false); }}
+          >
+            <Phone size={20} />
+            <span>Emergency Hub</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/profile'); setIsMobileMenuOpen(false); }}
+          >
+            <User size={20} />
+            <span>Profile</span>
+          </button>
+          <div className="mobile-menu-divider"></div>
+          <button 
+            className="mobile-menu-item mobile-menu-item-danger"
+            onClick={handleSignOut}
+          >
+            <LogOut size={20} />
+            <span>Sign Out</span>
+          </button>
+        </nav>
+      </div>
       
       <div className="dashboard-content">
         {/* Enhanced Welcome Section with Emergency Access */}
         <div className="dashboard-welcome-enhanced">
           <div className="dashboard-welcome-main">
             <h2 className="dashboard-welcome-title">
-              {getGreeting()}, {userName.split(' ')[0]}!
+              {getGreeting()}, {userName.split(' ')[0]}! 👋
             </h2>
             <p className="dashboard-welcome-subtitle">
               {getContextualInfo()}
@@ -1048,7 +999,7 @@ const Dashboard: NextPage = () => {
                         <div className="dashboard-facility-actions">
                           <button 
                             className="facility-quick-btn"
-                            onClick={() => window.open(`tel:${facility.id}`)}
+                            onClick={() => window.open(`tel:${facility.phone}`)}
                             type="button"
                           >
                             <Phone size={14} />
@@ -1127,7 +1078,43 @@ const Dashboard: NextPage = () => {
         </div>
       </div>
 
-      {/* Floating Emergency Button */}
+      {/* Bottom Navigation - Mobile Only */}
+      <nav className="dashboard-bottom-nav">
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
+          type="button"
+        >
+          <Home size={22} />
+          <span>Home</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'facilities' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/facilities', 'facilities')}
+          type="button"
+        >
+          <MapPin size={22} />
+          <span>Facilities</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'symptom' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
+          type="button"
+        >
+          <Bot size={22} />
+          <span>Symptoms</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'profile' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/profile', 'profile')}
+          type="button"
+        >
+          <User size={22} />
+          <span>Profile</span>
+        </button>
+      </nav>
+
+      {/* Floating Emergency Button - Desktop Only */}
       <button
         className="dashboard-floating-emergency"
         onClick={() => router.push('/emergency')}

@@ -11,14 +11,22 @@ import {
   Moon,
   Sun,
   LogOut,
-  Settings
+  Settings,
+  Menu,
+  X
 } from 'lucide-react';
 
 interface DashboardHeaderProps {
   activeTab?: string;
+  onMenuToggle?: () => void;
+  isMenuOpen?: boolean;
 }
 
-const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab }) => {
+const DashboardHeader: React.FC<DashboardHeaderProps> = ({ 
+  activeTab,
+  onMenuToggle,
+  isMenuOpen = false
+}) => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -89,6 +97,17 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab }) => {
     <header className={`dashboard-header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="dashboard-header-content">
         <div className="dashboard-header-left">
+          {/* Hamburger Menu Button - Mobile Only */}
+          <button 
+            className="dashboard-mobile-menu-btn"
+            onClick={onMenuToggle}
+            type="button"
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            style={{ display: 'none' }}
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+
           {/* Logo */}
           <div className="dashboard-logo">
             <div className="dashboard-logo-icon">
@@ -160,14 +179,14 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab }) => {
               type="button"
               aria-label="User menu"
             >
-              {/* Profile Image or Avatar - Will automatically update when session changes */}
+              {/* Profile Image or Avatar */}
               <div className="dashboard-user-avatar">
                 {userImage ? (
                   <img 
                     src={userImage} 
                     alt={userName}
                     className="dashboard-user-avatar-image"
-                    key={userImage} // Force re-render when image URL changes
+                    key={userImage}
                   />
                 ) : (
                   <div className="dashboard-user-avatar-placeholder">
@@ -204,6 +223,46 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab }) => {
           </div>
         </div>
       </div>
+
+      {/* Add CSS for mobile menu button */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .dashboard-mobile-menu-btn {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(59, 130, 246, 0.1);
+            border: none;
+            border-radius: 12px;
+            color: #3b82f6;
+            cursor: pointer;
+            order: 1;
+            transition: all 0.2s ease;
+          }
+
+          .dashboard-mobile-menu-btn:active {
+            transform: scale(0.95);
+          }
+
+          .dark-mode .dashboard-mobile-menu-btn {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+          }
+
+          .dashboard-logo {
+            order: 2;
+          }
+
+          .dashboard-header-left {
+            width: 100%;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+          }
+        }
+      `}</style>
     </header>
   );
 };
