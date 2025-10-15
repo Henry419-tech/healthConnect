@@ -160,10 +160,17 @@ export default function SignUpPage() {
       </div>
 
       {/* Back to Home */}
-      <Link href="/" className="auth-back-button">
-        <ArrowLeft size={20} />
-        <span>Back to Home</span>
-      </Link>
+      <Link 
+  href="/" 
+  className="auth-back-button"
+  style={{ 
+    transform: typeof window !== 'undefined' && window.innerWidth < 768 ? 'scale(0.8)' : 'scale(1)',
+    transformOrigin: 'left center'
+  }}
+>
+  <ArrowLeft size={20} />
+  <span>Back to Home</span>
+</Link>
 
       {/* Main Content */}
       <motion.div

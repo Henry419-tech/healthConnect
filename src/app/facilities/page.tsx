@@ -11,7 +11,7 @@ import {
   Search, MapPin, Phone, Clock, Star, Heart, Hospital, Pill, 
   Stethoscope, Map, List, Locate, Navigation, AlertCircle, 
   Filter, ChevronDown, Info, Loader2, RefreshCw, Bell, User, LogOut,
-  Check, X, Moon, Sun
+  Check, X, Moon, Sun, Crosshair, Home, Bot, Menu
 } from 'lucide-react';
 
 // Type definitions
@@ -33,6 +33,13 @@ interface Facility {
   insurance: string[];
   specializations?: string[];
   website?: string;
+}
+
+interface LocationInfo {
+  city?: string;
+  region?: string;
+  country?: string;
+  accuracy?: number;
 }
 
 // Dynamically import MapContainer
@@ -110,21 +117,21 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
       <div className="location-banner-content">
         <h3 className="location-banner-title">
           <Navigation size={18} />
-          Enable Location for Better Results
+          Enable Location for Accurate Results
         </h3>
         <p className="location-banner-description">
-          Allow us to access your location to find the nearest healthcare facilities, 
-          get accurate distances, and receive personalized recommendations based on your area.
+          Allow us to access your location to find the nearest healthcare facilities in your area. 
+          We use GPS for the most accurate results.
         </p>
         
         <div className="location-banner-benefits">
           <div className="location-benefit">
             <Check size={14} />
-            <span>Accurate distance calculations</span>
+            <span>GPS-accurate distances</span>
           </div>
           <div className="location-benefit">
             <Check size={14} />
-            <span>Nearest facilities first</span>
+            <span>Find nearby facilities</span>
           </div>
           <div className="location-benefit">
             <Check size={14} />
@@ -132,7 +139,7 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
           </div>
           <div className="location-benefit">
             <Check size={14} />
-            <span>Emergency services nearby</span>
+            <span>Emergency services</span>
           </div>
         </div>
       </div>
@@ -151,8 +158,8 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
             </>
           ) : (
             <>
-              <MapPin size={20} />
-              <span>Enable Location</span>
+              <Crosshair size={20} />
+              <span>Enable GPS</span>
             </>
           )}
         </button>
@@ -179,7 +186,53 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
   );
 };
 
+// Location Confirmation Component
+interface LocationConfirmationProps {
+  location: [number, number];
+  locationInfo?: LocationInfo;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+}
+
+const LocationConfirmation: React.FC<LocationConfirmationProps> = ({
+  location,
+  locationInfo,
+  onRefresh,
+  isRefreshing
+}) => {
+  return (
+    <div className="location-confirmation">
+      <div className="location-confirmation-icon">
+        <MapPin size={20} />
+      </div>
+      <div className="location-confirmation-content">
+        <strong>Your location detected</strong>
+        {locationInfo?.city && locationInfo?.region ? (
+          <p>{locationInfo.city}, {locationInfo.region}</p>
+        ) : (
+          <p>Coordinates: {location[0].toFixed(4)}°N, {Math.abs(location[1]).toFixed(4)}°W</p>
+        )}
+        {locationInfo?.accuracy && (
+          <small className={locationInfo.accuracy < 100 ? 'accuracy-good' : 'accuracy-low'}>
+            Accuracy: ±{Math.round(locationInfo.accuracy)}m 
+            {locationInfo.accuracy < 100 ? ' (GPS)' : ' (Network)'}
+          </small>
+        )}
+      </div>
+      <button
+        className="location-refresh-btn"
+        onClick={onRefresh}
+        disabled={isRefreshing}
+        title="Refresh location"
+      >
+        <RefreshCw size={18} className={isRefreshing ? 'spin' : ''} />
+      </button>
+    </div>
+  );
+};
+
 export default function DynamicFacilityFinder() {
+  // Component will export at the end
   const { data: session, status } = useSession();
   const router = useRouter();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
@@ -192,18 +245,21 @@ export default function DynamicFacilityFinder() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('list');
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationInfo, setLocationInfo] = useState<LocationInfo | undefined>();
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLocationBanner, setShowLocationBanner] = useState(true);
- 
+  
+  // Mobile navigation state
+  const [activeBottomTab, setActiveBottomTab] = useState<string>('facilities');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   
   // Ref for smooth scrolling
   const mapViewRef = useRef<HTMLDivElement>(null);
 
-  
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark-mode');
@@ -213,7 +269,6 @@ export default function DynamicFacilityFinder() {
     localStorage.setItem('facilityFinderDarkMode', isDarkMode.toString());
   }, [isDarkMode]);
 
-  
   // Redirect if not authenticated
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -221,13 +276,15 @@ export default function DynamicFacilityFinder() {
     }
   }, [status, router]);
 
-  // Auto switch to map view when location is obtained
+  // Auto switch to map view when location is obtained (only on first location get)
+  const hasAutoSwitchedRef = useRef(false);
   useEffect(() => {
-    if (userLocation && viewMode === 'list') {
+    if (userLocation && viewMode === 'list' && !hasAutoSwitchedRef.current) {
       setViewMode('map');
+      hasAutoSwitchedRef.current = true;
     }
   }, [userLocation, viewMode]);
-
+  
   // Sign out handler
   const handleSignOut = async (): Promise<void> => {
     try {
@@ -295,135 +352,95 @@ export default function DynamicFacilityFinder() {
     return R * c;
   }, []);
 
-  // Known Ghana facilities
-  const getKnownGhanaFacilities = useCallback((lat: number, lng: number): Facility[] => {
-    const knownFacilities = [
-      {
-        name: "Korle Bu Teaching Hospital",
-        coordinates: [5.5502, -0.2174] as [number, number],
-        type: "hospital" as const,
-        address: "Guggisberg Avenue, Korle Bu",
-        city: "Accra",
-        phone: "+233 30 266 6375",
-        services: ["Emergency Care", "Surgery", "Cardiology", "Neurology", "Oncology", "Maternity"],
-        emergencyServices: true
-      },
-      {
-        name: "Ridge Hospital",
-        coordinates: [5.6037, -0.1870] as [number, number],
-        type: "hospital" as const,
-        address: "Castle Road, Ridge",
-        city: "Accra",
-        phone: "+233 30 222 2211",
-        services: ["Emergency Care", "Internal Medicine", "Pediatrics", "Obstetrics"],
-        emergencyServices: true
-      },
-      {
-        name: "37 Military Hospital",
-        coordinates: [5.5970, -0.1700] as [number, number],
-        type: "hospital" as const,
-        address: "Liberation Road, Airport Residential Area",
-        city: "Accra",
-        phone: "+233 30 277 6111",
-        services: ["Emergency Care", "Military Medicine", "Rehabilitation", "Surgery"],
-        emergencyServices: true
-      },
-      {
-        name: "Ernest Chemists - Oxford Street",
-        coordinates: [5.5550, -0.1873] as [number, number],
-        type: "pharmacy" as const,
-        address: "Oxford Street, Osu",
-        city: "Accra",
-        phone: "+233 30 224 1234",
-        services: ["Prescriptions", "OTC Medicines", "Health Consultations"],
-        emergencyServices: false
-      },
-      {
-        name: "Nyaho Medical Centre",
-        coordinates: [5.6050, -0.1690] as [number, number],
-        type: "clinic" as const,
-        address: "Airport City, Kotoka International Airport Area",
-        city: "Accra",
-        phone: "+233 30 278 2641",
-        services: ["Emergency Care", "Internal Medicine", "Surgery", "Radiology"],
-        emergencyServices: true
-      },
-      {
-        name: "Greater Accra Regional Hospital",
-        coordinates: [5.6520, -0.1670] as [number, number],
-        type: "hospital" as const,
-        address: "Ridge, Near Parliament House",
-        city: "Accra",
-        phone: "+233 30 222 4200",
-        services: ["Emergency Care", "General Medicine", "Surgery", "Maternity"],
-        emergencyServices: true
-      },
-      {
-        name: "Medlab Diagnostic Services",
-        coordinates: [5.5600, -0.2000] as [number, number],
-        type: "clinic" as const,
-        address: "Labone, Near A&C Mall",
-        city: "Accra",
-        phone: "+233 30 277 3888",
-        services: ["Laboratory Tests", "Medical Imaging", "Consultations"],
-        emergencyServices: false
-      },
-      {
-        name: "Lister Hospital",
-        coordinates: [5.6200, -0.1650] as [number, number],
-        type: "hospital" as const,
-        address: "Airport Residential Area",
-        city: "Accra",
-        phone: "+233 30 277 6751",
-        services: ["Emergency Care", "Maternity", "Surgery", "Pediatrics"],
-        emergencyServices: true
+// Reverse geocode to get location name
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<LocationInfo> => {
+    try {
+      // Use our Next.js API route to avoid CORS issues
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(
+        `/api/geocode?lat=${lat}&lon=${lng}`,
+        {
+          signal: controller.signal,
+        }
+      );
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          city: data.city,
+          region: data.region,
+          country: data.country
+        };
       }
-    ];
+    } catch (error) {
+      console.warn('Reverse geocoding failed, using coordinate estimation:', error);
+    }
+    
+    // Fallback: Try to determine location from coordinates (Ghana regions approximation)
+    return getGhanaRegionFromCoordinates(lat, lng);
+  }, []);
 
-    return knownFacilities.map((facility, index) => ({
-      id: `known_${index}`,
-      ...facility,
-      region: "Greater Accra",
-      distance: calculateDistance(lat, lng, facility.coordinates[0], facility.coordinates[1]),
-      rating: 4.0 + Math.random(),
-      reviews: Math.floor(Math.random() * 1000) + 100,
-      hours: facility.emergencyServices ? "24/7" : "8:00 AM - 6:00 PM",
-      insurance: ["NHIS", "Private", "International"],
-      specializations: facility.services.slice(0, 2)
-    }));
-  }, [calculateDistance]);
-
+  // Helper function to estimate Ghana region from coordinates
+  const getGhanaRegionFromCoordinates = (lat: number, lng: number): LocationInfo => {
+    // Approximate Ghana region boundaries
+    if (lat >= 5.5 && lat <= 5.7 && lng >= -0.3 && lng <= 0.0) {
+      return { city: 'Accra', region: 'Greater Accra', country: 'Ghana' };
+    } else if (lat >= 6.6 && lat <= 6.8 && lng >= -1.7 && lng <= -1.5) {
+      return { city: 'Kumasi', region: 'Ashanti', country: 'Ghana' };
+    } else if (lat >= 9.3 && lat <= 9.5 && lng >= -1.0 && lng <= -0.8) {
+      return { city: 'Tamale', region: 'Northern', country: 'Ghana' };
+    } else if (lat >= 5.0 && lat <= 5.2 && lng >= -2.0 && lng <= -1.8) {
+      return { city: 'Takoradi', region: 'Western', country: 'Ghana' };
+    } else if (lat >= 4.8 && lat <= 5.2 && lng >= -0.3 && lng <= 0.2) {
+      return { city: 'Tema', region: 'Greater Accra', country: 'Ghana' };
+    } else if (lat >= 6.0 && lat <= 7.0 && lng >= -1.0 && lng <= 0.5) {
+      return { city: 'Unknown', region: 'Central Ghana', country: 'Ghana' };
+    } else if (lat >= 7.0 && lat <= 11.0) {
+      return { city: 'Unknown', region: 'Northern Ghana', country: 'Ghana' };
+    } else if (lat >= 4.5 && lat <= 6.0) {
+      return { city: 'Unknown', region: 'Southern Ghana', country: 'Ghana' };
+    }
+    
+    return { city: 'Unknown', region: 'Ghana', country: 'Ghana' };
+  };
   // Fetch facilities
   const fetchNearbyFacilities = useCallback(async (lat: number, lng: number, radius: number = 10000) => {
     setIsLoadingFacilities(true);
     setError(null);
     
+    console.log('🔍 Searching for facilities:', { lat, lng, radius: `${radius}m` });
+    
     try {
       let allFacilities: Facility[] = [];
       
-      const knownFacilities = getKnownGhanaFacilities(lat, lng);
-      allFacilities.push(...knownFacilities);
-      
+      // Fetch from Overpass API (OpenStreetMap)
       try {
         const overpassQuery = `
           [out:json][timeout:60];
           (
             node["amenity"="hospital"](around:${radius},${lat},${lng});
             way["amenity"="hospital"](around:${radius},${lat},${lng});
+            relation["amenity"="hospital"](around:${radius},${lat},${lng});
             node["amenity"="clinic"](around:${radius},${lat},${lng});
             way["amenity"="clinic"](around:${radius},${lat},${lng});
+            relation["amenity"="clinic"](around:${radius},${lat},${lng});
             node["amenity"="pharmacy"](around:${radius},${lat},${lng});
             way["amenity"="pharmacy"](around:${radius},${lat},${lng});
             node["amenity"="doctors"](around:${radius},${lat},${lng});
             way["amenity"="doctors"](around:${radius},${lat},${lng});
             node["healthcare"](around:${radius},${lat},${lng});
             way["healthcare"](around:${radius},${lat},${lng});
+            relation["healthcare"](around:${radius},${lat},${lng});
           );
           out center body;
         `;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
         
         const overpassResponse = await fetch(
           `https://overpass-api.de/api/interpreter`,
@@ -443,6 +460,8 @@ export default function DynamicFacilityFinder() {
         if (overpassResponse.ok) {
           const overpassData = await overpassResponse.json();
           
+          console.log(`✅ Found ${overpassData.elements?.length || 0} facilities from OpenStreetMap`);
+          
           if (overpassData.elements && Array.isArray(overpassData.elements)) {
             overpassData.elements.forEach((element: any) => {
               try {
@@ -454,7 +473,10 @@ export default function DynamicFacilityFinder() {
                   
                 if (!coords || !element.tags) return;
                 
-                const name = element.tags.name || element.tags['name:en'] || 'Healthcare Facility';
+                const name = element.tags.name || 
+                            element.tags['name:en'] || 
+                            element.tags['official_name'] ||
+                            'Healthcare Facility';
                 if (name.length < 3 || name.toLowerCase() === 'unnamed') return;
                 
                 const amenity = element.tags.amenity || element.tags.healthcare || 'clinic';
@@ -467,7 +489,9 @@ export default function DynamicFacilityFinder() {
                   type = 'hospital';
                 } else if (amenity === 'pharmacy') {
                   type = 'pharmacy';
-                } else if (element.tags.healthcare === 'centre' || element.tags.healthcare === 'center') {
+                } else if (element.tags.healthcare === 'centre' || 
+                          element.tags.healthcare === 'center' ||
+                          element.tags.healthcare === 'health_centre') {
                   type = 'health_center';
                 } else if (amenity === 'doctors' || amenity === 'clinic') {
                   type = 'clinic';
@@ -476,59 +500,83 @@ export default function DynamicFacilityFinder() {
                 const services: string[] = [];
                 if (element.tags.emergency === 'yes') services.push('Emergency Care');
                 if (element.tags['healthcare:speciality']) {
-                  const specialties = element.tags['healthcare:speciality'].split(';');
-                  services.push(...specialties.slice(0, 3));
+                  const specialties = element.tags['healthcare:speciality'].split(';')
+                    .map((s: string) => s.trim())
+                    .filter((s: string) => s.length > 0);
+                  services.push(...specialties.slice(0, 5));
                 }
-                if (type === 'hospital') {
-                  if (services.length === 0) services.push('Inpatient Care', 'General Medicine');
-                } else if (type === 'pharmacy') {
-                  if (services.length === 0) services.push('Prescriptions', 'OTC Medications');
-                } else if (type === 'clinic') {
-                  if (services.length === 0) services.push('Outpatient Care', 'Consultations');
+                
+                if (services.length < 2) {
+                  if (type === 'hospital') {
+                    services.push('Inpatient Care', 'General Medicine', 'Emergency Services');
+                  } else if (type === 'pharmacy') {
+                    services.push('Prescriptions', 'OTC Medications', 'Health Consultations');
+                  } else if (type === 'clinic') {
+                    services.push('Outpatient Care', 'Consultations', 'Basic Treatment');
+                  } else if (type === 'health_center') {
+                    services.push('Primary Care', 'Preventive Services', 'Basic Treatment');
+                  }
                 }
                 
                 let address = 'Address not available';
                 if (element.tags['addr:full']) {
                   address = element.tags['addr:full'];
-                } else if (element.tags['addr:street']) {
+                } else {
                   const parts = [
                     element.tags['addr:housenumber'],
-                    element.tags['addr:street']
+                    element.tags['addr:street'],
+                    element.tags['addr:suburb']
                   ].filter(Boolean);
-                  address = parts.join(' ');
+                  if (parts.length > 0) address = parts.join(', ');
                 }
+                
+                const city = element.tags['addr:city'] || 
+                            element.tags['addr:town'] || 
+                            element.tags['addr:suburb'] || 
+                            'Unknown';
+                
+                const region = element.tags['addr:state'] || 
+                              element.tags['addr:region'] || 
+                              element.tags['addr:province'] ||
+                              'Unknown';
                 
                 allFacilities.push({
                   id: `osm_${element.type}_${element.id}`,
                   name,
                   type,
                   address,
-                  city: element.tags['addr:city'] || element.tags['addr:suburb'] || 'Accra',
-                  region: element.tags['addr:state'] || element.tags['addr:region'] || 'Greater Accra',
+                  city,
+                  region,
                   distance,
                   rating: 3.5 + Math.random() * 1.5,
                   reviews: Math.floor(Math.random() * 300) + 20,
                   phone: element.tags.phone || element.tags['contact:phone'] || element.tags['phone:mobile'] || 'Not available',
                   hours: element.tags.opening_hours || (type === 'hospital' && element.tags.emergency === 'yes' ? '24/7' : 'Call for hours'),
-                  services,
+                  services: services.slice(0, 8),
                   coordinates: coords as [number, number],
-                  emergencyServices: element.tags.emergency === 'yes' || (type === 'hospital' && !element.tags.emergency),
+                  emergencyServices: element.tags.emergency === 'yes' || (type === 'hospital' && element.tags.emergency !== 'no'),
                   insurance: ['NHIS', 'Private'],
-                  website: element.tags.website || element.tags['contact:website']
+                  specializations: services.slice(0, 3),
+                  website: element.tags.website || element.tags['contact:website'] || element.tags.url
                 });
               } catch (elementError) {
                 console.warn('Error processing element:', elementError);
               }
             });
           }
+        } else {
+          throw new Error(`Overpass API returned status ${overpassResponse.status}`);
         }
       } catch (overpassError: any) {
+        console.error('Overpass API error:', overpassError);
         if (overpassError.name === 'AbortError') {
-          console.warn('Overpass API request timed out');
-          setError('Some facilities could not be loaded due to timeout. Showing available facilities.');
+          setError('Request timed out. Please try with a smaller search radius or check your internet connection.');
         } else {
-          console.warn('Overpass API error:', overpassError);
+          setError('Unable to load facilities from OpenStreetMap. Please check your internet connection and try again.');
         }
+        setFacilities([]);
+        setIsLoadingFacilities(false);
+        return;
       }
       
       const uniqueFacilities = allFacilities.filter((facility, index, self) => {
@@ -542,39 +590,55 @@ export default function DynamicFacilityFinder() {
       uniqueFacilities.sort((a, b) => a.distance - b.distance);
       const facilitiesInRadius = uniqueFacilities.filter(f => f.distance <= radius / 1000);
       
+      console.log(`✅ ${facilitiesInRadius.length} facilities within ${radius/1000}km`);
+      
       if (facilitiesInRadius.length === 0) {
-        setError('No facilities found in this area. Try increasing the search radius.');
+        setError(`No healthcare facilities found within ${radius/1000}km of your location. Try increasing the search radius.`);
       }
       
       setFacilities(facilitiesInRadius.slice(0, 100));
       
     } catch (error) {
       console.error('Error fetching facilities:', error);
-      setError('Failed to load healthcare facilities. Showing known facilities only.');
-      const fallbackFacilities = getKnownGhanaFacilities(lat, lng);
-      setFacilities(fallbackFacilities);
+      setError('Failed to load healthcare facilities. Please try again.');
+      setFacilities([]);
     } finally {
       setIsLoadingFacilities(false);
     }
-  }, [calculateDistance, getKnownGhanaFacilities]);
+  }, [calculateDistance]);
 
-  // Get current location with auto-scroll and map view
+  // Get current location with high accuracy
   const getCurrentLocation = useCallback(() => {
     setIsLoadingLocation(true);
     setError(null);
     
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.');
+      setError('Geolocation is not supported by your browser. Please use a modern browser or enable location services.');
       setIsLoadingLocation(false);
       return;
     }
 
+   console.log('📍 Requesting GPS location...');
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy } = position.coords;
         const location: [number, number] = [latitude, longitude];
+        
+     const method = accuracy < 100 ? 'GPS' : 'Network-based';
+console.log(`✅ Location obtained: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} (${method}, ±${Math.round(accuracy)}m)`);
+        
         setUserLocation(location);
         
+        // Get location name
+        const info = await reverseGeocode(latitude, longitude);
+        setLocationInfo({ ...info, accuracy });
+        
+        if (info.city && info.region) {
+  console.log(`📍 ${info.city}, ${info.region}`);
+}
+        
+        // Fetch nearby facilities
         await fetchNearbyFacilities(latitude, longitude, parseInt(selectedRadius));
         setIsLoadingLocation(false);
         
@@ -590,62 +654,40 @@ export default function DynamicFacilityFinder() {
         }, 300);
       },
       (error) => {
-        console.error('Geolocation error:', error);
+        console.error('❌ Location error:', error.message);
+        
         setIsLoadingLocation(false);
         
         let errorMessage = 'Unable to get your location. ';
         switch(error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage += 'Please enable location services in your browser settings.';
+            errorMessage += 'Please enable location services in your browser settings and refresh the page.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage += 'Location information is currently unavailable.';
+            errorMessage += 'Location information is currently unavailable. Please check your GPS/WiFi and try again.';
             break;
           case error.TIMEOUT:
             errorMessage += 'Location request timed out. Please try again.';
             break;
           default:
-            errorMessage += 'An unknown error occurred.';
+            errorMessage += 'An unknown error occurred. Please try again.';
         }
         setError(errorMessage);
-        
-        // Fallback to Accra
-        const accraLat = 5.6037;
-        const accraLng = -0.1870;
-        setUserLocation([accraLat, accraLng]);
-        fetchNearbyFacilities(accraLat, accraLng, parseInt(selectedRadius));
-        
-        // Still switch to map and scroll
-        setViewMode('map');
-        setTimeout(() => {
-          mapViewRef.current?.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start' 
-          });
-        }, 300);
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 300000
+        timeout: 30000,
+        maximumAge: 0
       }
     );
-  }, [selectedRadius, fetchNearbyFacilities]);
-
-  // Load default facilities on mount
-  useEffect(() => {
-    if (status === 'authenticated' && facilities.length === 0) {
-      const accraLat = 5.6037;
-      const accraLng = -0.1870;
-      fetchNearbyFacilities(accraLat, accraLng, parseInt(selectedRadius));
-    }
-  }, [status, fetchNearbyFacilities, facilities.length, selectedRadius]);
+  }, [selectedRadius, fetchNearbyFacilities, reverseGeocode]);
 
   // Refetch when radius changes
   useEffect(() => {
     if (userLocation && status === 'authenticated') {
       const timeoutId = setTimeout(() => {
-        fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
+       console.log(`🔄 Updating search radius to ${parseInt(selectedRadius)/1000}km`);
+       fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
       }, 500);
       
       return () => clearTimeout(timeoutId);
@@ -682,6 +724,12 @@ export default function DynamicFacilityFinder() {
   const userName: string = session?.user?.name || 'User';
   const userEmail: string | null = session?.user?.email || null;
 
+  // Bottom navigation handler
+  const handleBottomNavClick = (path: string, tab: string) => {
+    setActiveBottomTab(tab);
+    router.push(path);
+  };
+
   if (status === 'loading') {
     return (
       <div className="loading-screen">
@@ -702,19 +750,96 @@ export default function DynamicFacilityFinder() {
       {/* Dashboard Header */}
       <DashboardHeader activeTab="/facilities" />
 
+      {/* Mobile Side Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="mobile-nav-overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Side Menu */}
+      <div className={`mobile-side-menu ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className="mobile-menu-header">
+          <div className="mobile-menu-user">
+            <div className="mobile-menu-avatar">
+              {userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
+            <div className="mobile-menu-user-info">
+              <div className="mobile-menu-user-name">{userName}</div>
+              {userEmail && <div className="mobile-menu-user-email">{userEmail}</div>}
+            </div>
+          </div>
+          <button 
+            className="mobile-menu-close"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <nav className="mobile-menu-nav">
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}
+          >
+            <Home size={20} />
+            <span>Dashboard</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/facilities'); setIsMobileMenuOpen(false); }}
+          >
+            <MapPin size={20} />
+            <span>Find Facilities</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/symptom-checker'); setIsMobileMenuOpen(false); }}
+          >
+            <Bot size={20} />
+            <span>Symptom Checker</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/emergency'); setIsMobileMenuOpen(false); }}
+          >
+            <Phone size={20} />
+            <span>Emergency Hub</span>
+          </button>
+          <button 
+            className="mobile-menu-item"
+            onClick={() => { router.push('/profile'); setIsMobileMenuOpen(false); }}
+          >
+            <User size={20} />
+            <span>Profile</span>
+          </button>
+          <div className="mobile-menu-divider"></div>
+          <button 
+            className="mobile-menu-item mobile-menu-item-danger"
+            onClick={handleSignOut}
+          >
+            <LogOut size={20} />
+            <span>Sign Out</span>
+          </button>
+        </nav>
+      </div>
+
       {/* Main Content */}
       <div className="facility-finder-content">
         <div className="facility-finder-page-header">
           <h2>Find Healthcare Facilities</h2>
-          <p className="facility-finder-page-subtitle">Click on the button below to find healthcare facilities near you</p>
+          <p className="facility-finder-page-subtitle">
+            Click "Find Near Me" to discover healthcare facilities in your area using GPS
+          </p>
           <button 
             className={`facility-finder-location-btn ${isLoadingLocation ? 'loading' : ''}`}
             onClick={getCurrentLocation}
             disabled={isLoadingLocation}
             type="button"
           >
-            {isLoadingLocation ? <Loader2 size={20} className="spin" /> : <Locate size={20} />}
-            <span>{isLoadingLocation ? 'Locating...' : 'Find Near Me'}</span>
+            {isLoadingLocation ? <Loader2 size={20} className="spin" /> : <Crosshair size={20} />}
+            <span>{isLoadingLocation ? 'Getting GPS Location...' : 'Find Near Me (GPS)'}</span>
           </button>
         </div>
 
@@ -724,6 +849,16 @@ export default function DynamicFacilityFinder() {
             onEnableLocation={getCurrentLocation}
             onDismiss={() => setShowLocationBanner(false)}
             isLoading={isLoadingLocation}
+          />
+        )}
+
+        {/* Location Confirmation */}
+        {userLocation && (
+          <LocationConfirmation
+            location={userLocation}
+            locationInfo={locationInfo}
+            onRefresh={getCurrentLocation}
+            isRefreshing={isLoadingLocation}
           />
         )}
 
@@ -751,31 +886,6 @@ export default function DynamicFacilityFinder() {
             
             {showFilters && (
               <div className="facility-finder-filters-extended">
-                <div className="filter-row">
-                  <select 
-                    value={selectedType} 
-                    onChange={(e) => setSelectedType(e.target.value)}
-                    className="facility-finder-filter-select"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="hospital">Hospitals</option>
-                    <option value="clinic">Clinics</option>
-                    <option value="pharmacy">Pharmacies</option>
-                    <option value="health_center">Health Centers</option>
-                  </select>
-                  
-                  <select 
-                    value={selectedRadius} 
-                    onChange={(e) => setSelectedRadius(e.target.value)}
-                    className="facility-finder-filter-select"
-                  >
-                    <option value="5000">Within 5 km</option>
-                    <option value="10000">Within 10 km</option>
-                    <option value="20000">Within 20 km</option>
-                    <option value="50000">Within 50 km</option>
-                  </select>
-                </div>
-                
                 <div className="filter-row">
                   <select 
                     value={sortBy} 
@@ -807,15 +917,21 @@ export default function DynamicFacilityFinder() {
           <div className="facility-finder-view-controls">
             <div className="results-summary">
               <span className="results-count">{filteredFacilities.length}</span>
-              <span className="results-label">facilities found</span>
+              <span className="results-label">{filteredFacilities.length === 1 ? 'facility' : 'facilities'} found</span>
               {isLoadingFacilities && <Loader2 size={16} className="spin" />}
             </div>
             
             <div className="facility-finder-view-toggle">
               <button 
                 className={`facility-finder-view-btn ${viewMode === 'map' ? 'active' : ''}`}
-                onClick={() => setViewMode('map')}
+                onClick={() => {
+                  if (userLocation) {
+                    setViewMode('map');
+                  }
+                }}
                 type="button"
+                disabled={!userLocation}
+                title={!userLocation ? 'Enable location to use map view' : 'Switch to map view'}
               >
                 <Map size={18} />
                 Map
@@ -824,6 +940,7 @@ export default function DynamicFacilityFinder() {
                 className={`facility-finder-view-btn ${viewMode === 'list' ? 'active' : ''}`}
                 onClick={() => setViewMode('list')}
                 type="button"
+                title="Switch to list view"
               >
                 <List size={18} />
                 List
@@ -840,6 +957,7 @@ export default function DynamicFacilityFinder() {
             <button onClick={() => setError(null)} type="button">×</button>
           </div>
         )}
+
         {/* Main Facility Content */}
         <div className="facility-finder-main" ref={mapViewRef}>
           {viewMode === 'map' ? (
@@ -866,12 +984,36 @@ export default function DynamicFacilityFinder() {
                     <div className="loading-facilities">
                       <Loader2 size={24} className="spin" />
                       <p>Loading healthcare facilities...</p>
+                      <small>Searching OpenStreetMap database...</small>
                     </div>
                   ) : filteredFacilities.length === 0 ? (
                     <div className="no-facilities">
                       <Hospital size={32} />
                       <p>No facilities found</p>
-                      <p>Try adjusting your search or location</p>
+                      {userLocation ? (
+                        <>
+                          <p>Try adjusting your search radius or filters</p>
+                          <button 
+                            className="location-enable-btn"
+                            onClick={() => setSelectedRadius('20000')}
+                            type="button"
+                          >
+                            Try 20km radius
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p>Enable location to find facilities near you</p>
+                          <button 
+                            className="location-enable-btn"
+                            onClick={getCurrentLocation}
+                            type="button"
+                          >
+                            <Locate size={20} />
+                            Enable Location
+                          </button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     filteredFacilities.slice(0, 10).map(facility => (
@@ -946,7 +1088,7 @@ export default function DynamicFacilityFinder() {
                 {!userLocation && (
                   <p className="location-prompt">
                     <Locate size={16} />
-                    Enable location to find facilities near you
+                    Enable GPS location to find facilities near you
                   </p>
                 )}
               </div>
@@ -955,6 +1097,7 @@ export default function DynamicFacilityFinder() {
                 <div className="loading-facilities-list">
                   <Loader2 size={32} className="spin" />
                   <p>Searching for healthcare facilities...</p>
+                  <small>Using OpenStreetMap data for accurate results</small>
                 </div>
               ) : filteredFacilities.length === 0 ? (
                 <div className="no-results-message">
@@ -962,12 +1105,39 @@ export default function DynamicFacilityFinder() {
                     <Search size={48} />
                   </div>
                   <h3>No facilities found</h3>
-                  <p>Try adjusting your search criteria or enable location services</p>
-                  {!userLocation && (
-                    <button className="location-enable-btn" onClick={getCurrentLocation} type="button">
-                      <Locate size={20} />
-                      Enable Location
-                    </button>
+                  {userLocation ? (
+                    <>
+                      <p>No healthcare facilities found within {parseInt(selectedRadius)/1000}km of your location</p>
+                      <p>Try increasing the search radius or adjusting your filters</p>
+                      <div className="radius-suggestions">
+                        <button 
+                          className="location-enable-btn"
+                          onClick={() => setSelectedRadius('20000')}
+                          type="button"
+                        >
+                          Try 20km radius
+                        </button>
+                        <button 
+                          className="location-enable-btn"
+                          onClick={() => setSelectedRadius('50000')}
+                          type="button"
+                        >
+                          Try 50km radius
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p>Enable location services to find healthcare facilities near you</p>
+                      <button 
+                        className="location-enable-btn" 
+                        onClick={getCurrentLocation} 
+                        type="button"
+                      >
+                        <Locate size={20} />
+                        Enable GPS Location
+                      </button>
+                    </>
                   )}
                 </div>
               ) : (
@@ -1233,6 +1403,50 @@ export default function DynamicFacilityFinder() {
           </div>
         </div>
       </footer>
+
+      {/* Bottom Navigation Bar - Mobile Only */}
+      <nav className="dashboard-bottom-nav">
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
+          type="button"
+        >
+          <Home size={22} />
+          <span>Home</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'facilities' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/facilities', 'facilities')}
+          type="button"
+        >
+          <MapPin size={22} />
+          <span>Facilities</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'symptom' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
+          type="button"
+        >
+          <Bot size={22} />
+          <span>Symptoms</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'emergency' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/emergency', 'emergency')}
+          type="button"
+        >
+          <Phone size={22} />
+          <span>Emergency</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'profile' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/profile', 'profile')}
+          type="button"
+        >
+          <User size={22} />
+          <span>Profile</span>
+        </button>
+      </nav>
     </div>
   );
 }

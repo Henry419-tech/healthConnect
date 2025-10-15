@@ -38,7 +38,9 @@ import {
   Bell,
   LogOut,
   Moon,
-  Sun
+  Sun,
+  Home,
+  Menu
 } from 'lucide-react';
 
 // Types
@@ -72,10 +74,32 @@ export default function DynamicFacilityFinder() {
   const [assessmentResult, setAssessmentResult] = useState<AssessmentResult | null>(null);
   const [showEmergencyWarning, setShowEmergencyWarning] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
-
+  const [activeBottomTab, setActiveBottomTab] = useState<string>('symptom');
   
   // Ref for chat messages container
   const chatMessagesRef = React.useRef<HTMLDivElement>(null);
+
+  // Smooth scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    if (chatMessagesRef.current) {
+      const scrollContainer = chatMessagesRef.current;
+      // Use smooth scrolling with animation
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, []);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    // Small delay to ensure DOM is updated
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [chatMessages, isProcessing, scrollToBottom]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -83,8 +107,6 @@ export default function DynamicFacilityFinder() {
       router.push('/auth/signin');
     }
   }, [status, router]);
-
- // Replace the welcome message in your page.tsx (around line 95-110)
 
   // Initialize chat with welcome message
   useEffect(() => {
@@ -214,7 +236,7 @@ Be empathetic, professional, and always err on the side of caution. Ask one ques
       await trackActivity(
         activityTypes.SYMPTOM_CHECKED,
         'Symptom message sent',
-        currentMessage.substring(0, 100), // First 100 chars
+        currentMessage.substring(0, 100),
         {
           messageLength: currentMessage.length,
           messageNumber: chatMessages.filter(msg => msg.role === 'user').length + 1
@@ -240,7 +262,6 @@ Be empathetic, professional, and always err on the side of caution. Ask one ques
     if (hasEmergencyKeyword) {
       setShowEmergencyWarning(true);
       
-      // Track emergency keyword detection
       try {
         await trackActivity(
           activityTypes.EMERGENCY_ACCESSED,
@@ -327,12 +348,11 @@ Respond in this exact JSON format:
           setAssessmentResult(assessment);
           setCurrentStep('assessment');
           
-          // Track symptom assessment completion
           try {
             await trackActivity(
               activityTypes.SYMPTOM_CHECKED,
               'Completed symptom assessment',
-              conversationSummary.substring(0, 200), // First 200 chars
+              conversationSummary.substring(0, 200),
               {
                 urgencyLevel: assessment.urgencyLevel,
                 facilityRecommended: assessment.facilityRecommendation,
@@ -451,6 +471,12 @@ Respond in this exact JSON format:
     }
   };
 
+  // Handle bottom nav click
+  const handleBottomNavClick = (path: string, tab: string) => {
+    setActiveBottomTab(tab);
+    router.push(path);
+  };
+
   // Get user info with proper typing
   const userName: string = session?.user?.name || 'User';
   const userEmail: string | null = session?.user?.email || null;
@@ -474,14 +500,14 @@ Respond in this exact JSON format:
   return (
     <div className="symptom-checker">
       {/* Dashboard Header */}
-     <DashboardHeader activeTab="/symptom-checker" />
+      <DashboardHeader activeTab="/symptom-checker" />
 
       {/* Main Content */}
       <div className="symptom-checker-content">
         {/* Page Header Section */}
         <div className="symptom-checker-page-header">
           <div className="symptom-checker-header-info">
-            <p className="symptom-checker-subtitle">AI-powered health insights - Always consult professionals for medical advice</p>
+            <p className="symptom-checker-subtitle"><Stethoscope size={22} />AI-powered health insights - Always consult professionals for medical advice</p>
             <button 
               className="emergency-btn"
               onClick={() => setShowEmergencyWarning(true)}
@@ -787,6 +813,55 @@ Respond in this exact JSON format:
           </div>
         )}
       </div>
+
+      {/* Bottom Navigation Bar (Mobile Only) */}
+      <nav className="dashboard-bottom-nav">
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
+          type="button"
+          data-tab="dashboard"
+        >
+          <Home size={22} />
+          <span>Home</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'facilities' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/facilities', 'facilities')}
+          type="button"
+          data-tab="facilities"
+        >
+          <MapPin size={22} />
+          <span>Facilities</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'symptom' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
+          type="button"
+          data-tab="symptom"
+        >
+          <Bot size={22} />
+          <span>Symptoms</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'emergency' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/emergency', 'emergency')}
+          type="button"
+          data-tab="emergency"
+        >
+          <Phone size={22} />
+          <span>Emergency</span>
+        </button>
+        <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'profile' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/profile', 'profile')}
+          type="button"
+          data-tab="profile"
+        >
+          <User size={22} />
+          <span>Profile</span>
+        </button>
+      </nav>
 
       {/* Footer */}
       <footer className="dashboard-footer">

@@ -10,22 +10,15 @@ import {
   Bell,
   Moon,
   Sun,
-  LogOut,
-  Settings,
-  Menu,
-  X
+  LogOut
 } from 'lucide-react';
 
 interface DashboardHeaderProps {
   activeTab?: string;
-  onMenuToggle?: () => void;
-  isMenuOpen?: boolean;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ 
-  activeTab,
-  onMenuToggle,
-  isMenuOpen = false
+  activeTab
 }) => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -97,17 +90,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     <header className={`dashboard-header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="dashboard-header-content">
         <div className="dashboard-header-left">
-          {/* Hamburger Menu Button - Mobile Only */}
-          <button 
-            className="dashboard-mobile-menu-btn"
-            onClick={onMenuToggle}
-            type="button"
-            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-            style={{ display: 'none' }}
-          >
-            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-
           {/* Logo */}
           <div className="dashboard-logo">
             <div className="dashboard-logo-icon">
@@ -116,7 +98,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             <h1 className="dashboard-logo-text">HealthConnect Navigator</h1>
           </div>
 
-          {/* Navigation */}
+          {/* Navigation - Desktop Only */}
           <nav className="dashboard-nav">
             <button 
               className={`dashboard-nav-item ${isActive('/dashboard') ? 'dashboard-nav-item-active' : ''}`}
@@ -159,7 +141,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
           {/* Notifications */}
@@ -223,46 +205,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Add CSS for mobile menu button */}
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .dashboard-mobile-menu-btn {
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            background: rgba(59, 130, 246, 0.1);
-            border: none;
-            border-radius: 12px;
-            color: #3b82f6;
-            cursor: pointer;
-            order: 1;
-            transition: all 0.2s ease;
-          }
-
-          .dashboard-mobile-menu-btn:active {
-            transform: scale(0.95);
-          }
-
-          .dark-mode .dashboard-mobile-menu-btn {
-            background: rgba(59, 130, 246, 0.15);
-            color: #60a5fa;
-          }
-
-          .dashboard-logo {
-            order: 2;
-          }
-
-          .dashboard-header-left {
-            width: 100%;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-          }
-        }
-      `}</style>
     </header>
   );
 };

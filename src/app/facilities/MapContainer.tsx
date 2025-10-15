@@ -1,6 +1,17 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Hospital, Pill, Stethoscope, Heart } from 'lucide-react';
+
+// Fix for default marker icons in Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface Facility {
   id: string;
@@ -28,377 +39,323 @@ interface MapContainerProps {
   onFacilitySelect: (facility: Facility) => void;
 }
 
-const MapContainer: React.FC<MapContainerProps> = ({ 
-  facilities, 
-  userLocation, 
-  onFacilitySelect 
-}) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const leafletRef = useRef<any>(null);
+const MapContainer: React.FC<MapContainerProps> = ({ facilities, userLocation, onFacilitySelect }) => {
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Get icon color based on facility type
+  const getMarkerColor = (type: string) => {
+    switch (type) {
+      case 'hospital': return '#ef4444'; // red
+      case 'clinic': return '#8b5cf6'; // purple
+      case 'pharmacy': return '#10b981'; // green
+      case 'health_center': return '#3b82f6'; // blue
+      default: return '#6b7280'; // gray
+    }
+  };
+
+  // Create custom icon for facility markers
+  const createFacilityIcon = (type: string, isEmergency: boolean) => {
+    const color = getMarkerColor(type);
+    const emergencyBadge = isEmergency ? '<div style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;border:2px solid white;">!</div>' : '';
+    
+    return L.divIcon({
+      className: 'custom-facility-marker',
+      html: `
+        <div style="position:relative;width:32px;height:32px;">
+          <div style="
+            width:32px;
+            height:32px;
+            background:${color};
+            border:3px solid white;
+            border-radius:50%;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:white;
+            font-weight:bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            cursor:pointer;
+          ">
+            ${type === 'hospital' ? 'H' : type === 'clinic' ? 'C' : type === 'pharmacy' ? 'P' : 'HC'}
+          </div>
+          ${emergencyBadge}
+        </div>
+      `,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+  };
+
+  // Create custom icon for user location
+  const createUserLocationIcon = () => {
+    return L.divIcon({
+      className: 'custom-user-marker',
+      html: `
+        <div style="position:relative;width:40px;height:40px;">
+          <div style="
+            position:absolute;
+            top:50%;
+            left:50%;
+            transform:translate(-50%,-50%);
+            width:40px;
+            height:40px;
+            background:rgba(59,130,246,0.2);
+            border-radius:50%;
+            animation:pulse-ring 2s infinite;
+          "></div>
+          <div style="
+            position:absolute;
+            top:50%;
+            left:50%;
+            transform:translate(-50%,-50%);
+            width:20px;
+            height:20px;
+            background:#3b82f6;
+            border:4px solid white;
+            border-radius:50%;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.5);
+          "></div>
+        </div>
+        <style>
+          @keyframes pulse-ring {
+            0%, 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+            50% { opacity: 0.5; transform: translate(-50%,-50%) scale(1.3); }
+          }
+        </style>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
+    });
+  };
+
+  // Initialize map
   useEffect(() => {
-    let mounted = true;
+    if (typeof window === 'undefined') return;
 
-    const initMap = async () => {
-      if (!mapRef.current || mapInstanceRef.current) return;
+    // Default to Ghana center if no user location
+    const defaultCenter: [number, number] = userLocation || [7.9465, -1.0232];
+    const defaultZoom = userLocation ? 13 : 7;
 
-      try {
-        console.log('Initializing Leaflet map...');
-        
-        // Import Leaflet
-        const L = await import('leaflet');
-        leafletRef.current = L;
-        
-        // Fix Leaflet default icon issue
-        delete (L.Icon.Default.prototype as any)._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        });
+    if (!mapRef.current) {
+      // Add a small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        const mapElement = document.getElementById('facility-map');
+        if (!mapElement) {
+          console.error('Map element not found');
+          return;
+        }
 
-        if (!mounted) return;
+        try {
+          const map = L.map('facility-map', {
+            center: defaultCenter,
+            zoom: defaultZoom,
+            zoomControl: true,
+            attributionControl: true,
+            preferCanvas: true, // Better performance on mobile
+          });
 
-        // Initialize map
-        const center: [number, number] = userLocation || [5.6037, -0.1870];
-        console.log('Map center:', center);
-        
-        mapInstanceRef.current = L.map(mapRef.current, {
-          center,
-          zoom: userLocation ? 13 : 10,
-          zoomControl: true,
-          scrollWheelZoom: true,
-        });
-        
-        console.log('Map instance created');
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            minZoom: 3,
+          }).addTo(map);
 
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
-          maxZoom: 19,
-        }).addTo(mapInstanceRef.current);
-        
-        console.log('Tile layer added');
+          mapRef.current = map;
+          setIsMapReady(true);
 
-        // Add scale control
-        L.control.scale({ 
-          imperial: false, 
-          metric: true 
-        }).addTo(mapInstanceRef.current);
+          // Force map to recalculate size after initialization
+          setTimeout(() => {
+            if (map) {
+              map.invalidateSize();
+            }
+          }, 100);
+        } catch (error) {
+          console.error('Error initializing map:', error);
+        }
+      }, 100);
 
-        console.log('Map initialization complete. Waiting for facilities...');
-        console.log('Initial facilities count:', facilities.length);
-        console.log('User location:', userLocation);
-
-      } catch (error) {
-        console.error('Map initialization error:', error);
-      }
-    };
-
-    initMap();
+      return () => clearTimeout(timer);
+    }
 
     return () => {
-      mounted = false;
-      // Cleanup
-      if (mapInstanceRef.current) {
-        console.log('Cleaning up map instance');
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
       }
-      markersRef.current = [];
-      leafletRef.current = null;
     };
-  }, []); // Only run once on mount
+  }, []);
 
-  // Separate effect for updating markers and view
+  // Handle window resize and orientation change
   useEffect(() => {
-    if (!mapInstanceRef.current || !leafletRef.current) return;
+    if (!mapRef.current || !isMapReady) return;
 
-    const L = leafletRef.current;
+    const handleResize = () => {
+      if (mapRef.current) {
+        setTimeout(() => {
+          mapRef.current?.invalidateSize();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [isMapReady]);
+
+  // Update user location marker
+  useEffect(() => {
+    if (!mapRef.current || !isMapReady || !userLocation) return;
+
+    // Remove old user marker
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+    }
+
+    // Create new user marker
+    const userMarker = L.marker(userLocation, {
+      icon: createUserLocationIcon(),
+      zIndexOffset: 1000 // Make sure it's on top
+    });
+
+    userMarker.bindPopup(`
+      <div style="text-align:center;padding:8px;">
+        <strong style="color:#3b82f6;">Your Location</strong><br/>
+        <small style="color:#6b7280;">Current position</small>
+      </div>
+    `, {
+      closeButton: true,
+      autoClose: false,
+      closeOnClick: false
+    });
+
+    userMarker.addTo(mapRef.current);
+    
+    // IMPORTANT: Open the popup automatically when location is obtained
+    userMarker.openPopup();
+    
+    userMarkerRef.current = userMarker;
+
+    // Center map on user location
+    mapRef.current.setView(userLocation, 13, {
+      animate: true,
+      duration: 1
+    });
+
+    // Invalidate map size to ensure proper rendering
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+      }
+    }, 100);
+
+  }, [userLocation, isMapReady]);
+
+  // Update facility markers
+  useEffect(() => {
+    if (!mapRef.current || !isMapReady) return;
 
     // Clear existing markers
-    markersRef.current.forEach(marker => {
-      try {
-        mapInstanceRef.current.removeLayer(marker);
-      } catch (e) {
-        console.warn('Error removing marker:', e);
-      }
-    });
+    markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Add user location marker if available
-    if (userLocation) {
-      try {
-        const userIcon = L.divIcon({
-          html: `<div style="
-            width: 24px;
-            height: 24px;
-            background: #8b5cf6;
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-            position: relative;
-          ">
-            <div style="
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              transform: translate(-50%, -50%);
-              width: 10px;
-              height: 10px;
-              background: white;
-              border-radius: 50%;
-            "></div>
-          </div>`,
-          className: 'user-location-marker',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        });
-        
-        const userMarker = L.marker(userLocation, { icon: userIcon })
-          .addTo(mapInstanceRef.current)
-          .bindPopup(`
-            <div style="text-align: center; padding: 8px; min-width: 150px;">
-              <strong style="color: #8b5cf6; font-size: 14px;">📍 Your Location</strong>
-              <p style="margin: 4px 0 0; font-size: 12px; color: #6b7280;">Current position</p>
-            </div>
-          `);
-        
-        markersRef.current.push(userMarker);
-        
-        // Center map on user location
-        mapInstanceRef.current.setView(userLocation, 13, {
-          animate: true,
-          duration: 1
-        });
-        
-        console.log('User marker added at:', userLocation);
-      } catch (e) {
-        console.warn('Error adding user marker:', e);
-      }
-    }
-
     // Add facility markers
-    console.log(`Adding ${facilities.length} facility markers to map`);
-    
-    facilities.forEach((facility, index) => {
-      try {
-        if (!facility.coordinates || facility.coordinates.length !== 2) {
-          console.warn(`Facility ${facility.name} has invalid coordinates:`, facility.coordinates);
-          return;
-        }
+    facilities.forEach(facility => {
+      const marker = L.marker(facility.coordinates, {
+        icon: createFacilityIcon(facility.type, facility.emergencyServices)
+      });
 
-        const [lat, lng] = facility.coordinates;
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn(`Facility ${facility.name} has NaN coordinates:`, lat, lng);
-          return;
-        }
-
-        let markerColor;
-        let markerLabel;
-        
-        switch (facility.type) {
-          case 'hospital': 
-            markerColor = facility.emergencyServices ? '#dc2626' : '#ea580c';
-            markerLabel = 'H';
-            break;
-          case 'pharmacy': 
-            markerColor = '#2563eb';
-            markerLabel = 'P';
-            break;
-          case 'clinic': 
-            markerColor = '#16a34a';
-            markerLabel = 'C';
-            break;
-          case 'health_center':
-            markerColor = '#7c3aed';
-            markerLabel = 'HC';
-            break;
-          default: 
-            markerColor = '#6b7280';
-            markerLabel = '?';
-        }
-        
-        const customIcon = L.divIcon({
-          html: `<div style="
-            width: 32px;
-            height: 32px;
-            background-color: ${markerColor};
-            border: 3px solid white;
-            border-radius: 50%;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 13px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-          " onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">${markerLabel}</div>`,
-          className: 'custom-facility-marker',
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-          popupAnchor: [0, -16]
-        });
-
-        const marker = L.marker([lat, lng], { icon: customIcon })
-          .addTo(mapInstanceRef.current);
-
-        // Create popup content
-        const popupContent = `
-          <div style="min-width: 280px; max-width: 320px; font-family: system-ui;">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid #e5e7eb;">
-              <div style="flex: 1;">
-                <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: #1f2937; line-height: 1.3;">${facility.name}</h3>
-                <span style="background: ${markerColor}; color: white; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">${facility.type.replace('_', ' ')}</span>
-              </div>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="display: flex; align-items: start; gap: 8px;">
-                <span style="font-size: 16px;">📍</span>
-                <div>
-                  <strong style="font-size: 13px; color: #374151;">Location:</strong>
-                  <p style="margin: 2px 0 0; font-size: 13px; color: #6b7280; line-height: 1.4;">${facility.address}, ${facility.city}</p>
-                </div>
-              </div>
-              
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">📏</span>
-                <span style="font-size: 13px; color: #6b7280;"><strong style="color: #374151;">Distance:</strong> ${facility.distance.toFixed(1)} km away</span>
-              </div>
-              
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">⭐</span>
-                <span style="font-size: 13px; color: #6b7280;"><strong style="color: #374151;">Rating:</strong> ${facility.rating.toFixed(1)} (${facility.reviews} reviews)</span>
-              </div>
-              
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">🕐</span>
-                <span style="font-size: 13px; color: #6b7280;"><strong style="color: #374151;">Hours:</strong> ${facility.hours}</span>
-              </div>
-              
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">📞</span>
-                <span style="font-size: 13px; color: #6b7280;"><strong style="color: #374151;">Phone:</strong> ${facility.phone}</span>
-              </div>
-              
-              ${facility.emergencyServices ? '<div style="background: #fee2e2; border: 1px solid #fecaca; padding: 8px; border-radius: 6px; margin-top: 4px;"><span style="color: #dc2626; font-weight: 600; font-size: 12px;">🚨 24/7 Emergency Services Available</span></div>' : ''}
-              
-              <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <button onclick="window.open('tel:${facility.phone}', '_self')" style="background: #10b981; color: white; border: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">📞 Call</button>
-                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}', '_blank')" style="background: #3b82f6; color: white; border: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">🗺️ Directions</button>
-              </div>
-            </div>
+      marker.bindPopup(`
+        <div style="min-width:200px;padding:8px;">
+          <h3 style="margin:0 0 8px 0;font-size:14px;font-weight:700;color:#1f2937;">${facility.name}</h3>
+          <p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;">${facility.city}, ${facility.region}</p>
+          <p style="margin:0 0 8px 0;font-size:12px;color:#3b82f6;font-weight:600;">${facility.distance.toFixed(1)} km away</p>
+          <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;">
+            ${facility.emergencyServices ? '<span style="background:rgba(239,68,68,0.1);color:#dc2626;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">24/7 Emergency</span>' : ''}
+            <span style="background:rgba(59,130,246,0.1);color:#3b82f6;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">${facility.type.replace('_', ' ')}</span>
           </div>
-        `;
+          <button 
+            onclick="window.selectFacility('${facility.id}')"
+            style="
+              width:100%;
+              padding:8px;
+              background:#3b82f6;
+              color:white;
+              border:none;
+              border-radius:8px;
+              font-weight:600;
+              cursor:pointer;
+              font-size:12px;
+            "
+          >
+            View Details
+          </button>
+        </div>
+      `, {
+        maxWidth: 250,
+        closeButton: true
+      });
 
-        marker.bindPopup(popupContent, {
-          maxWidth: 340,
-          className: 'custom-popup',
-          closeButton: true
-        });
-
-        marker.on('click', () => {
-          onFacilitySelect(facility);
-          // Open popup when marker is clicked
-          marker.openPopup();
-        });
-
-        markersRef.current.push(marker);
-      } catch (e) {
-        console.warn(`Error adding marker for ${facility.name}:`, e);
-      }
+      marker.addTo(mapRef.current!);
+      markersRef.current.push(marker);
     });
 
-    console.log(`Successfully added ${markersRef.current.length} markers to map`);
-
-    // Fit map to show all markers
-    if (markersRef.current.length > 0) {
-      try {
-        const group = L.featureGroup(markersRef.current);
-        const bounds = group.getBounds();
-        
-        if (bounds.isValid()) {
-          // Add padding and set max zoom
-          mapInstanceRef.current.fitBounds(bounds, {
-            padding: [60, 60],
-            maxZoom: userLocation ? 14 : 12,
-            animate: true,
-            duration: 1
-          });
-          
-          console.log('Map bounds set successfully');
-        } else {
-          console.warn('Invalid bounds calculated');
-        }
-      } catch (e) {
-        console.warn('Error fitting bounds:', e);
-      }
-    } else if (userLocation) {
-      // If no facilities but we have user location, center on user
-      mapInstanceRef.current.setView(userLocation, 13);
+    // Fit bounds to show all facilities and user location
+    if (facilities.length > 0 && userLocation) {
+      const bounds = L.latLngBounds([
+        userLocation,
+        ...facilities.map(f => f.coordinates)
+      ]);
+      mapRef.current.fitBounds(bounds, { 
+        padding: [50, 50],
+        maxZoom: 15
+      });
     }
 
-  }, [facilities, userLocation, onFacilitySelect]);
+    // Invalidate map size after adding markers
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+      }
+    }, 100);
+
+  }, [facilities, isMapReady, userLocation]);
+
+  // Handle facility selection from popup
+  useEffect(() => {
+    (window as any).selectFacility = (facilityId: string) => {
+      const facility = facilities.find(f => f.id === facilityId);
+      if (facility) {
+        onFacilitySelect(facility);
+      }
+    };
+
+    return () => {
+      delete (window as any).selectFacility;
+    };
+  }, [facilities, onFacilitySelect]);
 
   return (
-    <>
-      <style jsx>{`
-        .facility-finder-map {
-          width: 100%;
-          height: 100%;
-          min-height: 500px;
-          border-radius: 12px;
-          overflow: hidden;
-          position: relative;
-          z-index: 1;
-        }
-        .loading-map {
-          background: #f8fafc;
-          border: 1px solid #e5e7eb;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 500px;
-        }
-        .loading-map-content {
-          text-align: center;
-          color: #6b7280;
-        }
-        .loading-map-content p {
-          margin-top: 12px;
-          font-size: 14px;
-        }
-        /* Ensure Leaflet controls are visible */
-        .leaflet-control-zoom,
-        .leaflet-control-scale {
-          z-index: 1000 !important;
-        }
-        /* Custom marker hover effect */
-        .custom-facility-marker {
-          transition: transform 0.2s ease;
-        }
-        .custom-facility-marker:hover {
-          transform: scale(1.2);
-          z-index: 1000 !important;
-        }
-        /* Custom popup styling */
-        .leaflet-popup-content-wrapper {
-          border-radius: 12px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-        }
-        .leaflet-popup-tip {
-          box-shadow: 0 3px 14px rgba(0, 0, 0, 0.1);
-        }
-      `}</style>
-      <div 
-        ref={mapRef} 
-        className="facility-finder-map"
-      />
-    </>
+    <div 
+      ref={containerRef}
+      id="facility-map" 
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        minHeight: '400px',
+        position: 'relative',
+        zIndex: 1
+      }} 
+    />
   );
 };
 

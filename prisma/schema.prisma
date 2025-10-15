@@ -38,17 +38,18 @@ model Session {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  password      String?
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  activities    UserActivity[]
+  id                 String             @id @default(cuid())
+  name               String?
+  email              String             @unique
+  password           String?
+  emailVerified      DateTime?
+  image              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  accounts           Account[]
+  sessions           Session[]
+  activities         UserActivity[]
+  emergencyContacts  EmergencyContact[]
 }
 
 model VerificationToken {
@@ -74,4 +75,23 @@ model UserActivity {
   
   @@index([userId, createdAt])
   @@index([activityType])
+}
+
+model EmergencyContact {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name         String
+  relationship String
+  number       String
+  priority     Int      @default(1)
+  email        String?
+  notes        String?  @db.Text
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([userId, priority])
+  @@index([userId, createdAt])
 }

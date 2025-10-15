@@ -134,7 +134,7 @@ export default function EnhancedLandingPage() {
           >
             <div className="landing-hero-badge">
               <Sparkles size={16} />
-              <span>Launching Soon in Ghana - Be Among the First Users</span>
+              <span>✨ Now Live & Serving Ghana - Get Started Today</span>
             </div>
             
             <h1 className="landing-hero-title">

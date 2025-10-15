@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { NextPage } from 'next';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -34,7 +34,9 @@ import {
   CheckCircle,
   Home,
   Menu,
-  X
+  X,
+  Crosshair,
+  Check
 } from 'lucide-react';
 
 interface CoreFeature {
@@ -86,6 +88,13 @@ interface Facility {
   specializations?: string[];
 }
 
+interface LocationInfo {
+  city?: string;
+  region?: string;
+  country?: string;
+  accuracy?: number;
+}
+
 const Dashboard: NextPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -105,11 +114,17 @@ const Dashboard: NextPage = () => {
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
   
+  // Location states
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationInfo, setLocationInfo] = useState<LocationInfo | undefined>();
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(true);
+  
   // Nearby facilities states
   const [nearbyFacilities, setNearbyFacilities] = useState<Facility[]>([]);
-  const [isLoadingFacilities, setIsLoadingFacilities] = useState(true);
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
   const [facilitiesError, setFacilitiesError] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   
   // Redirect to sign in if not authenticated
   useEffect(() => {
@@ -151,24 +166,144 @@ const Dashboard: NextPage = () => {
     };
   }, [handleScroll]);
   
-  // Check if user has already granted location permission (without prompting)
+  // Helper function to estimate Ghana region from coordinates
+  const getGhanaRegionFromCoordinates = (lat: number, lng: number): LocationInfo => {
+    if (lat >= 5.5 && lat <= 5.7 && lng >= -0.3 && lng <= 0.0) {
+      return { city: 'Accra', region: 'Greater Accra', country: 'Ghana' };
+    } else if (lat >= 6.6 && lat <= 6.8 && lng >= -1.7 && lng <= -1.5) {
+      return { city: 'Kumasi', region: 'Ashanti', country: 'Ghana' };
+    } else if (lat >= 9.3 && lat <= 9.5 && lng >= -1.0 && lng <= -0.8) {
+      return { city: 'Tamale', region: 'Northern', country: 'Ghana' };
+    } else if (lat >= 5.0 && lat <= 5.2 && lng >= -2.0 && lng <= -1.8) {
+      return { city: 'Takoradi', region: 'Western', country: 'Ghana' };
+    } else if (lat >= 4.8 && lat <= 5.2 && lng >= -0.3 && lng <= 0.2) {
+      return { city: 'Tema', region: 'Greater Accra', country: 'Ghana' };
+    } else if (lat >= 6.0 && lat <= 7.0 && lng >= -1.0 && lng <= 0.5) {
+      return { city: 'Unknown', region: 'Central Ghana', country: 'Ghana' };
+    } else if (lat >= 7.0 && lat <= 11.0) {
+      return { city: 'Unknown', region: 'Northern Ghana', country: 'Ghana' };
+    } else if (lat >= 4.5 && lat <= 6.0) {
+      return { city: 'Unknown', region: 'Southern Ghana', country: 'Ghana' };
+    }
+    
+    return { city: 'Unknown', region: 'Ghana', country: 'Ghana' };
+  };
+
+  // Reverse geocode to get location name using CORS-safe API route
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<LocationInfo> => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(
+        `/api/geocode?lat=${lat}&lon=${lng}`,
+        {
+          signal: controller.signal,
+        }
+      );
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          city: data.city,
+          region: data.region,
+          country: data.country
+        };
+      }
+    } catch (error) {
+      console.warn('Reverse geocoding failed, using coordinate estimation:', error);
+    }
+    
+    // Fallback: Estimate location from coordinates (Ghana regions)
+    return getGhanaRegionFromCoordinates(lat, lng);
+  }, []);
+
+  // Get current location with high accuracy
+  const getCurrentLocation = useCallback(async () => {
+    setIsLoadingLocation(true);
+    setLocationError(null);
+    
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser. Please use a modern browser or enable location services.');
+      setIsLoadingLocation(false);
+      return;
+    }
+
+    console.log('🔍 Requesting GPS location...');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        const location: [number, number] = [latitude, longitude];
+        
+        const method = accuracy < 100 ? 'GPS' : 'Network-based';
+        console.log(`✅ Location obtained: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} (${method}, ±${Math.round(accuracy)}m)`);
+        
+        setUserLocation(location);
+        setShowLocationPrompt(false);
+        
+        // Get location name
+        const info = await reverseGeocode(latitude, longitude);
+        setLocationInfo({ ...info, accuracy });
+        
+        if (info.city && info.region) {
+          console.log(`📍 ${info.city}, ${info.region}`);
+        }
+        
+        setIsLoadingLocation(false);
+      },
+      (error) => {
+        console.error('❌ Location error:', error.message);
+        setIsLoadingLocation(false);
+        
+        let errorMessage = 'Unable to get your location. ';
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Please enable location services in your browser settings and refresh the page.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is currently unavailable. Please check your GPS/WiFi and try again.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'An unknown error occurred. Please try again.';
+        }
+        setLocationError(errorMessage);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 30000,
+        maximumAge: 0
+      }
+    );
+  }, [reverseGeocode]);
+
+  // Check location permission on mount (silently)
   useEffect(() => {
     if (status !== 'authenticated') return;
     
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         if (result.state === 'granted') {
+          setShowLocationPrompt(false);
           navigator.geolocation.getCurrentPosition(
-            (position) => {
-              setUserLocation([position.coords.latitude, position.coords.longitude]);
+            async (position) => {
+              const location: [number, number] = [position.coords.latitude, position.coords.longitude];
+              setUserLocation(location);
+              const info = await reverseGeocode(location[0], location[1]);
+              setLocationInfo({ ...info, accuracy: position.coords.accuracy });
             },
             (error) => {
-              console.warn('Geolocation error:', error);
+              console.warn('Background location fetch failed:', error);
             },
             {
-              enableHighAccuracy: false,
-              timeout: 5000,
-              maximumAge: 300000
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000
             }
           );
         }
@@ -176,7 +311,7 @@ const Dashboard: NextPage = () => {
         console.log('Permissions API not supported');
       });
     }
-  }, [status]);
+  }, [status, reverseGeocode]);
   
   // Calculate distance helper
   const calculateDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -190,75 +325,7 @@ const Dashboard: NextPage = () => {
     return R * c;
   }, []);
 
-  // Known Ghana facilities
-  const getKnownGhanaFacilities = useCallback((lat: number, lng: number): Facility[] => {
-    const knownFacilities = [
-      {
-        name: "Korle Bu Teaching Hospital",
-        coordinates: [5.5502, -0.2174] as [number, number],
-        type: "hospital",
-        address: "Guggisberg Avenue, Korle Bu",
-        city: "Accra",
-        phone: "+233 30 266 6375",
-        services: ["Emergency Care", "Surgery", "Cardiology", "Neurology", "Oncology", "Maternity"],
-        emergencyServices: true
-      },
-      {
-        name: "Ridge Hospital",
-        coordinates: [5.6037, -0.1870] as [number, number],
-        type: "hospital",
-        address: "Castle Road, Ridge",
-        city: "Accra",
-        phone: "+233 30 222 2211",
-        services: ["Emergency Care", "Internal Medicine", "Pediatrics", "Obstetrics"],
-        emergencyServices: true
-      },
-      {
-        name: "37 Military Hospital",
-        coordinates: [5.5970, -0.1700] as [number, number],
-        type: "hospital",
-        address: "Liberation Road, Airport Residential Area",
-        city: "Accra",
-        phone: "+233 30 277 6111",
-        services: ["Emergency Care", "Military Medicine", "Rehabilitation", "Surgery"],
-        emergencyServices: true
-      },
-      {
-        name: "Ernest Chemists - Oxford Street",
-        coordinates: [5.5550, -0.1873] as [number, number],
-        type: "pharmacy",
-        address: "Oxford Street, Osu",
-        city: "Accra",
-        phone: "+233 30 224 1234",
-        services: ["Prescriptions", "OTC Medicines", "Health Consultations"],
-        emergencyServices: false
-      },
-      {
-        name: "Nyaho Medical Centre",
-        coordinates: [5.6050, -0.1690] as [number, number],
-        type: "clinic",
-        address: "Airport City, Kotoka International Airport Area",
-        city: "Accra",
-        phone: "+233 30 278 2641",
-        services: ["Emergency Care", "Internal Medicine", "Surgery", "Radiology"],
-        emergencyServices: true
-      }
-    ];
-
-    return knownFacilities.map((facility, index) => ({
-      id: `known_${index}`,
-      ...facility,
-      region: "Greater Accra",
-      distance: calculateDistance(lat, lng, facility.coordinates[0], facility.coordinates[1]),
-      rating: 4.0 + Math.random(),
-      reviews: Math.floor(Math.random() * 1000) + 100,
-      hours: facility.emergencyServices ? "24/7" : "8:00 AM - 6:00 PM",
-      insurance: ["NHIS", "Private", "International"],
-      specializations: facility.services.slice(0, 2)
-    }));
-  }, [calculateDistance]);
-
-  // Fetch nearby facilities with real data
+  // Fetch nearby facilities with real OpenStreetMap data
   const fetchNearbyFacilities = useCallback(async () => {
     if (!userLocation || status !== 'authenticated') return;
     
@@ -267,17 +334,153 @@ const Dashboard: NextPage = () => {
       setFacilitiesError(null);
       
       const [lat, lng] = userLocation;
-      const knownFacilities = getKnownGhanaFacilities(lat, lng);
-      knownFacilities.sort((a, b) => a.distance - b.distance);
-      setNearbyFacilities(knownFacilities.slice(0, 3));
+      const radius = 5000; // 5km radius
       
-    } catch (error) {
-      console.error('Error fetching nearby facilities:', error);
-      setFacilitiesError('Unable to load nearby facilities');
+      console.log('🔍 Searching for facilities near:', lat, lng);
+      
+      // Fetch from Overpass API
+      const overpassQuery = `
+        [out:json][timeout:30];
+        (
+          node["amenity"="hospital"](around:${radius},${lat},${lng});
+          way["amenity"="hospital"](around:${radius},${lat},${lng});
+          node["amenity"="clinic"](around:${radius},${lat},${lng});
+          way["amenity"="clinic"](around:${radius},${lat},${lng});
+          node["amenity"="pharmacy"](around:${radius},${lat},${lng});
+          way["amenity"="pharmacy"](around:${radius},${lat},${lng});
+          node["amenity"="doctors"](around:${radius},${lat},${lng});
+          way["amenity"="doctors"](around:${radius},${lat},${lng});
+          node["healthcare"](around:${radius},${lat},${lng});
+          way["healthcare"](around:${radius},${lat},${lng});
+        );
+        out center body;
+      `;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      
+      const response = await fetch(
+        `https://overpass-api.de/api/interpreter`,
+        {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: `data=${encodeURIComponent(overpassQuery)}`,
+          signal: controller.signal
+        }
+      );
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch facilities');
+      }
+      
+      const data = await response.json();
+      const facilities: Facility[] = [];
+      
+      if (data.elements && Array.isArray(data.elements)) {
+        data.elements.forEach((element: any) => {
+          try {
+            const coords = element.lat && element.lon 
+              ? [element.lat, element.lon] 
+              : element.center 
+              ? [element.center.lat, element.center.lon]
+              : null;
+              
+            if (!coords || !element.tags) return;
+            
+            const name = element.tags.name || 
+                        element.tags['name:en'] || 
+                        element.tags['official_name'] ||
+                        'Healthcare Facility';
+            
+            if (name.length < 3 || name.toLowerCase() === 'unnamed') return;
+            
+            const distance = calculateDistance(lat, lng, coords[0], coords[1]);
+            if (distance > radius / 1000) return;
+            
+            const amenity = element.tags.amenity || element.tags.healthcare || 'clinic';
+            let type = 'clinic';
+            if (amenity === 'hospital' || element.tags.healthcare === 'hospital') {
+              type = 'hospital';
+            } else if (amenity === 'pharmacy') {
+              type = 'pharmacy';
+            } else if (element.tags.healthcare === 'centre' || 
+                      element.tags.healthcare === 'center' ||
+                      element.tags.healthcare === 'health_centre') {
+              type = 'clinic';
+            }
+            
+            const services: string[] = [];
+            if (element.tags.emergency === 'yes') services.push('Emergency Care');
+            if (type === 'hospital' && services.length === 0) {
+              services.push('Inpatient Care', 'General Medicine');
+            } else if (type === 'pharmacy' && services.length === 0) {
+              services.push('Prescriptions', 'OTC Medications');
+            } else if (type === 'clinic' && services.length === 0) {
+              services.push('Outpatient Care', 'Consultations');
+            }
+            
+            let address = 'Address not available';
+            if (element.tags['addr:full']) {
+              address = element.tags['addr:full'];
+            } else {
+              const parts = [
+                element.tags['addr:housenumber'],
+                element.tags['addr:street'],
+                element.tags['addr:suburb']
+              ].filter(Boolean);
+              if (parts.length > 0) address = parts.join(', ');
+            }
+            
+            facilities.push({
+              id: `osm_${element.type}_${element.id}`,
+              name,
+              type,
+              address,
+              city: element.tags['addr:city'] || element.tags['addr:town'] || 'Unknown',
+              region: element.tags['addr:state'] || element.tags['addr:region'] || 'Unknown',
+              distance,
+              rating: 3.5 + Math.random() * 1.5,
+              reviews: Math.floor(Math.random() * 300) + 20,
+              phone: element.tags.phone || element.tags['contact:phone'] || 'Not available',
+              hours: element.tags.opening_hours || (type === 'hospital' ? '24/7' : 'Call for hours'),
+              services,
+              coordinates: coords as [number, number],
+              emergencyServices: element.tags.emergency === 'yes' || type === 'hospital',
+              insurance: ['NHIS', 'Private']
+            });
+          } catch (error) {
+            console.warn('Error processing facility:', error);
+          }
+        });
+      }
+      
+      facilities.sort((a, b) => a.distance - b.distance);
+      const topFacilities = facilities.slice(0, 3);
+      
+      console.log(`✅ Found ${topFacilities.length} nearby facilities`);
+      
+      setNearbyFacilities(topFacilities);
+      
+      if (topFacilities.length === 0) {
+        setFacilitiesError('No facilities found within 5km. Try the Facility Finder for a wider search.');
+      }
+      
+    } catch (error: any) {
+      console.error('Error fetching facilities:', error);
+      if (error.name === 'AbortError') {
+        setFacilitiesError('Request timed out. Please try again.');
+      } else {
+        setFacilitiesError('Unable to load facilities. Please check your connection.');
+      }
     } finally {
       setIsLoadingFacilities(false);
     }
-  }, [userLocation, status, getKnownGhanaFacilities]);
+  }, [userLocation, status, calculateDistance]);
   
   // Fetch facilities when location is available
   useEffect(() => {
@@ -588,7 +791,7 @@ const Dashboard: NextPage = () => {
       </div>
       
       <div className="dashboard-content">
-        {/* Enhanced Welcome Section with Emergency Access */}
+        {/* Enhanced Welcome Section with Accurate Location */}
         <div className="dashboard-welcome-enhanced">
           <div className="dashboard-welcome-main">
             <h2 className="dashboard-welcome-title">
@@ -597,12 +800,70 @@ const Dashboard: NextPage = () => {
             <p className="dashboard-welcome-subtitle">
               {getContextualInfo()}
             </p>
-            {userLocation && (
-              <div className="dashboard-location-badge">
-                <MapPin size={16} />
-                <span>Accra, Ghana</span>
+            
+            {/* Dynamic Location Display */}
+            {userLocation && locationInfo ? (
+              <div className="dashboard-location-info">
+                <div className="dashboard-location-badge accurate">
+                  <MapPin size={16} />
+                  <span>
+                    {locationInfo.city && locationInfo.region 
+                      ? `${locationInfo.city}, ${locationInfo.region}`
+                      : 'Location detected'
+                    }
+                  </span>
+                  {locationInfo.accuracy && locationInfo.accuracy < 100 && (
+                    <span className="location-accuracy-badge" title={`GPS accuracy: ±${Math.round(locationInfo.accuracy)}m`}>
+                      High Accuracy
+                    </span>
+                  )}
+                  {locationInfo.accuracy && locationInfo.accuracy >= 100 && (
+                    <span className="location-accuracy-badge network" title={`Network accuracy: ±${Math.round(locationInfo.accuracy)}m`}>
+                      Network
+                    </span>
+                  )}
+                </div>
+                {nearbyFacilities.length > 0 && (
+                  <div className="dashboard-facilities-summary">
+                    <Hospital size={14} />
+                    <span>{nearbyFacilities.length} healthcare facilities within 5km</span>
+                  </div>
+                )}
               </div>
-            )}
+            ) : isLoadingLocation ? (
+              <div className="dashboard-location-badge loading">
+                <Loader2 size={16} className="spin" />
+                <span>Getting your location...</span>
+              </div>
+            ) : showLocationPrompt ? (
+              <div className="dashboard-location-prompt">
+                <div className="location-prompt-content">
+                  <MapPin size={18} />
+                  <span>Enable location to find nearby healthcare facilities</span>
+                </div>
+                <button 
+                  className="location-enable-btn-compact"
+                  onClick={getCurrentLocation}
+                  type="button"
+                >
+                  <Crosshair size={16} />
+                  Enable GPS Location
+                </button>
+              </div>
+            ) : locationError ? (
+              <div className="dashboard-location-error">
+                <AlertCircle size={14} />
+                <span>{locationError}</span>
+                <button 
+                  className="location-retry-btn"
+                  onClick={getCurrentLocation}
+                  type="button"
+                >
+                  <RefreshCw size={14} />
+                  Retry
+                </button>
+              </div>
+            ) : null}
           </div>
           
           {/* Emergency Quick Access Panel */}
@@ -848,12 +1109,17 @@ const Dashboard: NextPage = () => {
 
           {/* Enhanced Sidebar */}
           <div className="dashboard-sidebar">
-            {/* Nearby Facilities - Enhanced */}
+            {/* Nearby Facilities - Enhanced with Accurate Location */}
             <div className="dashboard-card dashboard-facilities-card">
               <div className="dashboard-card-header dashboard-facilities-header">
                 <h3 className="dashboard-card-title">
                   <MapPin className="dashboard-card-title-icon" size={20} />
                   Nearby Facilities
+                  {userLocation && locationInfo?.city && (
+                    <span className="facilities-location-badge">
+                      in {locationInfo.city}
+                    </span>
+                  )}
                 </h3>
                 <button 
                   className="dashboard-view-all-btn"
@@ -865,43 +1131,33 @@ const Dashboard: NextPage = () => {
               </div>
               <div className="dashboard-facilities-list">
                 {!userLocation ? (
-                  <div style={{ 
-                    padding: '2rem 1.5rem', 
-                    textAlign: 'center', 
-                    color: '#6b7280',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.75rem'
-                  }}>
-                    <MapPin size={32} style={{ opacity: 0.5 }} />
-                    <div>
-                      <p style={{ fontWeight: 500, marginBottom: '0.5rem' }}>
-                        Location Not Enabled
-                      </p>
-                      <p style={{ fontSize: '0.875rem', lineHeight: '1.4' }}>
-                        Visit the Facility Finder to enable location and discover nearby healthcare facilities
+                  <div className="facilities-empty-state">
+                    <div className="facilities-empty-icon">
+                      <MapPin size={32} />
+                    </div>
+                    <div className="facilities-empty-content">
+                      <h4>Enable Location</h4>
+                      <p>
+                        Allow location access to discover healthcare facilities near you
                       </p>
                     </div>
                     <button 
-                      onClick={() => router.push('/facilities')}
-                      style={{
-                        marginTop: '0.5rem',
-                        padding: '0.625rem 1.25rem',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                      }}
+                      className="facilities-enable-location-btn"
+                      onClick={getCurrentLocation}
+                      disabled={isLoadingLocation}
+                      type="button"
                     >
-                      <MapPin size={16} />
-                      Go to Facility Finder
+                      {isLoadingLocation ? (
+                        <>
+                          <Loader2 size={16} className="spin" />
+                          <span>Getting Location...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Crosshair size={16} />
+                          <span>Enable GPS Location</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 ) : isLoadingFacilities ? (
@@ -916,6 +1172,9 @@ const Dashboard: NextPage = () => {
                   }}>
                     <Loader2 size={24} className="spin" />
                     <p>Finding nearby facilities...</p>
+                    {locationInfo?.city && (
+                      <small>Searching in {locationInfo.city}</small>
+                    )}
                   </div>
                 ) : facilitiesError ? (
                   <div style={{ 
@@ -948,28 +1207,24 @@ const Dashboard: NextPage = () => {
                     </button>
                   </div>
                 ) : nearbyFacilities.length === 0 ? (
-                  <div style={{ 
-                    padding: '2rem', 
-                    textAlign: 'center', 
-                    color: '#6b7280',
-                    fontSize: '0.875rem'
-                  }}>
-                    <MapPin size={32} style={{ opacity: 0.5, margin: '0 auto 0.5rem' }} />
-                    <p>No facilities found nearby</p>
+                  <div className="facilities-empty-state">
+                    <div className="facilities-empty-icon">
+                      <Hospital size={32} />
+                    </div>
+                    <div className="facilities-empty-content">
+                      <h4>No Facilities Found</h4>
+                      <p>
+                        No healthcare facilities found within 5km
+                        {locationInfo?.city && ` of ${locationInfo.city}`}
+                      </p>
+                    </div>
                     <button 
+                      className="facilities-enable-location-btn"
                       onClick={() => router.push('/facilities')}
-                      style={{
-                        marginTop: '0.75rem',
-                        padding: '0.5rem 1rem',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '0.375rem',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem'
-                      }}
+                      type="button"
                     >
-                      Search Facilities
+                      <MapPin size={16} />
+                      <span>Search Wider Area</span>
                     </button>
                   </div>
                 ) : (
@@ -991,23 +1246,30 @@ const Dashboard: NextPage = () => {
                         </div>
                         <div className="dashboard-facility-info">
                           {facility.type} • {facility.distance.toFixed(1)} km
+                          {facility.city && facility.city !== 'Unknown' && (
+                            <span className="facility-city"> • {facility.city}</span>
+                          )}
                         </div>
                         <div className={`dashboard-facility-status ${isOpen ? 'status-open' : 'status-closed'}`}>
                           <div className={`status-dot ${isOpen ? 'dot-open' : 'dot-closed'}`}></div>
                           {status}
                         </div>
                         <div className="dashboard-facility-actions">
-                          <button 
-                            className="facility-quick-btn"
-                            onClick={() => window.open(`tel:${facility.phone}`)}
-                            type="button"
-                          >
-                            <Phone size={14} />
-                          </button>
+                          {facility.phone && facility.phone !== 'Not available' && (
+                            <button 
+                              className="facility-quick-btn"
+                              onClick={() => window.open(`tel:${facility.phone}`)}
+                              type="button"
+                              title="Call facility"
+                            >
+                              <Phone size={14} />
+                            </button>
+                          )}
                           <button 
                             className="facility-quick-btn"
                             onClick={() => router.push(`/facilities?id=${facility.id}`)}
                             type="button"
+                            title="Get directions"
                           >
                             <Navigation size={14} />
                           </button>
@@ -1060,16 +1322,22 @@ const Dashboard: NextPage = () => {
                     <p>{activityCounts.facilities} new facilities discovered</p>
                   </div>
                 )}
-                {nearbyFacilities.length > 0 && (
+                {nearbyFacilities.length > 0 && locationInfo?.city && (
                   <div className="insight-item">
                     <Info size={16} className="insight-icon-info" />
-                    <p>{nearbyFacilities.length} healthcare facilities within 5km</p>
+                    <p>{nearbyFacilities.length} healthcare facilities in {locationInfo.city}</p>
                   </div>
                 )}
-                {activityCounts.facilities === 0 && activityCounts.symptoms === 0 && (
+                {userLocation && locationInfo?.accuracy && locationInfo.accuracy < 100 && (
+                  <div className="insight-item">
+                    <CheckCircle size={16} className="insight-icon-success" />
+                    <p>High-accuracy GPS location enabled</p>
+                  </div>
+                )}
+                {activityCounts.facilities === 0 && activityCounts.symptoms === 0 && !userLocation && (
                   <div className="insight-item">
                     <Info size={16} className="insight-icon-info" />
-                    <p>Start exploring to get personalized insights</p>
+                    <p>Enable location to get personalized insights</p>
                   </div>
                 )}
               </div>
@@ -1078,7 +1346,7 @@ const Dashboard: NextPage = () => {
         </div>
       </div>
 
-      {/* Bottom Navigation - Mobile Only */}
+     {/* Bottom Navigation - Mobile Only */}
       <nav className="dashboard-bottom-nav">
         <button 
           className={`dashboard-bottom-nav-item ${activeBottomTab === 'dashboard' ? 'active' : ''}`}
@@ -1105,6 +1373,14 @@ const Dashboard: NextPage = () => {
           <span>Symptoms</span>
         </button>
         <button 
+          className={`dashboard-bottom-nav-item ${activeBottomTab === 'emergency' ? 'active' : ''}`}
+          onClick={() => handleBottomNavClick('/emergency', 'emergency')}
+          type="button"
+        >
+          <Phone size={22} />
+          <span>Emergency</span>
+        </button>
+        <button 
           className={`dashboard-bottom-nav-item ${activeBottomTab === 'profile' ? 'active' : ''}`}
           onClick={() => handleBottomNavClick('/profile', 'profile')}
           type="button"
@@ -1113,7 +1389,7 @@ const Dashboard: NextPage = () => {
           <span>Profile</span>
         </button>
       </nav>
-
+      
       {/* Floating Emergency Button - Desktop Only */}
       <button
         className="dashboard-floating-emergency"
@@ -1135,7 +1411,7 @@ const Dashboard: NextPage = () => {
                 <span className="dashboard-footer-brand-text">HealthConnect Navigator</span>
               </div>
               <p className="dashboard-footer-tagline">
-                Your trusted companion for healthcare navigation and emergency preparedness.
+                Your trusted companion for healthcare navigation and emergency preparedness across Ghana.
               </p>
             </div>
             
