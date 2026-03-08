@@ -1,682 +1,543 @@
+// app/page.tsx  ← your public root route
 'use client'
 
-import { motion } from 'framer-motion'
-import { Heart, MapPin, Bot, Phone, Sparkles, LogIn, Shield, Zap, Users, Clock, ArrowRight, CheckCircle, Star, Award, TrendingUp, ChevronDown, Lock, Check, X, UserCircle, Building2, AlertCircle, Stethoscope, Hospital, Activity } from 'lucide-react'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { signIn } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useDarkMode } from '@/contexts/DarkModeContext'
+import {
+  Heart, MapPin, Bot, Phone, User, Shield,
+  Zap, Eye, EyeOff, Mail, Lock, ArrowRight, CheckCircle,
+  Sparkles, X, ChevronRight, Moon, Sun,
+} from 'lucide-react'
+import '@/styles/landing.css'
+import '@/styles/landing-light.css'
 
-export default function EnhancedLandingPage() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const router = useRouter()
+/* ── Types ─────────────────────────────────────────────────────── */
+type Panel = 'closed' | 'signin' | 'signup'
 
-  const ghanaFacilities = [
-    { name: "Korle Bu Teaching Hospital", type: "Major Hospital" },
-    { name: "37 Military Hospital", type: "Specialized Care" },
-    { name: "Ridge Hospital", type: "Regional Hospital" },
-    { name: "Nyaho Medical Centre", type: "Private Clinic" },
-    { name: "Ernest Chemists", type: "Pharmacy Network" },
-    { name: "Greater Accra Regional Hospital", type: "Public Hospital" }
-  ]
+const PW_REQS = [
+  { label: 'At least 6 characters', test: (p: string) => p.length >= 6 },
+  { label: 'Contains a number',     test: (p: string) => /\d/.test(p) },
+  { label: 'Contains a letter',     test: (p: string) => /[a-zA-Z]/.test(p) },
+]
 
-  const emergencyServices = [
-    { name: "National Ambulance Service", number: "193", available: true },
-    { name: "Ghana National Fire Service", number: "192", available: true },
-    { name: "Ghana Police Emergency", number: "191", available: true },
-    { name: "Ghana Health Service Hotline", number: "0800 100 388", available: true },
-    { name: "Mental Health Authority", number: "0800 900 0111", available: true }
-  ]
+const CARDS = [
+  {
+    id: 'facilities', color: 'teal',
+    icon: MapPin, badge: 'GPS Live',
+    title: 'Find Nearby Care', sub: 'Accra, Kumasi & beyond',
+    desc: 'Live GPS search for hospitals, clinics and pharmacies near you — with distance, hours and directions.',
+  },
+  {
+    id: 'symptom', color: 'violet', featured: true,
+    icon: Bot, badge: 'AI Powered',
+    title: 'AI Health Check', sub: 'Get instant assessment',
+    desc: 'Describe your symptoms and our AI gives you a triage assessment and recommends next steps.',
+  },
+  {
+    id: 'emergency', color: 'red',
+    icon: Phone, badge: '24 / 7',
+    title: 'Emergency: 193', sub: 'Quick access 24/7',
+    desc: 'One-tap call to National Ambulance, plus first-aid guides, SOS button, and your emergency contacts.',
+  },
+  {
+    id: 'profile', color: 'amber',
+    icon: User, badge: 'Offline',
+    title: 'Health Profile', sub: 'Your full medical ID',
+    desc: 'Blood type, allergies, medications and health score — shown to first responders when it matters most.',
+  },
+]
 
-  const faqs = [
-    {
-      question: "Is HealthConnect Navigator really free?",
-      answer: "Yes! All core features including the facility finder, AI health assistant, and emergency hub are completely free to use. We're committed to making healthcare navigation accessible to everyone in Ghana."
-    },
-    {
-      question: "How accurate is the AI health assistant?",
-      answer: "Our AI provides preliminary health assessments based on your symptoms. It's designed to help you understand when to seek professional care, not to replace medical diagnosis. Always consult healthcare professionals for medical advice and treatment."
-    },
-    {
-      question: "Is my health data secure and private?",
-      answer: "Absolutely. We use industry-standard encryption and never share your personal health information without your explicit consent. Your conversations with the AI assistant are private and secure."
-    },
-    {
-      question: "What areas in Ghana do you cover?",
-      answer: "We currently cover Greater Accra with verified data from major hospitals, clinics, and pharmacies. We're continuously expanding our database to include facilities across all regions of Ghana."
-    },
-    {
-      question: "How do you get facility information?",
-      answer: "We combine data from OpenStreetMap, Ghana Health Service database, and verified healthcare facilities. Our system provides real-time information including locations, contact numbers, and available services."
-    },
-    {
-      question: "Can I use the app offline?",
-      answer: "Emergency contacts and critical phone numbers are designed to work with minimal connectivity. However, the facility finder and AI assistant require internet connection for real-time information and assessments."
+/* ══════════════════════════════════════════════════════════════ */
+import { Suspense } from 'react'
+
+// useSearchParams() requires a Suspense boundary in Next.js App Router
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <LandingPage />
+    </Suspense>
+  )
+}
+
+function LandingPage() {
+  const [panel, setPanel]              = useState<Panel>('closed')
+  const [mounted, setMounted]          = useState(false)
+  const [systemIsLight, setSystemIsLight] = useState(false)
+  const router                         = useRouter()
+  const { isDarkMode, toggleDarkMode } = useDarkMode()
+  const searchParams   = useSearchParams()!  // non-null: Suspense boundary guarantees resolution
+  const initialised    = useRef(false)   // run panel-open logic only once
+
+  const panelOpen = panel !== 'closed'
+  const open      = (p: Panel) => setPanel(p)
+  const close     = useCallback(() => setPanel('closed'), [])
+
+  // Prevent SSR/client hydration mismatch: dark mode class only applied after mount
+  useEffect(() => { setMounted(true) }, [])
+
+  // Detect system light mode preference and keep in sync with OS changes
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: light)')
+    const apply = (e: MediaQueryList | MediaQueryListEvent) => setSystemIsLight(e.matches)
+    apply(mq)
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  // Open the correct panel when navigated from /auth/signin or /auth/signup
+  useEffect(() => {
+    if (initialised.current) return
+    initialised.current = true
+    const p = searchParams.get('panel')
+    if (p === 'signin' || p === 'signup') setPanel(p as Panel)
+  }, [searchParams])
+
+  // Escape key + body scroll lock
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = panelOpen ? 'hidden' : ''
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
     }
-  ]
+  }, [panelOpen, close])
 
-  const useCases = [
-    {
-      icon: <Users size={32} />,
-      title: "For Families",
-      description: "Quick access to pediatric care, nearby pharmacies, and emergency services for your loved ones"
-    },
-    {
-      icon: <UserCircle size={32} />,
-      title: "For Seniors",
-      description: "Easy-to-use interface with large fonts, simple navigation, and quick emergency access"
-    },
-    {
-      icon: <Activity size={32} />,
-      title: "For Everyone",
-      description: "24/7 health guidance, symptom checking, and instant access to healthcare facilities"
-    }
-  ]
+  // After sign-in, honour callbackUrl set by middleware (e.g. from a protected route)
+  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+  const onSuccess   = () => { router.push(callbackUrl); router.refresh() }
 
-  const trustBadges = [
-    { icon: <Shield size={24} />, text: "Secure & Private" },
-    { icon: <Lock size={24} />, text: "Encrypted Data" },
-    { icon: <CheckCircle size={24} />, text: "Verified Facilities" },
-    { icon: <Heart size={24} />, text: "Always Available" }
-  ]
+  // Only apply dark/light classes after mount — server always renders 'lp-root--light'
+  // so server and initial client HTML match, then React updates after hydration.
+  //
+  // Class logic:
+  //   lp-root--light-mode  → system is light AND user hasn't forced dark
+  //   lp-root--force-dark  → user explicitly toggled dark (overrides system light)
+  //   lp-root--dark / lp-root--light → existing app-wide dark mode context classes
+  const rootCls = [
+    'lp-root',
+    mounted && systemIsLight && !isDarkMode ? 'lp-root--light-mode' : '',
+    mounted && isDarkMode && systemIsLight  ? 'lp-root--force-dark'  : '',
+    mounted ? (isDarkMode ? 'lp-root--dark' : 'lp-root--light') : 'lp-root--light',
+    mounted && panelOpen ? 'lp-root--panel-open' : '',
+  ].filter(Boolean).join(' ')
 
-  const comparisonFeatures = [
-    { name: "24/7 AI Health Assistant", us: true, others: false },
-    { name: "Real-time Ghana Facility Data", us: true, others: false },
-    { name: "Verified Emergency Contacts", us: true, others: true },
-    { name: "Interactive Maps & Directions", us: true, others: true },
-    { name: "First Aid Procedures (Ghana-specific)", us: true, others: false },
-    { name: "OpenStreetMap Integration", us: true, others: false },
-    { name: "Activity Tracking", us: true, others: false },
-    { name: "Free Forever", us: true, others: false }
-  ]
+  const panelCls = [
+    'lp-auth-panel',
+    panelOpen               ? 'lp-auth-panel--open' : '',
+    mounted && isDarkMode   ? 'lp-auth-panel--dark'  : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div className="landing-page">
-      {/* Background Elements */}
-      <div className="landing-bg-element landing-bg-element-1"></div>
-      <div className="landing-bg-element landing-bg-element-2"></div>
-      <div className="landing-bg-element landing-bg-element-3"></div>
+    <div className={rootCls}>
 
-      {/* Navigation */}
-      <nav className="landing-nav">
-        <div className="landing-nav-content">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="landing-nav-brand"
+      {/* Background */}
+      <div className="lp-bg" aria-hidden>
+        <div className="lp-bg__mesh" />
+        <div className="lp-bg__grid" />
+        <div className="lp-bg__orb lp-bg__orb--1" />
+        <div className="lp-bg__orb lp-bg__orb--2" />
+        <div className="lp-bg__orb lp-bg__orb--3" />
+      </div>
+
+      {/* Nav */}
+      <nav className="lp-nav">
+        <div className="lp-brand">
+          <div className="lp-brand__icon"><Heart size={18} /></div>
+          <span className="lp-brand__name">HealthConnect</span>
+          <span className="lp-brand__tag">Navigator</span>
+        </div>
+        <div className="lp-nav__actions">
+          {/* Dark mode toggle — consistent with the rest of the app */}
+          <button
+            className="lp-btn lp-btn--ghost lp-btn--icon"
+            onClick={toggleDarkMode}
+            aria-label={mounted && isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            <div className="landing-nav-logo">
-              <Heart size={20} color="white" />
-            </div>
-            <span className="landing-nav-title">HealthConnect Navigator</span>
-          </motion.div>
-          <motion.button
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="landing-signin-button"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => router.push('/auth/signin')}
-          >
-            <LogIn size={18} />
-            <span>Sign In</span>
-          </motion.button>
+            {mounted && isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button className="lp-btn lp-btn--ghost"  onClick={() => open('signin')}>Sign In</button>
+          <button className="lp-btn lp-btn--primary" onClick={() => open('signup')}>
+            Get Started <ArrowRight size={14} />
+          </button>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="landing-hero">
-        <div className="landing-hero-content">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="landing-hero-text"
-          >
-            <div className="landing-hero-badge">
-              <Sparkles size={16} />
-              <span>✨ Now Live & Serving Ghana - Get Started Today</span>
-            </div>
-            
-            <h1 className="landing-hero-title">
-              <span className="landing-hero-title-primary">Healthcare Navigation</span>
-              <span className="landing-hero-title-secondary">For Ghana, Made Simple</span>
-            </h1>
+      {/* Hero */}
+      <section className="lp-hero">
+        <div className="lp-eyebrow">
+          <span className="lp-live-dot" />
+          Ghana's Health Navigation Platform
+        </div>
+        <h1 className="lp-hero__title">
+          Your health,<br />
+          <em>always within<br />reach.</em>
+        </h1>
+        <p className="lp-hero__sub">
+          Emergency services, AI symptom checking, nearby facilities and your complete medical ID — designed for Ghana.
+        </p>
+        <div className="lp-hero__cta">
+          <button className="lp-btn lp-btn--primary lp-btn--lg" onClick={() => open('signup')}>
+            Create Free Account <Sparkles size={16} />
+          </button>
+          <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => open('signin')}>
+            Sign In
+          </button>
+        </div>
+        <div className="lp-trust-row">
+          <span className="lp-trust-pill"><Shield size={12} />End-to-end encrypted</span>
+          <span className="lp-trust-pill"><CheckCircle size={12} />Free forever</span>
+          <span className="lp-trust-pill"><Zap size={12} />Works offline</span>
+        </div>
+      </section>
 
-            <p className="landing-hero-subtitle">
-              Find nearby hospitals, clinics, and pharmacies across Ghana. Get AI-powered health assessments 
-              and access emergency services instantly. <strong>Your complete health companion in one platform.</strong>
-            </p>
-
-            <div className="landing-hero-cta">
-              <motion.button
-                className="landing-cta-primary"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/auth/signup')}
+      {/* Feature Cards */}
+      <section className="lp-cards">
+        <p className="lp-cards__label">Everything you need</p>
+        <div className="lp-cards__grid">
+          {CARDS.map(card => {
+            const Icon = card.icon
+            return (
+              <div
+                key={card.id}
+                role="button"
+                tabIndex={0}
+                className={`lp-card lp-card--${card.color}${card.featured ? ' lp-card--featured' : ''}`}
+                onClick={() => open('signup')}
+                onKeyDown={e => e.key === 'Enter' && open('signup')}
               >
-                Get Started Free
-                <ArrowRight size={20} />
-              </motion.button>
-            </div>
-
-            {/* Trust Badges */}
-            <div className="landing-trust-badges">
-              {trustBadges.map((badge, idx) => (
-                <div key={idx} className="landing-trust-badge">
-                  {badge.icon}
-                  <span>{badge.text}</span>
+                <div className="lp-card__top">
+                  <div className="lp-card__icon"><Icon size={20} /></div>
+                  <span className="lp-card__badge">{card.badge}</span>
                 </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Hero Image Placeholder */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="landing-hero-image"
-          >
-            <div className="landing-mockup">
-              <div className="landing-mockup-screen">
-                <div className="landing-mockup-header">
-                  <Heart size={20} color="#3b82f6" />
-                  <span>HealthConnect</span>
+                <div className="lp-card__body">
+                  <h3 className="lp-card__title">{card.title}</h3>
+                  <p className="lp-card__sub">{card.sub}</p>
+                  <p className="lp-card__desc">{card.desc}</p>
                 </div>
-                <div className="landing-mockup-content">
-                  <div className="landing-mockup-card">
-                    <MapPin size={24} color="#3b82f6" />
-                    <div>
-                      <div className="landing-mockup-title">Find Nearby Care</div>
-                      <div className="landing-mockup-subtitle">Accra, Kumasi & beyond</div>
-                    </div>
-                  </div>
-                  <div className="landing-mockup-card">
-                    <Bot size={24} color="#8b5cf6" />
-                    <div>
-                      <div className="landing-mockup-title">AI Health Check</div>
-                      <div className="landing-mockup-subtitle">Get instant assessment</div>
-                    </div>
-                  </div>
-                  <div className="landing-mockup-card">
-                    <Phone size={24} color="#ef4444" />
-                    <div>
-                      <div className="landing-mockup-title">Emergency: 193</div>
-                      <div className="landing-mockup-subtitle">Quick access 24/7</div>
-                    </div>
-                  </div>
-                </div>
+                <div className="lp-card__arrow"><ChevronRight size={15} /></div>
               </div>
-            </div>
-          </motion.div>
+            )
+          })}
         </div>
       </section>
 
-      {/* Ghana Healthcare Network Section */}
-      <section className="landing-stats">
-        <div className="landing-stats-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Connected to Ghana's Healthcare Network</h2>
-            <p className="landing-section-subtitle">Access verified facilities and emergency services across Ghana</p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-stats-grid"
-          >
-            <div className="landing-stat-card">
-              <Hospital size={32} />
-              <div className="landing-stat-number">6+</div>
-              <div className="landing-stat-label">Major Hospitals</div>
-            </div>
-            <div className="landing-stat-card">
-              <MapPin size={32} />
-              <div className="landing-stat-number">100+</div>
-              <div className="landing-stat-label">Healthcare Facilities</div>
-            </div>
-            <div className="landing-stat-card">
-              <Phone size={32} />
-              <div className="landing-stat-number">10+</div>
-              <div className="landing-stat-label">Emergency Contacts</div>
-            </div>
-            <div className="landing-stat-card">
-              <Clock size={32} />
-              <div className="landing-stat-number">24/7</div>
-              <div className="landing-stat-label">Always Available</div>
-            </div>
-          </motion.div>
-
-          {/* Featured Facilities */}
-          <div className="landing-facilities-showcase">
-            <h3>Featured Healthcare Facilities</h3>
-            <div className="landing-facilities-grid">
-              {ghanaFacilities.map((facility, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="landing-facility-badge"
-                >
-                  <Hospital size={20} />
-                  <div>
-                    <div className="facility-name">{facility.name}</div>
-                    <div className="facility-type">{facility.type}</div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+      {/* Stats */}
+      <div className="lp-stats">
+        {[
+          { n: '193',  l: 'Ambulance Service' },
+          { n: '192',  l: 'Fire Service' },
+          { n: '24/7', l: 'Emergency Access' },
+          { n: '100%', l: 'Private & Secure' },
+        ].map(s => (
+          <div key={s.n} className="lp-stat">
+            <span className="lp-stat__n">{s.n}</span>
+            <span className="lp-stat__l">{s.l}</span>
           </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="landing-features">
-        <div className="landing-features-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Everything You Need for Healthcare Navigation</h2>
-            <p className="landing-section-subtitle">Powerful features designed for Ghana's healthcare landscape</p>
-          </motion.div>
-
-          <div className="landing-features-grid">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="landing-feature-card"
-            >
-              <div className="landing-feature-icon landing-feature-icon-blue">
-                <MapPin size={32} color="white" />
-              </div>
-              <h3 className="landing-feature-title">Smart Facility Finder</h3>
-              <p className="landing-feature-description">
-                Discover hospitals, clinics, and pharmacies with real-time data from OpenStreetMap and verified Ghana facilities.
-              </p>
-              <div className="landing-feature-benefits">
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Real-time location data</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Distance calculations</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Google Maps integration</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Filter by facility type</span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="landing-feature-card"
-            >
-              <div className="landing-feature-icon landing-feature-icon-purple">
-                <Bot size={32} color="white" />
-              </div>
-              <h3 className="landing-feature-title">AI Health Assistant</h3>
-              <p className="landing-feature-description">
-                Conversational symptom checker with urgency assessment and personalized health recommendations.
-              </p>
-              <div className="landing-feature-benefits">
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Interactive chat interface</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Urgency level detection</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Emergency symptom alerts</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Medical disclaimers included</span>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="landing-feature-card"
-            >
-              <div className="landing-feature-icon landing-feature-icon-red">
-                <Phone size={32} color="white" />
-              </div>
-              <h3 className="landing-feature-title">Emergency Hub</h3>
-              <p className="landing-feature-description">
-                Instant access to Ghana's emergency services, verified contacts, and life-saving first aid procedures.
-              </p>
-              <div className="landing-feature-benefits">
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>National Ambulance: 193</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Ghana Police: 191</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>8 first aid procedures</span>
-                </div>
-                <div className="landing-benefit-item">
-                  <CheckCircle size={16} />
-                  <span>Personal emergency contacts</span>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Emergency Services Section */}
-      <section className="landing-emergency-section">
-        <div className="landing-emergency-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Ghana Emergency Services at Your Fingertips</h2>
-            <p className="landing-section-subtitle">Verified emergency contacts available 24/7</p>
-          </motion.div>
-
-          <div className="landing-emergency-grid">
-            {emergencyServices.map((service, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.05 }}
-                className="landing-emergency-card"
-              >
-                <Phone size={24} />
-                <div className="emergency-card-content">
-                  <div className="emergency-name">{service.name}</div>
-                  <div className="emergency-number">{service.number}</div>
-                  <div className="emergency-status">
-                    <div className="status-dot"></div>
-                    <span>Available 24/7</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases Section */}
-      <section className="landing-use-cases">
-        <div className="landing-use-cases-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Built For Everyone</h2>
-            <p className="landing-section-subtitle">Healthcare navigation designed for all Ghanaians</p>
-          </motion.div>
-
-          <div className="landing-use-cases-grid">
-            {useCases.map((useCase, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="landing-use-case-card"
-              >
-                <div className="landing-use-case-icon">{useCase.icon}</div>
-                <h3 className="landing-use-case-title">{useCase.title}</h3>
-                <p className="landing-use-case-description">{useCase.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Comparison Section */}
-      <section className="landing-comparison">
-        <div className="landing-comparison-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Why Choose HealthConnect Navigator?</h2>
-            <p className="landing-section-subtitle">See how we compare to other healthcare apps</p>
-          </motion.div>
-
-          <div className="landing-comparison-table">
-            <div className="landing-comparison-header">
-              <div className="landing-comparison-cell"></div>
-              <div className="landing-comparison-cell landing-comparison-us">
-                <Heart size={24} color="#3b82f6" />
-                <span>HealthConnect</span>
-              </div>
-              <div className="landing-comparison-cell landing-comparison-others">
-                <Building2 size={24} />
-                <span>Other Apps</span>
-              </div>
-            </div>
-            {comparisonFeatures.map((feature, idx) => (
-              <div key={idx} className="landing-comparison-row">
-                <div className="landing-comparison-cell landing-comparison-feature">{feature.name}</div>
-                <div className="landing-comparison-cell">
-                  {feature.us ? <Check size={24} color="#10b981" /> : <X size={24} color="#ef4444" />}
-                </div>
-                <div className="landing-comparison-cell">
-                  {feature.others ? <Check size={24} color="#10b981" /> : <X size={24} color="#ef4444" />}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="landing-how-it-works">
-        <div className="landing-how-it-works-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">How It Works</h2>
-            <p className="landing-section-subtitle">Get started in three simple steps</p>
-          </motion.div>
-
-          <div className="landing-steps-grid">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="landing-step-card"
-            >
-              <div className="step-number">1</div>
-              <h3>Create Your Account</h3>
-              <p>Sign up in seconds with your email. No credit card required, completely free forever.</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="landing-step-card"
-            >
-              <div className="step-number">2</div>
-              <h3>Enable Location</h3>
-              <p>Allow location access to find nearby healthcare facilities with accurate distances and directions.</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="landing-step-card"
-            >
-              <div className="step-number">3</div>
-              <h3>Access Healthcare</h3>
-              <p>Find facilities, check symptoms with AI, or access emergency services instantly whenever you need them.</p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="landing-faq">
-        <div className="landing-faq-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-section-header"
-          >
-            <h2 className="landing-section-title">Frequently Asked Questions</h2>
-            <p className="landing-section-subtitle">Everything you need to know about HealthConnect Navigator</p>
-          </motion.div>
-
-          <div className="landing-faq-list">
-            {faqs.map((faq, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.05 }}
-                className="landing-faq-item"
-              >
-                <button
-                  className="landing-faq-question"
-                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                >
-                  <span>{faq.question}</span>
-                  <ChevronDown 
-                    size={24} 
-                    className={`landing-faq-icon ${openFaq === idx ? 'landing-faq-icon-open' : ''}`}
-                  />
-                </button>
-                <div className={`landing-faq-answer ${openFaq === idx ? 'landing-faq-answer-open' : ''}`}>
-                  <p>{faq.answer}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="landing-cta-section">
-        <div className="landing-cta-content">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="landing-cta-box"
-          >
-            <h2 className="landing-cta-title">Ready to Take Control of Your Health?</h2>
-            <p className="landing-cta-description">
-              Join HealthConnect Navigator today and experience healthcare navigation made simple. 
-              Get started in less than 60 seconds.
-            </p>
-            <div className="landing-cta-buttons">
-              <motion.button
-                className="landing-cta-primary"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/auth/signup')}
-              >
-                Get Started Free
-                <ArrowRight size={20} />
-              </motion.button>
-            </div>
-            <p className="landing-cta-note">
-              <Lock size={16} />
-              No credit card required • Free forever • Secure & private
-            </p>
-          </motion.div>
-        </div>
-      </section>
+        ))}
+      </div>
 
       {/* Footer */}
-      <footer className="landing-footer">
-        <div className="landing-footer-content">
-          <div className="landing-footer-main">
-            <div className="landing-footer-brand">
-              <div className="landing-footer-logo">
-                <Heart size={20} />
-                <span>HealthConnect Navigator</span>
-              </div>
-              <p className="landing-footer-tagline">
-                Your trusted companion for healthcare navigation and emergency preparedness in Ghana.
-              </p>
-            </div>
-            
-            <div className="landing-footer-links">
-              <div className="landing-footer-section">
-                <h4>Product</h4>
-                <button onClick={() => router.push('/auth/signup')}>Get Started</button>
-                <button>Features</button>
-                <button>FAQ</button>
-              </div>
-              
-              <div className="landing-footer-section">
-                <h4>Company</h4>
-                <button>About Us</button>
-                <button>Contact</button>
-                <button>Privacy Policy</button>
-                <button>Terms of Service</button>
-              </div>
-              
-              <div className="landing-footer-section">
-                <h4>Resources</h4>
-                <button>Help Center</button>
-                <button>Emergency Numbers</button>
-                <button>Health Tips</button>
-              </div>
-            </div>
+      <footer className="lp-footer">
+        <div className="lp-footer__brand">
+          <Heart size={14} style={{ color: 'var(--lp-red)' }} />
+          HealthConnect Navigator
+        </div>
+        <p className="lp-footer__copy">
+          Built for Ghana · Emergency: <a href="tel:193">193</a>
+        </p>
+      </footer>
+
+      {/* Backdrop */}
+      <div
+        className={`lp-backdrop${panelOpen ? ' lp-backdrop--open' : ''}`}
+        onClick={close}
+        aria-hidden
+      />
+
+      {/* Auth slide panel */}
+      <div
+        className={panelCls}
+        role="dialog"
+        aria-modal="true"
+        aria-label={panel === 'signin' ? 'Sign in' : 'Create account'}
+      >
+        <div className="lp-panel-close">
+          <button className="lp-close-btn" onClick={close} aria-label="Close">
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="lp-panel-inner">
+          {/* Brand strip */}
+          <div className="lp-panel-brand">
+            <div className="lp-panel-brand__icon"><Heart size={15} /></div>
+            <span className="lp-panel-brand__name">HealthConnect Navigator</span>
           </div>
-          
-          <div className="landing-footer-bottom">
-            <p>© 2025 HealthConnect Navigator. All rights reserved.</p>
+
+          {panel === 'signin' && (
+            <SignInForm
+              isDark={isDarkMode}
+              onSwitch={() => setPanel('signup')}
+              onSuccess={onSuccess}
+              sessionError={searchParams.get('error') === 'SessionRequired'}
+            />
+          )}
+          {panel === 'signup' && (
+            <SignUpForm isDark={isDarkMode} onSwitch={() => setPanel('signin')} onSuccess={onSuccess} />
+          )}
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SIGN IN FORM
+══════════════════════════════════════════════════════════════ */
+function SignInForm({
+  isDark, onSwitch, onSuccess, sessionError = false,
+}: { isDark: boolean; onSwitch: () => void; onSuccess: () => void; sessionError?: boolean }) {
+  const [email,   setEmail]   = useState('')
+  const [pw,      setPw]      = useState('')
+  const [showPw,  setShowPw]  = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      const result = await signIn('credentials', {
+        email: email.trim().toLowerCase(), password: pw, redirect: false,
+      })
+      result?.error ? setError('Invalid email or password. Please try again.') : onSuccess()
+    } catch { setError('Something went wrong. Please try again.') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <>
+      <p className="lp-form-eyebrow">Welcome back</p>
+      <h2 className="lp-form-title">Sign in to your<br />account</h2>
+      <p className="lp-form-sub">Access your dashboard, emergency contacts and medical ID.</p>
+
+      {sessionError && (
+        <div className="lp-form-error lp-form-error--warn" role="alert">
+          🔒 Your session has expired. Please sign in again.
+        </div>
+      )}
+
+      <form onSubmit={submit} noValidate>
+        {error && <div className="lp-form-error" role="alert">{error}</div>}
+
+        <div className="lp-field">
+          <label className="lp-field-label">Email address</label>
+          <div className="lp-input-wrap">
+            <Mail size={16} className="lp-input-icon" />
+            <input type="email" className="lp-input" placeholder="you@example.com"
+              autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
         </div>
-      </footer>
-    </div>
+
+        <div className="lp-field">
+          <label className="lp-field-label">Password</label>
+          <div className="lp-input-wrap">
+            <Lock size={16} className="lp-input-icon" />
+            <input type={showPw ? 'text' : 'password'} className="lp-input"
+              placeholder="Enter your password" autoComplete="current-password"
+              value={pw} onChange={e => setPw(e.target.value)} required />
+            <button type="button" className="lp-input-toggle"
+              onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Hide' : 'Show'}>
+              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading || !email || !pw}
+          className={`lp-submit${isDark ? ' lp-submit--dark-mode' : ''}`}
+        >
+          {loading
+            ? <><span className={`lp-spinner${isDark ? ' lp-spinner--teal' : ''}`} />Signing in…</>
+            : <>Sign In <Sparkles size={16} /></>}
+        </button>
+      </form>
+
+      <div className="lp-demo">
+        <p className="lp-demo__title">✨ Demo credentials</p>
+        <p className="lp-demo__creds">demo@healthconnect.com<br />demo123</p>
+      </div>
+
+      <p className="lp-switch">
+        Don't have an account?{' '}
+        <button type="button" onClick={onSwitch}>Create one free</button>
+      </p>
+    </>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SIGN UP FORM
+══════════════════════════════════════════════════════════════ */
+function SignUpForm({
+  isDark, onSwitch, onSuccess,
+}: { isDark: boolean; onSwitch: () => void; onSuccess: () => void }) {
+  const [form,    setForm]    = useState({ name: '', email: '', pw: '', cpw: '' })
+  const [showPw,  setShowPw]  = useState(false)
+  const [showCpw, setShowCpw] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [success, setSuccess] = useState(false)
+  const [agreed,  setAgreed]  = useState(false)
+
+  const change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm(p => ({ ...p, [e.target.name]: e.target.value }))
+    if (error) setError('')
+  }
+  const reqs = PW_REQS.map(r => r.test(form.pw))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError('')
+    if (!form.name.trim())    return setError('Please enter your full name.')
+    if (!reqs.every(Boolean)) return setError('Please meet all password requirements.')
+    if (form.pw !== form.cpw) return setError('Passwords do not match.')
+    if (!agreed)              return setError('Please accept the terms to continue.')
+
+    setLoading(true)
+    try {
+      const res  = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:     form.name.trim(),
+          email:    form.email.trim().toLowerCase(),
+          password: form.pw,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Registration failed')
+      setSuccess(true)
+      setTimeout(async () => {
+        await signIn('credentials', {
+          email:    form.email.trim().toLowerCase(),
+          password: form.pw,
+          redirect: false,
+        })
+        onSuccess()
+      }, 1600)
+    } catch (err: any) { setError(err.message) }
+    finally { setLoading(false) }
+  }
+
+  if (success) {
+    return (
+      <div className="lp-auth-success">
+        <div className="lp-auth-success__icon"><CheckCircle size={34} /></div>
+        <h2 className="lp-auth-success__title">Account created!</h2>
+        <p className="lp-auth-success__sub">
+          Welcome to HealthConnect Navigator.<br />Setting up your dashboard…
+        </p>
+        <div className="lp-auth-success__loader">
+          <span className="lp-spinner" />Signing you in
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <p className="lp-form-eyebrow">Get started · free</p>
+      <h2 className="lp-form-title">Create your<br />account</h2>
+      <p className="lp-form-sub">Takes less than 2 minutes. No credit card required.</p>
+
+      <form onSubmit={submit} noValidate>
+        {error && <div className="lp-form-error" role="alert">{error}</div>}
+
+        <div className="lp-field">
+          <label className="lp-field-label">Full name</label>
+          <div className="lp-input-wrap">
+            <User size={16} className="lp-input-icon" />
+            <input name="name" type="text" className="lp-input" placeholder="Kofi Asante"
+              autoComplete="name" value={form.name} onChange={change} required />
+          </div>
+        </div>
+
+        <div className="lp-field">
+          <label className="lp-field-label">Email address</label>
+          <div className="lp-input-wrap">
+            <Mail size={16} className="lp-input-icon" />
+            <input name="email" type="email" className="lp-input" placeholder="you@example.com"
+              autoComplete="email" value={form.email} onChange={change} required />
+          </div>
+        </div>
+
+        <div className="lp-field">
+          <label className="lp-field-label">Password</label>
+          <div className="lp-input-wrap">
+            <Lock size={16} className="lp-input-icon" />
+            <input name="pw" type={showPw ? 'text' : 'password'} className="lp-input"
+              placeholder="Create a strong password" autoComplete="new-password"
+              value={form.pw} onChange={change} required />
+            <button type="button" className="lp-input-toggle"
+              onClick={() => setShowPw(v => !v)}>
+              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          {form.pw && (
+            <div className="lp-pw-reqs">
+              {PW_REQS.map((r, i) => (
+                <div key={i} className={`lp-pw-req${reqs[i] ? ' met' : ''}`}>
+                  <div className="lp-req-dot"><div className="lp-req-check" /></div>
+                  {r.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="lp-field">
+          <label className="lp-field-label">Confirm password</label>
+          <div className="lp-input-wrap">
+            <Shield size={16} className="lp-input-icon" />
+            <input name="cpw" type={showCpw ? 'text' : 'password'} className="lp-input"
+              placeholder="Re-enter your password" autoComplete="new-password"
+              value={form.cpw} onChange={change} required />
+            <button type="button" className="lp-input-toggle"
+              onClick={() => setShowCpw(v => !v)}>
+              {showCpw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <label className="lp-terms">
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
+          <span>
+            I agree to the <a href="#" onClick={e => e.preventDefault()}>Terms of Service</a> and{' '}
+            <a href="#" onClick={e => e.preventDefault()}>Privacy Policy</a>.
+            My health data is encrypted and never shared.
+          </span>
+        </label>
+
+        <button
+          type="submit"
+          disabled={loading || !form.email || !form.name || !form.pw}
+          className={`lp-submit lp-submit--signup${isDark ? ' lp-submit--dark-mode' : ''}`}
+        >
+          {loading
+            ? <><span className={`lp-spinner${isDark ? ' lp-spinner--teal' : ' lp-spinner--dark'}`} />Creating account…</>
+            : <>Create Account <Sparkles size={16} /></>}
+        </button>
+      </form>
+
+      <p className="lp-switch">
+        Already have an account?{' '}
+        <button type="button" onClick={onSwitch}>Sign in</button>
+      </p>
+    </>
   )
 }

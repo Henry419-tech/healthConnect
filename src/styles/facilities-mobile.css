@@ -1,0 +1,571 @@
+/* ================================================================
+   src/styles/facilities-mobile.css
+   Mobile-first enhancements for the Facility Finder page.
+   Drop in AFTER facilities.css.
+   All rules scoped inside @media (max-width: 640px) — zero
+   impact on desktop/tablet layouts.
+   ================================================================ */
+
+/* ════════════════════════════════════════════════════════════════
+   ALL MOBILE OVERRIDES — strictly scoped to ≤ 640px
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Body / safe areas ─────────────────────────────────────── */
+  body { overscroll-behavior-y: none; }
+
+  /* ── Page shell ───────────────────────────────────────────── */
+  .facility-finder {
+    margin-left: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  /* Hide desktop sidebar + its own topbar/bottom-nav on mobile */
+  .hc-topbar     { display: none !important; }
+  .hc-bottom-nav { display: none !important; }
+  .hc-layout__main {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     MOBILE STICKY TOP BAR
+     Uses the same .mob-topbar classes as dashboard-mobile.css,
+     so it looks identical. We only show it on mobile via this
+     file; the element is rendered in the JSX with class
+     "mob-topbar fac-mob-topbar".
+  ════════════════════════════════════════════════════════════ */
+
+  /* mob-topbar is hidden by default in dashboard-mobile.css;
+     show it here for the facilities page */
+  .fac-mob-topbar {
+    display: flex !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 200 !important;
+  }
+
+  /* Hide the clunky desktop page header on mobile */
+  .facility-finder-page-header {
+    display: none !important;
+  }
+
+  /* GPS locate icon button — teal-tinted square, matches mob-topbar__btn shape */
+  .fac-mob-gps-btn {
+    color: var(--hc-teal) !important;
+    background: var(--hc-teal-dim) !important;
+    border-color: color-mix(in srgb, var(--hc-teal) 30%, transparent) !important;
+  }
+  .fac-mob-gps-btn:hover {
+    background: color-mix(in srgb, var(--hc-teal) 18%, transparent) !important;
+    border-color: var(--hc-teal) !important;
+  }
+  .fac-mob-gps-btn:active { transform: scale(0.94) !important; }
+  .fac-mob-gps-btn:disabled { opacity: 0.55 !important; cursor: not-allowed !important; }
+  .fac-mob-gps-btn.loading {
+    color: var(--hc-teal) !important;
+    background: var(--hc-teal-dim) !important;
+  }
+
+  /* ── Content wrapper ──────────────────────────────────────── */
+  .facility-finder-content {
+    padding: 12px 14px 82px !important;
+    gap: 10px !important;
+    max-width: 100% !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     LOCATION CONFIRMATION BANNER
+  ════════════════════════════════════════════════════════════ */
+  .location-confirmation {
+    padding: 11px 14px !important;
+    border-radius: 14px !important;
+    gap: 10px !important;
+  }
+  .location-confirmation-icon {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+  }
+  .location-confirmation-content strong { font-size: 13px !important; font-weight: 700 !important; }
+  .location-confirmation-content p      { font-size: 12px !important; margin: 1px 0 0 !important; }
+  .location-confirmation-content small  { font-size: 11px !important; margin-top: 2px !important; }
+  .location-refresh-btn {
+    width: 30px !important; height: 30px !important;
+    border-radius: 9px !important; flex-shrink: 0 !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     LOCATION PERMISSION BANNER
+  ════════════════════════════════════════════════════════════ */
+  .location-permission-banner {
+    flex-direction: column !important;
+    padding: 16px !important;
+    gap: 12px !important;
+    border-radius: 16px !important;
+  }
+  .location-banner-icon {
+    width: 44px !important; height: 44px !important;
+    border-radius: 12px !important; align-self: flex-start !important;
+  }
+  .location-banner-title       { font-size: 14px !important; }
+  .location-banner-description { font-size: 12.5px !important; margin-bottom: 10px !important; }
+  .location-banner-benefits    { gap: 6px !important; }
+  .location-benefit            { font-size: 11px !important; padding: 3px 8px !important; }
+  .location-banner-actions     { flex-direction: row !important; gap: 8px !important; }
+  .location-banner-actions .facility-finder-location-btn {
+    max-width: none !important; flex: 1 !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     SEARCH + FILTERS BAR
+  ════════════════════════════════════════════════════════════ */
+  .facility-finder-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .facility-finder-search-section { gap: 8px !important; }
+
+  /* Search wrapper — clean row with icon btn + input + clear */
+  .facility-finder-search-wrapper {
+    flex-wrap: nowrap !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    min-height: 50px !important;
+    align-items: center !important;
+    border: 1.5px solid var(--hc-border) !important;
+    background: var(--hc-surface) !important;
+    backdrop-filter: blur(16px) !important;
+    overflow: hidden !important;
+  }
+  .facility-finder-search-wrapper:focus-within,
+  .facility-finder-search-wrapper.search-focused {
+    border-color: var(--hc-teal) !important;
+    box-shadow: 0 0 0 3px var(--hc-teal-dim) !important;
+  }
+
+  /* Search icon — large tap target button on mobile */
+  .facility-finder-search-icon-btn {
+    width: 44px !important;
+    height: 50px !important;
+    border-radius: 0 !important;
+    flex-shrink: 0 !important;
+    color: var(--hc-teal) !important;
+    background: none !important;
+    border: none !important;
+  }
+  .facility-finder-search-icon-btn:active {
+    background: var(--hc-teal-dim) !important;
+  }
+
+  .facility-finder-search-input {
+    flex: 1 !important;
+    font-size: 15px !important;
+    padding: 13px 6px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+  }
+
+  /* Clear button */
+  .facility-finder-search-clear {
+    margin-right: 10px !important;
+    width: 30px !important; height: 30px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Filter toggle — right side of search bar */
+  .facility-finder-filter-toggle {
+    width: 44px !important; height: 50px !important;
+    border-radius: 0 !important; flex-shrink: 0 !important;
+    border-color: transparent !important;
+    border-left: 1px solid var(--hc-border) !important;
+    background: none !important;
+    margin-right: 0 !important;
+    padding: 0 8px !important;
+  }
+
+  /* Unified pill strip on mobile — full-width horizontal scroll */
+  .facility-type-pills {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 8px !important;
+    padding: 2px 0 6px !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    width: 100% !important;
+    align-items: center !important;
+  }
+  .facility-type-pills::-webkit-scrollbar { display: none !important; }
+  .type-pill {
+    flex-shrink: 0 !important;
+    padding: 8px 18px !important;
+    border-radius: 100px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    border: 1.5px solid var(--hc-border) !important;
+    background: var(--hc-surface) !important;
+    color: var(--hc-text2) !important;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
+    transition: background 0.15s, color 0.15s, border-color 0.15s !important;
+  }
+  .type-pill.active {
+    background: var(--hc-teal) !important;
+    color: #fff !important;
+    border-color: var(--hc-teal) !important;
+    box-shadow: 0 2px 8px var(--hc-teal-glow) !important;
+  }
+
+  /* Filter toggle button */
+  .facility-finder-filter-toggle {
+    width: 44px !important; height: 50px !important;
+    border-radius: 0 !important; flex-shrink: 0 !important;
+    border-color: transparent !important;
+    border-left: 1px solid var(--hc-border) !important;
+    background: none !important;
+    margin-right: 0 !important;
+    padding: 0 8px !important;
+  }
+
+  /* Extended filters panel */
+  .facility-finder-filters-extended {
+    border-radius: 14px !important;
+    padding: 14px !important;
+    animation: filterSlideDown 0.2s var(--hc-ease) !important;
+  }
+  @keyframes filterSlideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .filter-row              { flex-wrap: wrap !important; gap: 10px !important; }
+  .facility-finder-filter-select { flex: 1 !important; min-width: 120px !important; font-size: 13px !important; }
+  .facility-finder-radius-select { flex-wrap: wrap !important; gap: 6px !important; }
+  .radius-pill { padding: 6px 12px !important; font-size: 12px !important; border-radius: 100px !important; }
+
+  /* Results row */
+  .facility-finder-view-controls {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+  .results-count { font-size: 20px !important; }
+  .results-label { font-size: 12px !important; }
+  .facility-finder-view-toggle {
+    padding: 3px !important; border-radius: 11px !important; gap: 2px !important;
+  }
+  .facility-finder-view-btn {
+    padding: 7px 14px !important; font-size: 12.5px !important;
+    border-radius: 9px !important; gap: 5px !important;
+  }
+
+  /* Error banner */
+  .error-banner {
+    border-radius: 12px !important; padding: 12px 14px !important;
+    font-size: 12.5px !important; gap: 10px !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     MAP VIEW — tall, edge-to-edge map with sheet below
+  ════════════════════════════════════════════════════════════ */
+  .facility-finder-main { width: 100% !important; }
+
+  .facility-finder-map-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    height: auto !important;
+    border-radius: 0 !important;
+  }
+
+  /* Map: tall viewport-filling — the star of the page */
+  .facility-finder-map-container > div:first-child,
+  .facility-finder-map {
+    width: 100% !important;
+    height: 62vw !important;          /* scales with screen width */
+    min-height: 300px !important;     /* never shorter than 300px */
+    max-height: 420px !important;     /* cap on very wide phones */
+    border-radius: 18px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--hc-border) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.10) !important;
+  }
+
+  /* Results sheet below map */
+  .facility-finder-map-sidebar {
+    width: 100% !important;
+    border-radius: 20px !important;
+    border: 1px solid var(--hc-border) !important;
+    margin-top: 10px !important;
+    overflow: visible !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08) !important;
+  }
+  .facility-finder-results-header {
+    padding: 14px 16px 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+  .facility-finder-results-header h3 {
+    font-size: 14px !important; font-weight: 800 !important;
+  }
+  .facility-finder-results-list {
+    max-height: 420px !important;
+    overflow-y: auto !important;
+    padding: 8px !important;
+    gap: 6px !important;
+  }
+
+  /* Result cards (map sidebar) */
+  .facility-finder-result-card {
+    padding: 12px !important; border-radius: 14px !important;
+    gap: 8px !important; border-width: 1.5px !important;
+  }
+  .facility-finder-result-card:hover  { transform: none !important; }
+  .facility-finder-result-card:active { transform: scale(0.99) !important; }
+
+  .facility-result-icon {
+    width: 40px !important; height: 40px !important;
+    border-radius: 12px !important; flex-shrink: 0 !important;
+  }
+  .facility-result-name     { font-size: 13px !important; font-weight: 700 !important; }
+  .facility-result-location { font-size: 11px !important; }
+  .facility-result-distance { font-size: 11.5px !important; }
+  .facility-result-rating   { font-size: 12px !important; }
+  .facility-badges { gap: 5px !important; }
+  .emergency-badge, .insurance-badge { font-size: 10px !important; padding: 2px 7px !important; }
+  .facility-result-services  { font-size: 11px !important; }
+  .facility-result-actions   { gap: 6px !important; padding-top: 2px !important; }
+  .facility-action-btn {
+    padding: 8px 10px !important; font-size: 12px !important; border-radius: 10px !important;
+  }
+
+  .loading-facilities, .no-facilities {
+    padding: 24px 16px !important; font-size: 13px !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     LIST VIEW — single-column cards
+  ════════════════════════════════════════════════════════════ */
+  .facility-finder-list-view { gap: 12px !important; }
+  .facility-finder-list-header {
+    flex-direction: row !important; align-items: center !important;
+    justify-content: space-between !important; gap: 8px !important;
+  }
+  .facility-finder-list-header h3 {
+    font-size: 16px !important; font-weight: 800 !important; margin: 0 !important;
+  }
+  .facility-finder-list-grid {
+    grid-template-columns: 1fr !important; gap: 10px !important;
+  }
+
+  .facility-finder-list-card {
+    border-radius: 18px !important; border-top-width: 3px !important;
+  }
+  .facility-finder-list-card:hover  { transform: none !important; }
+  .facility-finder-list-card:active { transform: scale(0.99) !important; }
+
+  .facility-card-header {
+    padding: 16px 16px 12px !important; gap: 12px !important;
+  }
+  .facility-card-icon {
+    width: 46px !important; height: 46px !important;
+    border-radius: 14px !important; flex-shrink: 0 !important;
+  }
+  .facility-card-name {
+    font-size: 14.5px !important; font-weight: 800 !important;
+    line-height: 1.3 !important; margin-bottom: 4px !important;
+  }
+  .facility-card-location  { font-size: 11.5px !important; gap: 3px !important; }
+  .facility-card-distance  { font-size: 12px !important; font-weight: 800 !important; }
+  .rating-value            { font-size: 14px !important; font-weight: 800 !important; }
+  .rating-reviews          { font-size: 10px !important; }
+
+  .facility-card-quick-info {
+    padding: 10px 16px !important; gap: 6px !important;
+    flex-direction: column !important;
+  }
+  .quick-info-item { font-size: 12px !important; gap: 6px !important; display: flex !important; align-items: center !important; }
+
+  .facility-card-services        { padding: 10px 16px !important; }
+  .facility-card-services h4,
+  .facility-card-specializations h4,
+  .facility-card-insurance h4 {
+    font-size: 11px !important; font-weight: 700 !important;
+    letter-spacing: 0.8px !important; text-transform: uppercase !important;
+    color: var(--hc-text3) !important; margin: 0 0 8px !important;
+  }
+  .service-tags, .specialization-tags, .insurance-tags { gap: 5px !important; flex-wrap: wrap !important; }
+  .service-tag, .service-tag-more, .specialization-tag, .insurance-tag {
+    font-size: 11px !important; padding: 3px 9px !important; border-radius: 100px !important;
+  }
+  .facility-card-specializations { padding: 10px 16px !important; }
+  .facility-card-insurance       { padding: 10px 16px !important; }
+
+  .facility-card-actions {
+    display: flex !important; flex-direction: column !important;
+    gap: 7px !important; padding: 12px 16px 16px !important;
+  }
+  .facility-card-btn {
+    width: 100% !important; flex: none !important;
+    padding: 12px 16px !important; font-size: 13.5px !important;
+    font-weight: 700 !important; border-radius: 12px !important;
+    justify-content: center !important;
+  }
+
+  .loading-facilities-list, .no-results-message { padding: 40px 16px !important; }
+  .no-results-icon   { width: 64px !important; height: 64px !important; border-radius: 18px !important; }
+  .no-results-message h3 { font-size: 18px !important; }
+  .radius-suggestions    { gap: 8px !important; flex-wrap: wrap !important; }
+  .location-enable-btn {
+    padding: 10px 18px !important; font-size: 13px !important;
+    border-radius: 12px !important; gap: 6px !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     FACILITY DETAIL MODAL — bottom sheet
+  ════════════════════════════════════════════════════════════ */
+  .facility-detail-modal {
+    padding: 12px !important; align-items: flex-end !important;
+  }
+  .facility-detail-content {
+    border-radius: 24px 24px 20px 20px !important;
+    max-height: 88vh !important; overflow-y: auto !important;
+    width: 100% !important; max-width: 100% !important;
+    animation: sheetSlideUp 0.28s var(--hc-ease) !important;
+  }
+  @keyframes sheetSlideUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .facility-detail-content::before {
+    content: '';
+    display: block;
+    width: 40px; height: 4px;
+    border-radius: 100px;
+    background: var(--hc-border);
+    margin: 12px auto 0;
+  }
+  .modal-close-btn {
+    top: 14px !important; right: 16px !important;
+    font-size: 22px !important; width: 32px !important; height: 32px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    border-radius: 8px !important;
+    background: var(--hc-surface2) !important;
+    border: 1px solid var(--hc-border) !important;
+    line-height: 1 !important;
+  }
+  .facility-detail-header {
+    padding: 16px 16px 12px !important; gap: 12px !important; flex-wrap: nowrap !important;
+  }
+  .facility-detail-icon   { width: 48px !important; height: 48px !important; border-radius: 14px !important; flex-shrink: 0 !important; }
+  .facility-detail-title h2 { font-size: 16px !important; font-weight: 800 !important; line-height: 1.3 !important; margin: 0 0 3px !important; }
+  .facility-detail-type   { font-size: 12px !important; margin: 0 0 2px !important; }
+  .facility-detail-distance { font-size: 12px !important; font-weight: 700 !important; color: var(--hc-teal) !important; margin: 0 !important; }
+  .facility-detail-rating {
+    flex-direction: row !important; align-items: center !important;
+    gap: 4px !important; flex-shrink: 0 !important; align-self: flex-start !important;
+  }
+  .facility-detail-rating .rating-value  { font-size: 15px !important; }
+  .facility-detail-rating .rating-reviews { font-size: 11px !important; }
+  .facility-detail-body { padding: 12px 16px !important; gap: 14px !important; }
+  .detail-section h3 {
+    font-size: 12px !important; font-weight: 700 !important;
+    letter-spacing: 0.8px !important; text-transform: uppercase !important;
+    color: var(--hc-text3) !important; margin: 0 0 10px !important;
+  }
+  .detail-section p { font-size: 13px !important; gap: 7px !important; display: flex !important; align-items: flex-start !important; margin: 0 0 6px !important; }
+  .detail-service-tags, .detail-insurance-tags { gap: 5px !important; flex-wrap: wrap !important; }
+  .detail-service-tag, .detail-insurance-tag {
+    font-size: 11.5px !important; padding: 4px 10px !important; border-radius: 100px !important;
+  }
+  .emergency-service-notice {
+    margin-top: 10px !important; padding: 10px 12px !important;
+    border-radius: 10px !important; font-size: 12.5px !important; gap: 7px !important;
+  }
+  .facility-detail-actions {
+    display: flex !important; flex-direction: column !important;
+    gap: 8px !important; padding: 0 16px 20px !important;
+  }
+  .detail-action-btn {
+    width: 100% !important; flex: none !important;
+    justify-content: center !important; padding: 13px 16px !important;
+    font-size: 14px !important; font-weight: 700 !important; border-radius: 14px !important;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     BOTTOM TAB BAR
+     mob-tab-bar / mob-tab-btn already styled in dashboard-mobile.css.
+     We only need to ensure they're VISIBLE on this page too.
+  ════════════════════════════════════════════════════════════ */
+  .mob-tab-bar { display: flex !important; }
+
+
+  /* ════════════════════════════════════════════════════════════
+     SAVED FACILITIES BAR — mobile
+  ════════════════════════════════════════════════════════════ */
+  .saved-facilities-bar {
+    padding: 12px 14px 4px !important;
+  }
+  .saved-facilities-bar__scroll {
+    gap: 8px !important;
+  }
+  .saved-facility-chip {
+    min-width: 180px !important;
+    max-width: 220px !important;
+    padding: 10px 12px !important;
+  }
+  .saved-chip__name  { font-size: 12px !important; }
+  .saved-chip__meta  { font-size: 10.5px !important; }
+
+  /* ── Old dashboard-bottom-nav: hide it (replaced by mob-tab-bar) */
+  .dashboard-bottom-nav { display: none !important; }
+
+  /* ── Footer hidden on mobile ──────────────────────────────── */
+  .dashboard-footer { display: none !important; }
+
+  /* ── Mobile side menu drawer ──────────────────────────────── */
+  .mobile-nav-overlay {
+    position: fixed !important; inset: 0 !important;
+    z-index: 400 !important;
+    background: rgba(0,0,0,0.40) !important;
+    backdrop-filter: blur(2px) !important;
+  }
+  .mobile-side-menu {
+    width: min(300px, 85vw) !important;
+    border-radius: 0 20px 20px 0 !important;
+    box-shadow: 4px 0 32px rgba(0,0,0,0.18) !important;
+    z-index: 500 !important;
+  }
+  html.dark-mode .mobile-side-menu {
+    background: rgba(7,24,40,0.97) !important;
+    border-right: 1px solid rgba(0,210,255,0.12) !important;
+  }
+
+} /* end @media (max-width: 640px) */
+
+/* ════════════════════════════════════════════════════════════════
+   Very small phones (≤ 390px)
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .facility-card-name  { font-size: 13.5px !important; }
+  .facility-finder-results-list {
+    max-height: 360px !important;
+  }
+  .facility-finder-map-container > div:first-child,
+  .facility-finder-map {
+    height: 58vw !important;
+    min-height: 260px !important;
+  }
+  .fac-mob-gps-btn {
+    padding: 0 9px !important;
+    font-size: 11.5px !important;
+  }
+}

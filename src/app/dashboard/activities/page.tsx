@@ -1,715 +1,854 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { NextPage } from 'next';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useFacilitySearch } from '@/hooks/useFacilitySearch';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import DashboardHeader from '@/components/DashboardHeader';
+import DashboardLayout from '@/components/DashboardLayout';
 import { getRelativeTime } from '@/lib/activityTracker';
+import '@/styles/dashboard-header.css';
+import '@/styles/dashboard.css';
+import '@/styles/footer.css';
+import '@/styles/dashboard-mobile.css';
 import {
-  ArrowLeft,
-  Activity,
-  Hospital,
-  Bot,
-  Phone,
-  Heart,
-  Filter,
-  Search,
-  Calendar,
-  Loader2,
-  RefreshCw,
-  AlertCircle,
-  MapPin,
-  Stethoscope,
-  Pill,
-  ChevronRight
+  Heart, MapPin, Bot, Phone, User, Bell, Moon, Sun,
+  TrendingUp, Clock, Star, AlertCircle, ChevronRight,
+  LogOut, Stethoscope, Pill, Hospital, Activity,
+  Loader2, RefreshCw, Navigation, Info,
+  CheckCircle, Crosshair, Search,
+  Calendar, TriangleAlert, Trash2, X,
+  Zap,
 } from 'lucide-react';
 
+/* ── Interfaces ─────────────────────────────────────────── */
 interface ActivityItem {
-  id: string;
-  activityType: string;
-  title: string;
-  description: string | null;
-  metadata: any;
-  createdAt: string;
-  updatedAt: string;
+  id: string; type: string; title: string; time: string;
+  icon: React.ComponentType<{ size: number }>;
+  action?: () => void;
+}
+interface Facility {
+  id: string; name: string; type: string; distance: number;
+  rating: number; hours: string; emergencyServices: boolean;
+  city?: string; phone?: string; coordinates?: [number, number];
+}
+interface LocationInfo { city?: string; region?: string; country?: string; accuracy?: number; }
+interface HealthVitals {
+  heartRate: number; temperature: number; spo2: number;
+  bloodPressure: string; bloodSugar: number; score: number;
 }
 
-export default function ActivitiesPage() {
+/* ── Component ──────────────────────────────────────────── */
+const Dashboard: NextPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { isDarkMode } = useDarkMode();
-  
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [filteredActivities, setFilteredActivities] = useState<ActivityItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isScrolled,  setIsScrolled]  = useState(false);
+  const {
+    searchQuery, setSearchQuery, searchInputRef,
+    handleSearchSubmit, handleSearchKeyDown,
+  } = useFacilitySearch();
 
-  // Redirect if not authenticated
+  const [recentActivities,    setRecentActivities]    = useState<ActivityItem[]>([]);
+  const [activityCounts,      setActivityCounts]      = useState({ facilities: 0, symptoms: 0, emergency: 0 });
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
+  const [activitiesError,     setActivitiesError]     = useState<string | null>(null);
+
+  const [userLocation,       setUserLocation]       = useState<[number, number] | null>(null);
+  const [locationInfo,       setLocationInfo]       = useState<LocationInfo | undefined>();
+  const [isLoadingLocation,  setIsLoadingLocation]  = useState(false);
+  const [locationError,      setLocationError]      = useState<string | null>(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(true);
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
+
+  const [nearbyFacilities,    setNearbyFacilities]    = useState<Facility[]>([]);
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  const [facilitiesError,     setFacilitiesError]     = useState<string | null>(null);
+
+  const [vitals, setVitals] = useState<HealthVitals>({
+    heartRate: 72, temperature: 36.6, spo2: 98,
+    bloodPressure: '120/80', bloodSugar: 6.2, score: 72,
+  });
+
+  const [healthScore,    setHealthScore]    = useState<number | null>(null);
+  const [scoreBreakdown, setScoreBreakdown] = useState<Record<string, number>>({});
+  const [scoreInsights,  setScoreInsights]  = useState<string[]>([]);
+  const [isLoadingScore, setIsLoadingScore] = useState(true);
+  const [todayReminders, setTodayReminders] = useState(0);
+
+  /* ── Notification panel ───────────────────────────────── */
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifsRead,     setNotifsRead]     = useState(false);
+  const notifBellRef  = useRef<HTMLButtonElement>(null);
+  const notifMobRef   = useRef<HTMLButtonElement>(null);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (status === 'unauthenticated') router.push('/auth/signin'); }, [status, router]);
+  useEffect(() => { const t = setInterval(() => setCurrentTime(new Date()), 60000); return () => clearInterval(t); }, []);
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-    }
+    const h = () => setIsScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', h, { passive: true });
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+
+  /* ── Location ─────────────────────────────────────────── */
+  const getGhanaRegion = (lat: number, lng: number): LocationInfo => {
+    if (lat >= 5.5 && lat <= 5.7 && lng >= -0.3 && lng <= 0.0)  return { city: 'Accra',    region: 'Greater Accra', country: 'Ghana' };
+    if (lat >= 6.6 && lat <= 6.8 && lng >= -1.7 && lng <= -1.5) return { city: 'Kumasi',   region: 'Ashanti',       country: 'Ghana' };
+    if (lat >= 9.3 && lat <= 9.5 && lng >= -1.0 && lng <= -0.8) return { city: 'Tamale',   region: 'Northern',      country: 'Ghana' };
+    if (lat >= 5.0 && lat <= 5.2 && lng >= -2.0 && lng <= -1.8) return { city: 'Takoradi', region: 'Western',       country: 'Ghana' };
+    return { city: 'Unknown', region: 'Ghana', country: 'Ghana' };
+  };
+
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<LocationInfo> => {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 5000);
+      const res  = await fetch(`/api/geocode?lat=${lat}&lon=${lng}`, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (res.ok) { const d = await res.json(); return { city: d.city, region: d.region, country: d.country }; }
+    } catch { /* fall through */ }
+    return getGhanaRegion(lat, lng);
+  }, []);
+
+  const getCurrentLocation = useCallback(async () => {
+    setIsLoadingLocation(true); setLocationError(null);
+    if (!navigator.geolocation) { setLocationError('Geolocation not supported.'); setIsLoadingLocation(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLocation([latitude, longitude]); setShowLocationPrompt(false);
+        setLocationPermission('granted');
+        const info = await reverseGeocode(latitude, longitude);
+        setLocationInfo({ ...info, accuracy }); setIsLoadingLocation(false);
+      },
+      () => { setIsLoadingLocation(false); setLocationError('Unable to get location.'); },
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+    );
+  }, [reverseGeocode]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    navigator.permissions?.query({ name: 'geolocation' }).then(r => {
+      setLocationPermission(r.state as 'granted' | 'prompt' | 'denied');
+      r.onchange = () => setLocationPermission(r.state as 'granted' | 'prompt' | 'denied');
+      if (r.state === 'granted') {
+        setShowLocationPrompt(false);
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+          const info = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          setLocationInfo({ ...info, accuracy: pos.coords.accuracy });
+        }, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+      }
+    }).catch(() => setLocationPermission('unknown'));
+  }, [status, reverseGeocode]);
+
+  /* ── Facilities ───────────────────────────────────────── */
+  const calcDist = useCallback((la1: number, lo1: number, la2: number, lo2: number) => {
+    const R = 6371, dLat = (la2-la1)*Math.PI/180, dLng = (lo2-lo1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }, []);
+
+  const fetchNearbyFacilities = useCallback(async () => {
+    if (!userLocation || status !== 'authenticated') return;
+    setIsLoadingFacilities(true); setFacilitiesError(null);
+    const [lat, lng] = userLocation;
+    const q = `[out:json][timeout:30];(
+      node["amenity"="hospital"](around:5000,${lat},${lng});way["amenity"="hospital"](around:5000,${lat},${lng});
+      node["amenity"="clinic"](around:5000,${lat},${lng});
+      node["amenity"="pharmacy"](around:5000,${lat},${lng});
+      node["healthcare"](around:5000,${lat},${lng});
+    );out center body;`;
+    try {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 25000);
+      const res = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(q)}`, signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      const list: Facility[] = [];
+      (data.elements || []).forEach((el: any) => {
+        try {
+          const coords = el.lat && el.lon ? [el.lat, el.lon] : el.center ? [el.center.lat, el.center.lon] : null;
+          if (!coords || !el.tags) return;
+          const name = el.tags.name || el.tags['name:en'] || 'Healthcare Facility';
+          if (name.length < 3) return;
+          const dist = calcDist(lat, lng, coords[0], coords[1]);
+          if (dist > 5) return;
+          const amenity = el.tags.amenity || el.tags.healthcare || 'clinic';
+          list.push({
+            id: `osm_${el.type}_${el.id}`, name,
+            type: amenity === 'hospital' ? 'hospital' : amenity === 'pharmacy' ? 'pharmacy' : 'clinic',
+            distance: dist, rating: 3.5 + Math.random() * 1.5,
+            phone: el.tags.phone || 'Not available',
+            hours: el.tags.opening_hours || (amenity === 'hospital' ? '24/7' : 'Call for hours'),
+            city: el.tags['addr:city'] || 'Unknown',
+            coordinates: coords as [number, number],
+            emergencyServices: el.tags.emergency === 'yes' || amenity === 'hospital',
+          });
+        } catch { /* skip */ }
+      });
+      list.sort((a, b) => a.distance - b.distance);
+      setNearbyFacilities(list.slice(0, 3));
+      if (!list.length) setFacilitiesError('No facilities found within 5km.');
+    } catch (e: any) {
+      setFacilitiesError(e.name === 'AbortError' ? 'Request timed out.' : 'Unable to load facilities.');
+    } finally { setIsLoadingFacilities(false); }
+  }, [userLocation, status, calcDist]);
+
+  useEffect(() => { if (userLocation) fetchNearbyFacilities(); }, [userLocation, fetchNearbyFacilities]);
+
+  /* ── Activities ───────────────────────────────────────── */
+  const getActivityIcon = (type: string) => {
+    switch (type) { case 'facility_found': return Hospital; case 'symptom_checked': return Bot; case 'emergency_accessed': return Phone; default: return Activity; }
+  };
+
+  const fetchActivities = useCallback(async () => {
+    if (status !== 'authenticated') return;
+    setIsLoadingActivities(true); setActivitiesError(null);
+    try {
+      const res = await fetch('/api/activities?limit=5');
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      setRecentActivities(data.activities.map((a: any) => ({
+        id: a.id, type: a.activityType, title: a.title,
+        time: getRelativeTime(new Date(a.createdAt)),
+        icon: getActivityIcon(a.activityType),
+        action: () => {
+          if (a.activityType === 'facility_found')     router.push('/facilities');
+          if (a.activityType === 'symptom_checked')    router.push('/symptom-checker');
+          if (a.activityType === 'emergency_accessed') router.push('/emergency');
+        },
+      })));
+      setActivityCounts({ facilities: data.counts.facilities, symptoms: data.counts.symptoms, emergency: data.counts.emergency });
+      const total = data.counts.facilities + data.counts.symptoms;
+      setVitals(v => ({ ...v, score: Math.min(100, 55 + Math.floor(total * 0.8)) }));
+    } catch { setActivitiesError('Failed to load activities'); }
+    finally { setIsLoadingActivities(false); }
   }, [status, router]);
 
-  // Fetch activities
-  const fetchActivities = async () => {
-    setIsLoading(true);
-    setError(null);
-    
+  useEffect(() => { fetchActivities(); }, [fetchActivities]);
+
+  /* ── Health Score ─────────────────────────────────────── */
+  const fetchHealthScore = useCallback(async () => {
+    if (status !== 'authenticated') return;
+    setIsLoadingScore(true);
     try {
-      const url = filterType === 'all' 
-        ? '/api/activities?limit=100'
-        : `/api/activities?limit=100&type=${filterType}`;
-        
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch activities');
-      }
-      
-      const data = await response.json();
-      setActivities(data.activities);
-      setFilteredActivities(data.activities);
-    } catch (err) {
-      console.error('Error fetching activities:', err);
-      setError('Failed to load activities. Please try again.');
+      const res = await fetch('/api/health-score');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setHealthScore(data.score);
+      setScoreBreakdown(data.breakdown || {});
+      setScoreInsights(data.insights || []);
+    } catch {
+      setHealthScore(50);
     } finally {
-      setIsLoading(false);
+      setIsLoadingScore(false);
     }
-  };
+  }, [status]);
 
-  // Fetch on mount and when filter changes
+  useEffect(() => { fetchHealthScore(); }, [fetchHealthScore]);
+
+  /* ── Med Reminders ────────────────────────────────────── */
   useEffect(() => {
-    if (status === 'authenticated') {
-      fetchActivities();
-    }
-  }, [status, filterType]);
+    if (status !== 'authenticated') return;
+    fetch('/api/health-profile/reminders')
+      .then(r => r.json())
+      .then(({ reminders }) => {
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+        const due = (reminders || []).filter((r: any) => {
+          try { return JSON.parse(r.days).includes(today); } catch { return false; }
+        }).length;
+        setTodayReminders(due);
+      })
+      .catch(() => {});
+  }, [status]);
 
-  // Apply search filter
+  /* ── Derived ──────────────────────────────────────────── */
+  const userName     = session?.user?.name  || 'User';
+  const userEmail    = session?.user?.email || '';
+  const userImage    = session?.user?.image || null;
+  const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const getGreeting = () => { const h = currentTime.getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
+  const getSubtitle = () => {
+    const h = currentTime.getHours();
+    if (h >= 18 || h < 6) return "Most clinics are closed. Emergency services available 24/7";
+    if (h >= 12 && h < 14) return "Lunch hours — some facilities may have limited service";
+    return "Here's your health overview for today";
+  };
+
+  const getFacilityIcon  = (type: string) => { switch (type) { case 'hospital': return Hospital; case 'pharmacy': return Pill; default: return Stethoscope; } };
+  const getFacilityStatus = (f: Facility) => {
+    const h = currentTime.getHours();
+    if (f.emergencyServices) return { label: 'Open 24/7', isOpen: true };
+    return h >= 8 && h < 18 ? { label: 'Open Now', isOpen: true } : { label: 'Closed', isOpen: false };
+  };
+
+  const scoreCircumference = 2 * Math.PI * 36;
+  const scoreDash = ((healthScore ?? 0) / 100) * scoreCircumference;
+  const getScoreLabel = (s: number) => s >= 80 ? 'Excellent' : s >= 65 ? 'Good standing' : s >= 50 ? 'Fair' : 'Needs attention';
+
+  const getAdvisory = () => {
+    if (!locationInfo?.region) return null;
+    const map: Record<string, string> = {
+      'Ashanti':       'Flu cases rising in Kumasi region. Vaccination available at 3 nearby clinics. KATH, City Health Clinic, and Ashanti Emergency Center all have walk-in availability this week.',
+      'Greater Accra': 'Heat advisory active. Stay hydrated and avoid prolonged outdoor exposure between 12pm–3pm.',
+      'Northern':      'Meningitis awareness period. Free vaccination available at regional health centres.',
+      'Western':       'Malaria season alert. Use insect repellent and treated nets.',
+    };
+    return map[locationInfo.region] || null;
+  };
+  const advisory = getAdvisory();
+
+  /* ── Notification panel logic ─────────────────────────── */
   useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setFilteredActivities(activities);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = activities.filter(activity => 
-        activity.title.toLowerCase().includes(query) ||
-        (activity.description && activity.description.toLowerCase().includes(query))
-      );
-      setFilteredActivities(filtered);
-    }
-  }, [searchQuery, activities]);
+    if (!showNotifPanel) return;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        notifPanelRef.current && !notifPanelRef.current.contains(t) &&
+        notifBellRef.current  && !notifBellRef.current.contains(t)  &&
+        notifMobRef.current   && !notifMobRef.current.contains(t)
+      ) setShowNotifPanel(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showNotifPanel]);
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'facility_found': return Hospital;
-      case 'symptom_checked': return Bot;
-      case 'emergency_accessed': return Phone;
-      case 'first_aid_viewed': return Heart;
-      default: return Activity;
-    }
+  type NotifItem = {
+    id: string;
+    icon: React.ComponentType<{ size: number }>;
+    color: 'teal' | 'amber' | 'red' | 'mint' | 'violet';
+    title: string;
+    body: string;
+    action?: () => void;
   };
 
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case 'facility_found': return '#3b82f6';
-      case 'symptom_checked': return '#8b5cf6';
-      case 'emergency_accessed': return '#ef4444';
-      case 'first_aid_viewed': return '#10b981';
-      default: return '#6b7280';
+  const notifications = React.useMemo((): NotifItem[] => {
+    const list: NotifItem[] = [];
+    // Location not yet granted — prompt user
+    if (!userLocation && locationPermission !== 'granted') {
+      list.push({
+        id: 'location',
+        icon: locationPermission === 'denied' ? AlertCircle : Crosshair,
+        color: locationPermission === 'denied' ? 'red' : 'amber',
+        title: locationPermission === 'denied'
+          ? 'Location access blocked'
+          : 'Enable location for nearby facilities',
+        body: locationPermission === 'denied'
+          ? 'Open browser settings and allow location access to find facilities near you.'
+          : 'Tap to allow GPS access — we\'ll show hospitals, clinics and pharmacies near you.',
+        action: locationPermission === 'denied'
+          ? undefined
+          : getCurrentLocation,
+      });
     }
-  };
-
-  const getActivityLabel = (type: string) => {
-    switch (type) {
-      case 'facility_found': return 'Facility';
-      case 'symptom_checked': return 'Symptom Check';
-      case 'emergency_accessed': return 'Emergency';
-      case 'first_aid_viewed': return 'First Aid';
-      default: return 'Activity';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (status === 'loading') {
-    return (
-      <div className="loading-screen">
-        <div className="loading-content">
-          <Activity size={48} className="loading-icon" />
-          <div className="loading-title">Loading Activities...</div>
-        </div>
-      </div>
+    // Low health score
+    if (!isLoadingScore && healthScore !== null && healthScore < 50)
+      list.push({ id: 'score', icon: TrendingUp, color: 'red',
+        title: `Health score is low — ${healthScore}%`,
+        body: 'Your score drops when profile fields are missing. Complete your profile to improve it.',
+        action: () => router.push('/profile') });
+    // Activity/facilities API errors
+    if (activitiesError)
+      list.push({ id: 'act-error', icon: AlertCircle, color: 'red',
+        title: 'Could not load recent activity',
+        body: 'There was a problem fetching your activity feed. Tap to retry.',
+        action: fetchActivities });
+    if (facilitiesError && userLocation)
+      list.push({ id: 'fac-error', icon: AlertCircle, color: 'amber',
+        title: 'Could not load nearby facilities',
+        body: 'The facility fetch failed. Tap to retry.',
+        action: fetchNearbyFacilities });
+    // First-time user — no activity at all
+    if (!isLoadingActivities && activityCounts.facilities === 0 && activityCounts.symptoms === 0)
+      list.push({ id: 'onboard', icon: Zap, color: 'teal',
+        title: 'Get started with HealthConnect',
+        body: 'Check your symptoms with AI or find a healthcare facility near you to begin.',
+        action: () => router.push('/symptom-checker') });
+    if (todayReminders > 0)
+      list.push({ id: 'meds', icon: Pill, color: 'amber',
+        title: `${todayReminders} medication${todayReminders > 1 ? 's' : ''} due today`,
+        body: 'Tap to open your medication schedule.',
+        action: () => router.push('/profile') });
+    scoreInsights.slice(0, 2).forEach((s, i) =>
+      list.push({ id: `insight_${i}`, icon: TrendingUp, color: 'teal',
+        title: 'Health Score Insight', body: s,
+        action: () => router.push('/profile') })
     );
-  }
+    if (advisory)
+      list.push({ id: 'advisory', icon: TriangleAlert, color: 'red',
+        title: `Health Advisory — ${locationInfo?.city || locationInfo?.region || 'Your Region'}`,
+        body: advisory,
+        action: () => router.push('/facilities') });
+    if (nearbyFacilities.length > 0)
+      list.push({ id: 'facilities', icon: MapPin, color: 'teal',
+        title: `${nearbyFacilities.length} facilities near you`,
+        body: `Closest: ${nearbyFacilities[0].name} (${nearbyFacilities[0].distance.toFixed(1)} km)`,
+        action: () => router.push('/facilities') });
+    if (list.length === 0)
+      list.push({ id: 'empty', icon: CheckCircle, color: 'mint',
+        title: 'All caught up!',
+        body: 'No new notifications right now.' });
+    return list;
+  }, [todayReminders, scoreInsights, advisory, nearbyFacilities, locationInfo, locationPermission, userLocation, getCurrentLocation, healthScore, isLoadingScore, activitiesError, facilitiesError, isLoadingActivities, activityCounts, fetchActivities, fetchNearbyFacilities, router]);
 
-  if (status === 'unauthenticated') {
-    return null;
-  }
+  const hasUnread = notifications.some(n => n.id !== 'empty') && !notifsRead;
+  const toggleNotifPanel = () => { setShowNotifPanel(p => !p); setNotifsRead(true); };
 
-  return (
-    <div className="activities-page">
-      <DashboardHeader activeTab="/dashboard" />
-
-      <div className="activities-content">
-        {/* Header */}
-        <div className="activities-header">
-          <div className="header-top">
-            <button 
-              className="back-button"
-              onClick={() => router.push('/dashboard')}
-              type="button"
-            >
-              <ArrowLeft size={20} />
-              Back
-            </button>
-            
-            <h1 className="activities-title">
-              <Activity size={28} />
-              Activity History
-            </h1>
-          </div>
-          
-          <p className="activities-subtitle">
-            View all your healthcare interactions and activities
-          </p>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="activities-controls">
-          <div className="search-bar">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search activities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="filter-buttons">
-            <button
-              className={`filter-btn ${filterType === 'all' ? 'active' : ''}`}
-              onClick={() => setFilterType('all')}
-              type="button"
-            >
-              <Activity size={18} />
-              All
-            </button>
-            <button
-              className={`filter-btn ${filterType === 'facility_found' ? 'active' : ''}`}
-              onClick={() => setFilterType('facility_found')}
-              type="button"
-            >
-              <Hospital size={18} />
-              Facilities
-            </button>
-            <button
-              className={`filter-btn ${filterType === 'symptom_checked' ? 'active' : ''}`}
-              onClick={() => setFilterType('symptom_checked')}
-              type="button"
-            >
-              <Bot size={18} />
-              Symptoms
-            </button>
-            <button
-              className={`filter-btn ${filterType === 'emergency_accessed' ? 'active' : ''}`}
-              onClick={() => setFilterType('emergency_accessed')}
-              type="button"
-            >
-              <Phone size={18} />
-              Emergency
-            </button>
-            <button
-              className={`filter-btn ${filterType === 'first_aid_viewed' ? 'active' : ''}`}
-              onClick={() => setFilterType('first_aid_viewed')}
-              type="button"
-            >
-              <Heart size={18} />
-              First Aid
-            </button>
-          </div>
-
-          <button 
-            className="refresh-btn"
-            onClick={fetchActivities}
-            disabled={isLoading}
-            type="button"
-          >
-            {isLoading ? <Loader2 size={18} className="spin" /> : <RefreshCw size={18} />}
-            Refresh
-          </button>
-        </div>
-
-        {/* Results Count */}
-        <div className="results-info">
-          <span className="results-count">
-            {filteredActivities.length} {filteredActivities.length === 1 ? 'activity' : 'activities'}
-          </span>
-          {searchQuery && (
-            <span className="search-info">
-              matching "{searchQuery}"
-            </span>
-          )}
-        </div>
-
-        {/* Activities List */}
-        <div className="activities-list">
-          {isLoading ? (
-            <div className="loading-state">
-              <Loader2 size={32} className="spin" />
-              <p>Loading activities...</p>
-            </div>
-          ) : error ? (
-            <div className="error-state">
-              <AlertCircle size={48} />
-              <h3>Failed to Load Activities</h3>
-              <p>{error}</p>
-              <button onClick={fetchActivities} type="button">
-                <RefreshCw size={18} />
-                Try Again
-              </button>
-            </div>
-          ) : filteredActivities.length === 0 ? (
-            <div className="empty-state">
-              <Activity size={64} />
-              <h3>No Activities Found</h3>
-              <p>
-                {searchQuery 
-                  ? `No activities match "${searchQuery}"`
-                  : filterType !== 'all'
-                  ? `No ${getActivityLabel(filterType).toLowerCase()} activities yet`
-                  : 'Start using features to see your activity history'
-                }
-              </p>
-              {(searchQuery || filterType !== 'all') && (
-                <button 
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterType('all');
-                  }}
-                  type="button"
-                >
-                  Clear Filters
-                </button>
-              )}
-            </div>
-          ) : (
-            filteredActivities.map((activity) => {
-              const Icon = getActivityIcon(activity.activityType);
-              const color = getActivityColor(activity.activityType);
-              
-              return (
-                <div key={activity.id} className="activity-card">
-                  <div 
-                    className="activity-icon"
-                    style={{ backgroundColor: `${color}20`, color }}
-                  >
-                    <Icon size={24} />
-                  </div>
-                  
-                  <div className="activity-details">
-                    <div className="activity-header">
-                      <h3 className="activity-title">{activity.title}</h3>
-                      <span 
-                        className="activity-badge"
-                        style={{ backgroundColor: `${color}20`, color }}
-                      >
-                        {getActivityLabel(activity.activityType)}
-                      </span>
-                    </div>
-                    
-                    {activity.description && (
-                      <p className="activity-description">{activity.description}</p>
-                    )}
-                    
-                    <div className="activity-meta">
-                      <span className="activity-time">
-                        <Calendar size={14} />
-                        {formatDate(activity.createdAt)}
-                      </span>
-                      <span className="activity-relative">
-                        {getRelativeTime(new Date(activity.createdAt))}
-                      </span>
-                    </div>
-
-                    {activity.metadata && Object.keys(activity.metadata).length > 0 && (
-                      <div className="activity-metadata">
-                        {activity.metadata.facilityName && (
-                          <span className="metadata-item">
-                            <MapPin size={14} />
-                            {activity.metadata.facilityName}
-                          </span>
-                        )}
-                        {activity.metadata.distance && (
-                          <span className="metadata-item">
-                            {activity.metadata.distance.toFixed(1)} km away
-                          </span>
-                        )}
-                        {activity.metadata.urgencyLevel && (
-                          <span className="metadata-item">
-                            Urgency: {activity.metadata.urgencyLevel}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      <style jsx>{`
-        .activities-page {
-          min-height: 100vh;
-          background: ${isDarkMode ? '#0f172a' : '#f8fafc'};
-        }
-
-        .activities-content {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 2rem;
-          padding-top: 6rem;
-        }
-
-        .activities-header {
-          margin-bottom: 2rem;
-        }
-
-        .header-top {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          margin-bottom: 0.75rem;
-        }
-
-        .back-button {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background: ${isDarkMode ? '#1e293b' : 'white'};
-          color: ${isDarkMode ? '#e2e8f0' : '#334155'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .back-button:hover {
-          background: ${isDarkMode ? '#334155' : '#f1f5f9'};
-        }
-
-        .activities-title {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          font-size: 1.75rem;
-          font-weight: 700;
-          color: ${isDarkMode ? '#f1f5f9' : '#1e293b'};
-        }
-
-        .activities-subtitle {
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-          font-size: 1rem;
-        }
-
-        .activities-controls {
-          display: flex;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
-          flex-wrap: wrap;
-        }
-
-        .search-bar {
-          flex: 1;
-          min-width: 250px;
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding: 0.75rem 1rem;
-          background: ${isDarkMode ? '#1e293b' : 'white'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 0.5rem;
-        }
-
-        .search-bar input {
-          flex: 1;
-          border: none;
-          background: transparent;
-          color: ${isDarkMode ? '#e2e8f0' : '#1e293b'};
-          font-size: 0.875rem;
-          outline: none;
-        }
-
-        .filter-buttons {
-          display: flex;
-          gap: 0.5rem;
-          flex-wrap: wrap;
-        }
-
-        .filter-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          background: ${isDarkMode ? '#1e293b' : 'white'};
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .filter-btn:hover {
-          background: ${isDarkMode ? '#334155' : '#f1f5f9'};
-        }
-
-        .filter-btn.active {
-          background: #3b82f6;
-          color: white;
-          border-color: #3b82f6;
-        }
-
-        .refresh-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1rem;
-          background: ${isDarkMode ? '#1e293b' : 'white'};
-          color: ${isDarkMode ? '#e2e8f0' : '#334155'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .refresh-btn:hover:not(:disabled) {
-          background: ${isDarkMode ? '#334155' : '#f1f5f9'};
-        }
-
-        .refresh-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .results-info {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 1.5rem;
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-          font-size: 0.875rem;
-        }
-
-        .results-count {
-          font-weight: 600;
-        }
-
-        .activities-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .activity-card {
-          display: flex;
-          gap: 1rem;
-          padding: 1.5rem;
-          background: ${isDarkMode ? '#1e293b' : 'white'};
-          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-          border-radius: 0.75rem;
-          transition: all 0.2s;
-        }
-
-        .activity-card:hover {
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-          transform: translateY(-2px);
-        }
-
-        .activity-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 0.75rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .activity-details {
-          flex: 1;
-        }
-
-        .activity-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 1rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .activity-title {
-          font-size: 1.125rem;
-          font-weight: 600;
-          color: ${isDarkMode ? '#f1f5f9' : '#1e293b'};
-        }
-
-        .activity-badge {
-          padding: 0.25rem 0.75rem;
-          border-radius: 9999px;
-          font-size: 0.75rem;
-          font-weight: 600;
-        }
-
-        .activity-description {
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-          font-size: 0.875rem;
-          margin-bottom: 0.75rem;
-          line-height: 1.5;
-        }
-
-        .activity-meta {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          font-size: 0.75rem;
-          color: ${isDarkMode ? '#64748b' : '#94a3b8'};
-        }
-
-        .activity-time,
-        .activity-relative {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-        }
-
-        .activity-metadata {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.75rem;
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
-        }
-
-        .metadata-item {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          font-size: 0.75rem;
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-        }
-
-        .loading-state,
-        .error-state,
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 4rem 2rem;
-          text-align: center;
-          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
-        }
-
-        .loading-state svg,
-        .error-state svg,
-        .empty-state svg {
-          margin-bottom: 1rem;
-          opacity: 0.5;
-        }
-
-        .error-state h3,
-        .empty-state h3 {
-          color: ${isDarkMode ? '#f1f5f9' : '#1e293b'};
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-        }
-
-        .error-state button,
-        .empty-state button {
-          margin-top: 1rem;
-          padding: 0.75rem 1.5rem;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-          .activities-content {
-            padding: 1rem;
-          }
-
-          .header-top {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.75rem;
-          }
-
-          .back-button {
-            align-self: flex-start;
-          }
-
-          .activities-title {
-            font-size: 1.5rem;
-          }
-
-          .activities-controls {
-            flex-direction: column;
-          }
-
-          .search-bar {
-            width: 100%;
-          }
-
-          .filter-buttons {
-            width: 100%;
-            justify-content: flex-start;
-          }
-
-          .activity-card {
-            flex-direction: column;
-          }
-
-          .activity-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-        }
-      `}</style>
+  /* ── Guards ───────────────────────────────────────────── */
+  if (status === 'loading') return (
+    <div className="hc-loading">
+      <div className="hc-loading__logo"><Heart size={22} /></div>
+      <p>Loading your dashboard…</p>
     </div>
   );
-}
+  if (status === 'unauthenticated') return null;
+
+  /* ── Render ───────────────────────────────────────────── */
+  return (
+    <DashboardLayout activeTab="/dashboard">
+
+      {/* ══════════════════════════════════════════
+          STICKY GLASSMORPHISM TOP BAR
+      ══════════════════════════════════════════ */}
+      <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
+        <div className="db-topbar__search">
+          <button
+            className="db-topbar__search-icon-btn"
+            type="button"
+            aria-label="Search facilities"
+            onClick={handleSearchSubmit}
+          >
+            <Search size={15} />
+          </button>
+          <input
+            ref={searchInputRef}
+            className="db-topbar__search-input"
+            type="search"
+            placeholder="Search facilities..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            aria-label="Search facilities"
+          />
+          {searchQuery.trim() && (
+            <button
+              className="db-topbar__search-submit"
+              type="button"
+              aria-label="Go"
+              onClick={handleSearchSubmit}
+            >
+              Go
+            </button>
+          )}
+        </div>
+        <div className="db-topbar__right">
+          <div className="db-topbar__live"><span className="db-topbar__live-dot" />Live</div>
+          <button className="db-topbar__icon-btn" type="button" onClick={toggleDarkMode} aria-label="Toggle theme">
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button ref={notifBellRef} className="db-topbar__icon-btn db-topbar__notif" type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
+            <Bell size={18} />{hasUnread && <span className="db-topbar__notif-dot" />}
+          </button>
+          <button className="db-topbar__user" type="button" onClick={() => router.push('/profile')} title="Go to Profile & Settings">
+            <div className="db-topbar__user-avatar">
+                {userImage
+                  ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
+                  : userInitials}
+              </div>
+            <div className="db-topbar__user-info">
+              <span className="db-topbar__user-name">{userName}</span>
+              <span className="db-topbar__user-id">HC-{userEmail.slice(0,5).toUpperCase()}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════
+          NOTIFICATION PANEL
+          Desktop: dropdown below bell.
+          Mobile:  sheet above tab bar.
+      ══════════════════════════════════════════ */}
+      {showNotifPanel && (
+        <>
+          <div className="db-notif-panel" ref={notifPanelRef} role="dialog" aria-label="Notifications">
+            <div className="db-notif-panel__header">
+              <span className="db-notif-panel__title">Notifications</span>
+              {notifications.some(n => n.id !== 'empty') && (
+                <span className="db-notif-panel__count">{notifications.filter(n => n.id !== 'empty').length}</span>
+              )}
+              <button className="db-notif-panel__close" onClick={() => setShowNotifPanel(false)} type="button" aria-label="Close">
+                <X size={15} />
+              </button>
+            </div>
+            <div className="db-notif-panel__list">
+              {notifications.map(n => {
+                const Icon = n.icon;
+                return (
+                  <button
+                    key={n.id}
+                    className={`db-notif-item db-notif-item--${n.color}`}
+                    onClick={() => { setShowNotifPanel(false); n.action?.(); }}
+                    type="button"
+                    disabled={!n.action}
+                  >
+                    <div className={`db-notif-item__icon db-notif-item__icon--${n.color}`}><Icon size={14} /></div>
+                    <div className="db-notif-item__body">
+                      <p className="db-notif-item__title">{n.title}</p>
+                      <p className="db-notif-item__body-text">{n.body}</p>
+                    </div>
+                    {n.action && <ChevronRight size={13} className="db-notif-item__arrow" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="db-notif-overlay" onClick={() => setShowNotifPanel(false)} />
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════
+          MOBILE STICKY TOP BAR
+      ══════════════════════════════════════════ */}
+      <div className="mob-topbar">
+        <div className="mob-topbar__left">
+          <Heart size={18} className="mob-topbar__logo-icon" />
+          <span className="mob-topbar__logo-text">HealthConnect</span>
+        </div>
+        <div className="mob-topbar__right">
+          <button className="mob-topbar__btn" type="button" onClick={toggleDarkMode} aria-label="Toggle dark mode">
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button
+            ref={notifMobRef}
+            className="mob-topbar__btn mob-topbar__bell"
+            type="button"
+            aria-label="Notifications"
+            onClick={toggleNotifPanel}
+          >
+            <Bell size={18} />{hasUnread && <span className="mob-topbar__bell-dot" />}
+          </button>
+          <button className="mob-topbar__avatar-btn" type="button" onClick={() => router.push('/profile')}>
+            <div className="mob-topbar__avatar">
+              {userImage ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" /> : userInitials}
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════
+          MOBILE BOTTOM TAB BAR
+      ══════════════════════════════════════════ */}
+      <nav className="mob-tab-bar">
+        <div className="mob-tab-bar__inner">
+          <button className="mob-tab-btn active" onClick={() => router.push('/dashboard')} type="button">
+            <Heart size={22} />
+            Home
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button">
+            <MapPin size={22} />
+            Find
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button">
+            <Bot size={22} />
+            Check
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/emergency')} type="button">
+            <Phone size={22} />
+            SOS
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/profile')} type="button">
+            <User size={22} />
+            Profile
+          </button>
+        </div>
+      </nav>
+
+      <div className="db-page">
+
+        {/* ── Page header ────────────────────────── */}
+        <div className="db-page-header">
+          <div>
+            <p className="db-page-header__sub">{getGreeting()} ✨</p>
+            <h2 className="db-page-header__greeting">{userName}</h2>
+          </div>
+          {/* Desktop actions */}
+          <div className="db-page-header__actions">
+            <button className="db-page-header__sos-btn" onClick={() => router.push('/emergency')} type="button">
+              <span className="db-page-header__sos-dot" /> Emergency SOS
+            </button>
+          </div>
+
+        </div>
+
+        {/* ── Health Score Card ──────────────────── */}
+        <div className="db-health-card">
+          <div className="db-health-card__left">
+            <p className="db-health-card__label">OVERALL HEALTH SCORE</p>
+            <div className="db-health-card__score-row">
+              <span className="db-health-card__score-num">{isLoadingScore ? '—' : healthScore ?? '—'}</span>
+              <span className="db-health-card__score-denom">/100</span>
+            </div>
+            <p className="db-health-card__status">
+              {getScoreLabel(healthScore ?? 0)} · Last check {activityCounts.symptoms > 0 ? '2 days ago' : 'never'}
+            </p>
+            <div className="db-health-card__badges">
+              <span className="db-health-card__badge db-health-card__badge--green"><CheckCircle size={10} /> Meds on track</span>
+              <span className="db-health-card__badge db-health-card__badge--grey">No alerts today</span>
+              <span className="db-health-card__badge db-health-card__badge--blue">3 meds due</span>
+            </div>
+          </div>
+
+          <div className="db-health-card__ring-wrap">
+            <svg width="96" height="96" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="36" fill="none" stroke="rgba(0,210,255,0.15)" strokeWidth="8" />
+              <circle cx="50" cy="50" r="36" fill="none" stroke="url(#scoreGrad)"
+                strokeWidth="8" strokeLinecap="round"
+                strokeDasharray={`${scoreDash} ${scoreCircumference}`}
+                transform="rotate(-90 50 50)"
+                style={{ transition: 'stroke-dasharray 1s ease' }}
+              />
+              <defs>
+                <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="var(--hc-teal)" /><stop offset="100%" stopColor="var(--hc-mint)" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="db-health-card__ring-pct">{healthScore ?? '—'}%</span>
+          </div>
+
+          <div className="db-vitals">
+            {[
+              { val: scoreBreakdown.profileCompleteness ?? 0, max: 20, label: 'PROFILE'    },
+              { val: scoreBreakdown.bmiScore            ?? 0, max: 25, label: 'BMI'        },
+              { val: scoreBreakdown.medicationAdherence ?? 0, max: 20, label: 'MEDS'       },
+              { val: scoreBreakdown.conditionManagement ?? 0, max: 20, label: 'CONDITIONS' },
+              { val: scoreBreakdown.engagementScore     ?? 0, max: 15, label: 'ENGAGEMENT' },
+            ].map(({ val, max, label }) => (
+              <div key={label} className="db-vital">
+                <div className="db-vital__top">
+                  <span className="db-vital__val">{isLoadingScore ? '—' : val}</span>
+                  <span className="db-vital__unit">/{max}</span>
+                </div>
+                <span className="db-vital__label">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Score Insights ─────────────────────── */}
+        {scoreInsights.length > 0 && (
+          <div className="db-score-insights">
+            {scoreInsights.slice(0, 3).map((insight, i) => (
+              <div key={i} className="db-score-insight">
+                <Info size={12} />
+                <span>{insight}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Advisory Banner ────────────────────── */}
+        {advisory && locationInfo?.region && (
+          <div className="db-advisory">
+            <div className="db-advisory__icon"><TriangleAlert size={18} /></div>
+            <div className="db-advisory__body">
+              <p className="db-advisory__title">Local Health Advisory — {locationInfo.city || locationInfo.region} Region</p>
+              <p className="db-advisory__text">{advisory}</p>
+            </div>
+            <button className="db-advisory__cta" onClick={() => router.push('/facilities')} type="button">View Clinics →</button>
+          </div>
+        )}
+
+        {/* ── Quick Actions ──────────────────────── */}
+        <section className="db-section">
+          <div className="db-section__head">
+            <h3 className="db-section__title">Quick Actions</h3>
+          </div>
+          <div className="db-quick-actions">
+            {[
+              { cls: 'teal',   icon: MapPin, title: 'Find Facility',    sub: nearbyFacilities.length > 0 ? `${nearbyFacilities.length} facilities nearby` : 'Hospitals, clinics, pharmacies near you', path: '/facilities',      badge: 0 },
+              { cls: 'violet', icon: Bot,    title: 'Check Symptoms',   sub: 'AI-powered health assessment',  path: '/symptom-checker', badge: activityCounts.symptoms },
+              { cls: 'amber',  icon: Pill,   title: 'Med Reminders',    sub: todayReminders > 0 ? `${todayReminders} medication${todayReminders > 1 ? 's' : ''} due today` : 'Track your medications', path: '/profile',         badge: todayReminders },
+              { cls: 'red',    icon: Phone,  title: 'Emergency Hub',    sub: 'SOS & first aid guides',        path: '/emergency',       badge: 0 },
+            ].map(({ cls, icon: Icon, title, sub, path, badge }) => (
+              <button key={path} className={`db-quick-action db-quick-action--${cls}`} onClick={() => router.push(path)} type="button">
+                <div className="db-quick-action__icon"><Icon size={22} /></div>
+                {badge > 0 && <span className="db-quick-action__badge">{badge > 9 ? '9+' : badge}</span>}
+                <div className="db-quick-action__body">
+                  <p className="db-quick-action__title">{title}</p>
+                  <p className="db-quick-action__sub">{sub}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Main Grid ──────────────────────────── */}
+        <div className="db-grid">
+          <div className="db-grid__main">
+
+            <div className="db-card">
+              <div className="db-card__header">
+                <h3 className="db-card__title"><Activity size={17} /> Your Health Journey</h3>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button className="db-card__action" onClick={fetchActivities} disabled={isLoadingActivities} type="button">
+                    {isLoadingActivities ? <Loader2 size={14} className="db-spin" /> : <RefreshCw size={14} />}
+                  </button>
+                  <button
+                    className="db-card__action db-card__action--danger"
+                    title="Reset activity history"
+                    onClick={async () => {
+                      if (!confirm('Reset all activity history? This cannot be undone.')) return;
+                      await fetch('/api/activities', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ all: true }),
+                      });
+                      await Promise.all([fetchActivities(), fetchHealthScore()]);
+                    }}
+                    type="button"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+              <div className="db-stats">
+                {[
+                  { label: 'Facilities', value: activityCounts.facilities, icon: MapPin,  color: 'teal',   trend: activityCounts.facilities > 0 ? '+2 this week' : undefined, insight: 'Continue exploring' },
+                  { label: 'Symptoms',   value: activityCounts.symptoms,   icon: Bot,     color: 'violet', trend: activityCounts.symptoms > 0 ? 'Last checked 2 days ago' : undefined, insight: 'Get AI insights' },
+                  { label: 'Emergency',  value: activityCounts.emergency,  icon: Phone,   color: 'red',    insight: 'Always ready' },
+                ].map((stat, i) => (
+                  <div key={i} className={`db-stat db-stat--${stat.color}`}>
+                    <div className="db-stat__top">
+                      <stat.icon size={17} className="db-stat__icon" />
+                    </div>
+                    <div className="db-stat__value">{stat.value}</div>
+                    <div className="db-stat__label">{stat.label}</div>
+                    {stat.trend && <div className="db-stat__trend">{stat.trend}</div>}
+                    <div className="db-stat__insight"><Info size={11} /><span>{stat.insight}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="db-card">
+              <div className="db-card__header">
+                <h3 className="db-card__title"><Clock size={17} /> Recent Activity</h3>
+                <button className="db-card__action" onClick={() => router.push('/dashboard/activities')} type="button">View All <ChevronRight size={13} /></button>
+              </div>
+              <div className="db-activity-list">
+                {isLoadingActivities ? (
+                  <div className="db-state-center"><Loader2 size={22} className="db-spin" /><p>Loading…</p></div>
+                ) : activitiesError ? (
+                  <div className="db-state-center db-state-center--error">
+                    <AlertCircle size={24} /><p>{activitiesError}</p>
+                    <button className="db-retry-btn" onClick={fetchActivities} type="button"><RefreshCw size={13} /> Retry</button>
+                  </div>
+                ) : recentActivities.length === 0 ? (
+                  <div className="db-state-center"><Activity size={24} /><p>No activities yet</p><small>Start using features to track your history</small></div>
+                ) : (
+                  recentActivities.map(a => (
+                    <button key={a.id} className="db-activity-item" onClick={a.action} type="button">
+                      <div className="db-activity-item__icon"><a.icon size={15} /></div>
+                      <div className="db-activity-item__body">
+                        <p className="db-activity-item__title">{a.title}</p>
+                        <p className="db-activity-item__time">{a.time}</p>
+                      </div>
+                      <ChevronRight size={14} className="db-activity-item__arrow" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="db-grid__side">
+            <div className="db-card">
+              <div className="db-card__header">
+                <h3 className="db-card__title">
+                  <MapPin size={17} /> Nearby Facilities
+                  {locationInfo?.city && <span className="db-card__badge">in {locationInfo.city}</span>}
+                </h3>
+                <button className="db-card__action" onClick={() => router.push('/facilities')} type="button">View All</button>
+              </div>
+              <div className="db-facilities">
+                {!userLocation ? (
+                  <div className="db-empty-state">
+                    <MapPin size={28} /><h4>Enable Location</h4><p>Allow GPS to find nearby facilities</p>
+                    <button className="db-empty-state__btn" onClick={getCurrentLocation} disabled={isLoadingLocation} type="button">
+                      {isLoadingLocation ? <><Loader2 size={13} className="db-spin" /> Getting…</> : <><Crosshair size={13} /> Enable GPS</>}
+                    </button>
+                  </div>
+                ) : isLoadingFacilities ? (
+                  <div className="db-state-center"><Loader2 size={22} className="db-spin" /><p>Finding facilities…</p></div>
+                ) : facilitiesError ? (
+                  <div className="db-state-center db-state-center--error">
+                    <AlertCircle size={22} /><p>{facilitiesError}</p>
+                    <button className="db-retry-btn" onClick={fetchNearbyFacilities} type="button"><RefreshCw size={13} /> Retry</button>
+                  </div>
+                ) : nearbyFacilities.length === 0 ? (
+                  <div className="db-empty-state">
+                    <Hospital size={28} /><h4>No Facilities Found</h4><p>No facilities within 5km</p>
+                    <button className="db-empty-state__btn" onClick={() => router.push('/facilities')} type="button">Wider Search</button>
+                  </div>
+                ) : nearbyFacilities.map(f => {
+                  const Icon = getFacilityIcon(f.type);
+                  const { label, isOpen } = getFacilityStatus(f);
+                  return (
+                    <div key={f.id} className="db-facility-item">
+                      <div className="db-facility-item__header">
+                        <div className="db-facility-item__name"><Icon size={13} /><span>{f.name}</span></div>
+                        <div className="db-facility-item__rating"><Star size={11} />{f.rating.toFixed(1)}</div>
+                      </div>
+                      <div className="db-facility-item__meta">{f.type} · {f.distance.toFixed(1)} km{f.city && f.city !== 'Unknown' ? ` · ${f.city}` : ''}</div>
+                      <div className="db-facility-item__footer">
+                        <span className={`db-facility-item__status db-facility-item__status--${isOpen ? 'open' : 'closed'}`}>
+                          <span className="db-facility-item__status-dot" />{label}
+                        </span>
+                        <div className="db-facility-item__actions">
+                          {f.phone && f.phone !== 'Not available' && (
+                            <button className="db-facility-item__btn" onClick={() => window.open(`tel:${f.phone}`)} type="button"><Phone size={12} /></button>
+                          )}
+                          <button className="db-facility-item__btn" onClick={() => router.push(`/facilities?id=${f.id}`)} type="button"><Navigation size={12} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="db-card db-card--emergency">
+              <div className="db-card__emergency-icon"><Phone size={17} /></div>
+              <div className="db-card__emergency-body">
+                <h3 className="db-card__emergency-title">Emergency Hub</h3>
+                <p className="db-card__emergency-desc">Access emergency services and first aid guides anytime.</p>
+              </div>
+              <button className="db-emergency-open-btn" onClick={() => router.push('/emergency')} type="button">Open Emergency Hub</button>
+            </div>
+
+            <div className="db-card">
+              <div className="db-card__header"><h3 className="db-card__title"><TrendingUp size={17} /> Health Insights</h3></div>
+              <div className="db-insights">
+                {activityCounts.symptoms > 0 && <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>Checked symptoms {activityCounts.symptoms} times</p></div>}
+                {activityCounts.facilities > 0 && <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>{activityCounts.facilities} facilities discovered</p></div>}
+                {nearbyFacilities.length > 0 && locationInfo?.city && <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>{nearbyFacilities.length} facilities in {locationInfo.city}</p></div>}
+                {!activityCounts.facilities && !activityCounts.symptoms && <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>Enable location for personalised insights</p></div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Dashboard;

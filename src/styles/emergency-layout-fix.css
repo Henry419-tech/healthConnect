@@ -1,0 +1,140 @@
+/* ================================================================
+   src/styles/emergency-layout-fix.css
+
+   FIXES:
+   1. html/body background — prevents raw white bleed behind sidebar
+   2. Scroll lock — nothing should set overflow:hidden or a height
+      cap on the layout chain. The BODY is the scroller.
+   3. Mobile bottom nav clearance for fixed mob-tab-bar
+   4. position:fixed pseudo-elements escaped the content column —
+      forced back to absolute so they don't bleed under the sidebar
+   5. Tablet/mobile layout margin reset
+
+   Drop this file AFTER emergency.css.
+   ================================================================ */
+
+/* ── 1. html/body background ──────────────────────────────────── */
+html,
+body {
+  background: var(--hc-bg, #f1f5f9);
+}
+html.dark-mode,
+html.dark-mode body {
+  background: var(--hc-bg, #020B14);
+}
+
+/* ── 2. The BODY is the scroller — nothing in the layout chain
+        should trap it with overflow:hidden or a fixed height ──── */
+html,
+body {
+  /* Allow body to scroll freely on all viewports */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.hc-layout,
+.hc-layout__main {
+  /* Never trap scroll — let content determine height */
+  overflow:   visible;
+  min-height: 0;
+}
+
+/* ── 3. em-page — normal flow, never clips ───────────────────── */
+.em-page {
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+  position: relative;
+}
+
+/* Grids inside em-page must also be visible */
+.em-grid,
+.em-grid__main,
+.em-grid__side {
+  overflow: visible !important;
+}
+
+/* ── 4. Hero pseudo-elements must be absolute, not fixed ────────
+   position:fixed escapes the content column and bleeds under the
+   sidebar on desktop. Absolute keeps them inside the column.   */
+.em-hero::before,
+.em-hero::after {
+  position: absolute !important;
+}
+
+/* ── 5. No sidebar margin on tablet/mobile ───────────────────── */
+@media (max-width: 1024px) {
+  .hc-layout__main {
+    margin-left: 0 !important;
+    width:       100% !important;
+  }
+}
+
+/* ── 6. MOBILE — full scroll fix ─────────────────────────────── */
+@media (max-width: 640px) {
+
+  /*
+    Architecture:
+      • mob-topbar:  position:sticky  → stays at top, page scrolls under it
+      • mob-tab-bar: position:fixed   → always at viewport bottom
+      • body:        the ONLY scroller — overflow-y:auto, height:auto
+
+    Nothing between body and em-page should set overflow:hidden
+    or a fixed/max height. Flex children must not collapse the body.
+  */
+
+  html,
+  body {
+    height:      auto !important;
+    min-height:  0    !important;
+    overflow-y:  auto !important;   /* body scrolls */
+    overflow-x:  hidden;
+  }
+
+  /* Layout wrappers — must NOT restrict height or trap scroll */
+  .hc-layout,
+  .hc-layout__main {
+    height:    auto      !important;
+    min-height: 0        !important;
+    max-height: none     !important;
+    overflow:  visible   !important;
+    flex:      unset     !important;  /* remove flex-grow that caps content */
+  }
+
+  /* Ensure full scroll chain allows pan-y — prevents touch-action:none
+     on child elements (e.g. SOS button core) from blocking page scroll */
+  html,
+  body,
+  .hc-layout,
+  .hc-layout__main,
+  .em-page,
+  .em-hero {
+    touch-action: pan-y !important;
+  }
+
+  /* em-page bottom padding clears the fixed mob-tab-bar */
+  .em-page {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Sticky topbar — scrolls with page, stays at top */
+  .mob-topbar {
+    position: sticky !important;
+    top: 0;
+    z-index: 200;
+  }
+
+  /* Fixed tab bar — always visible at viewport bottom */
+  .mob-tab-bar {
+    position: fixed  !important;
+    bottom: 0; left: 0; right: 0;
+    z-index: 300;
+  }
+
+  /* Footer clearance above the fixed tab bar */
+  .hc-footer,
+  .dashboard-footer {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}

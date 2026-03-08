@@ -1,0 +1,665 @@
+/* ================================================================
+   src/styles/dashboard-header.css
+   Sidebar · Top bar · Drawer · Bottom nav
+   Import in: src/app/dashboard/page.tsx (and any page using DashboardLayout)
+   Dark mode: html.dark-mode class (set by DarkModeContext)
+   ================================================================ */
+
+/* ── CSS Variables ──────────────────────────────────────────── */
+:root {
+  --hc-sidebar-w:           240px;
+  --hc-sidebar-w-collapsed: 64px;
+  --hc-topbar-h:            56px;
+  --hc-bottom-nav-h:        64px;
+  --hc-ease:                cubic-bezier(0.4, 0, 0.2, 1);
+  --hc-ease-spring:         cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Light palette */
+  --hc-bg:               #f1f5f9;
+  --hc-surface:          rgba(255, 255, 255, 0.80);
+  --hc-surface2:         rgba(248, 250, 252, 0.75);
+  --hc-border:           rgba(0, 0, 0, 0.08);
+  --hc-border2:          rgba(0, 0, 0, 0.04);
+  --hc-teal:             #0ea5e9;
+  --hc-teal-dim:         rgba(14, 165, 233, 0.10);
+  --hc-teal-glow:        rgba(14, 165, 233, 0.20);
+  --hc-mint:             #10b981;
+  --hc-red:              #ef4444;
+  --hc-violet:           #7c3aed;
+  --hc-amber:            #f59e0b;
+  --hc-text:             #0f172a;
+  --hc-text2:            #475569;
+  --hc-text3:            #94a3b8;
+  --hc-nav-active-bg:    rgba(14, 165, 233, 0.10);
+  --hc-nav-active-color: #0ea5e9;
+  --hc-nav-hover-bg:     rgba(0, 0, 0, 0.04);
+  --hc-shadow:           0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --hc-shadow-lg:        0 10px 40px rgba(0,0,0,0.10);
+}
+
+/* Dark mode — html.dark-mode set by DarkModeContext */
+html.dark-mode {
+  --hc-bg:               #020B14;
+  --hc-surface:          rgba(7, 24, 40, 0.78);
+  --hc-surface2:         rgba(10, 32, 53, 0.72);
+  --hc-border:           rgba(0, 210, 255, 0.12);
+  --hc-border2:          rgba(0, 210, 255, 0.06);
+  --hc-teal:             #00D2FF;
+  --hc-teal-dim:         rgba(0, 210, 255, 0.12);
+  --hc-teal-glow:        rgba(0, 210, 255, 0.25);
+  --hc-mint:             #00FFB2;
+  --hc-red:              #FF4D6D;
+  --hc-violet:           #a78bfa;
+  --hc-amber:            #FFB700;
+  --hc-text:             #E8F4FF;
+  --hc-text2:            #6B9AB8;
+  --hc-text3:            #3A6880;
+  --hc-nav-active-bg:    rgba(0, 210, 255, 0.12);
+  --hc-nav-active-color: #00D2FF;
+  --hc-nav-hover-bg:     rgba(255, 255, 255, 0.04);
+  --hc-shadow:           0 1px 3px rgba(0,0,0,0.4);
+  --hc-shadow-lg:        0 10px 40px rgba(0,0,0,0.5);
+}
+
+/* ── Layout shell ───────────────────────────────────────────── */
+.hc-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--hc-bg);
+  color: var(--hc-text);
+  font-family: 'Outfit', 'Inter', sans-serif;
+  position: relative;
+  /* NOTE: isolation:isolate removed — it was trapping all z-indexes inside
+     a stacking context, preventing portalled modals from covering the sidebar.
+     Background layering is handled via z-index on pseudo-elements instead. */
+}
+
+/*
+  Background image layer — applied only to the SIDEBAR (hc-sidebar) and the
+  non-map content area via the ::before on hc-layout__main.
+  We do NOT use position:fixed here because fixed elements are viewport-relative
+  and bypass ALL stacking contexts — they can't be blocked by any child z-index.
+  Instead we use position:absolute scoped to each section.
+*/
+
+/* Sidebar has NO background image — keeps nav text crisp and readable */
+.hc-sidebar::before { display: none; }
+
+/* Image texture on the main content column (excludes sidebar) */
+.hc-layout__main {
+  position: relative;
+  margin-left: var(--hc-sidebar-w);
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.22s var(--hc-ease);
+}
+.hc-layout__main--collapsed { margin-left: var(--hc-sidebar-w-collapsed); }
+.hc-layout__content { flex: 1; }
+/* ── Viewport-locked layout variant (symptom-checker chat page) ─────
+   Applied when page adds hc-layout--locked class.
+   Gives the flex chain a defined height so flex:1 children resolve
+   their heights correctly. Without height:100vh on the root, all
+   flex:1 descendants collapse to content height — causing the empty
+   space below the chat input bar.
+   This class is ONLY on the symptom-checker page, so it cannot affect
+   emergency, profile, facilities or any other body-scroll page.
+   ──────────────────────────────────────────────────────────────────── */
+.hc-layout--locked {
+  height: 100vh;
+  overflow: hidden;
+}
+.hc-layout--locked .hc-layout__main {
+  overflow: hidden;
+  height: 100%;
+}
+.hc-layout--locked .hc-layout__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.hc-layout__main::before {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: 0;
+  /* Tile the image at a small size so the icons read as a fine texture, not large illustrations */
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  opacity: 0.20;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Colour wash over the content area */
+.hc-layout__main::after {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(241, 245, 249, 0.50) 0%,
+    rgba(224, 242, 254, 0.35) 50%,
+    rgba(241, 245, 249, 0.55) 100%
+  );
+  pointer-events: none;
+}
+
+html.dark-mode .hc-layout__main::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  opacity: 0.22;
+  mix-blend-mode: screen;
+}
+
+html.dark-mode .hc-layout__main::after {
+  background: linear-gradient(
+    160deg,
+    rgba(2, 11, 20, 0.48) 0%,
+    rgba(7, 24, 40, 0.35) 50%,
+    rgba(2, 11, 20, 0.52) 100%
+  );
+}
+
+/*
+  All direct children of hc-layout__main and hc-layout__content must sit
+  ABOVE the ::before/::after pseudo-elements (z-index:0).
+  The db-topbar, ff-layout, db-page etc. all need z-index >= 1.
+*/
+.hc-layout__main > *,
+.hc-layout__content > * {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+  The facilities map column must be completely opaque — no texture bleed.
+  Its solid background covers the ::before/::after of hc-layout__main.
+*/
+.ff-map-col {
+  /* Override the z-index:1 set above with a stacking context of its own */
+  isolation: isolate;
+}
+
+.ff-map-col::before,
+.ff-map-col::after {
+  /* Explicitly block any inherited pseudo-element from leaking in */
+  display: none !important;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────── */
+.hc-sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--hc-sidebar-w);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-right: 1px solid var(--hc-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  transition: width 0.22s var(--hc-ease);
+  /* NO overflow:hidden here — it clips the toggle button when collapsed */
+}
+html.dark-mode .hc-sidebar {
+  background: rgba(7, 24, 40, 0.80);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+}
+.hc-sidebar--collapsed { width: var(--hc-sidebar-w-collapsed); }
+
+/* ── Logo row ───────────────────────────────────────────────── */
+.hc-sidebar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  min-height: 62px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--hc-border2);
+  /* overflow visible so toggle is never clipped */
+}
+
+/* Left group: icon + animated text */
+.hc-sidebar__logo-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden; /* only clip the text, not the outer row */
+}
+
+.hc-sidebar__logo-mark {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 11px;
+  background: var(--hc-teal-dim);
+  border: 1px solid var(--hc-teal);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--hc-teal);
+  box-shadow: 0 0 12px var(--hc-teal-glow);
+}
+
+.hc-sidebar__logo-text {
+  display: flex; flex-direction: column;
+  line-height: 1.2; white-space: nowrap;
+  /* slides out when collapsed via max-width */
+  max-width: 140px;
+  overflow: hidden;
+  transition: max-width 0.22s var(--hc-ease), opacity 0.18s;
+}
+.hc-sidebar--collapsed .hc-sidebar__logo-text {
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.hc-sidebar__logo-title {
+  font-size: 13px; font-weight: 700;
+  color: var(--hc-text); letter-spacing: -0.2px;
+}
+.hc-sidebar__logo-sub {
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--hc-text3);
+}
+
+/* ─── TOGGLE BUTTON ─────────────────────────────────────────
+   Key rules:
+   1. flex-shrink: 0  — never squished
+   2. z-index: 1       — always on top inside sidebar
+   3. No margin-left:auto — space-between handles positioning
+   ────────────────────────────────────────────────────────── */
+.hc-sidebar__toggle-btn {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  background: none;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.hc-sidebar__toggle-btn:hover {
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+  border-color: var(--hc-teal);
+}
+
+/* ── Nav ────────────────────────────────────────────────────── */
+.hc-sidebar__nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex; flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.hc-sidebar__nav::-webkit-scrollbar { display: none; }
+
+.hc-sidebar__nav-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--hc-text3);
+  padding: 0 10px 8px;
+  white-space: nowrap;
+}
+
+.hc-sidebar__nav-item {
+  position: relative;
+  display: flex; align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--hc-text);        /* ← was hc-text2; full text colour for contrast */
+  font-family: inherit; font-size: 13px; font-weight: 600;  /* ← was 500 */
+  cursor: pointer; white-space: nowrap;
+  text-align: left; width: 100%;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  overflow: hidden;
+  min-width: 0;
+}
+.hc-sidebar__nav-item:hover {
+  background: var(--hc-nav-hover-bg);
+  color: var(--hc-text);
+}
+/* Extra contrast boost in light mode where background image is behind the sidebar */
+html:not(.dark-mode) .hc-sidebar__nav-item {
+  color: #1e293b;   /* slate-800 — deep and readable over white/light glass */
+  text-shadow: 0 0 1px rgba(255,255,255,0.6);
+}
+html:not(.dark-mode) .hc-sidebar__nav-item:hover {
+  color: #0f172a;
+}
+.hc-sidebar__nav-item--active {
+  background: var(--hc-nav-active-bg);
+  border-color: color-mix(in srgb, var(--hc-teal) 30%, transparent);
+  color: var(--hc-nav-active-color);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 0 transparent;
+}
+
+/* Active left-edge glow bar */
+.hc-sidebar__nav-indicator {
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 0;
+  border-radius: 0 3px 3px 0;
+  background: var(--hc-teal);
+  box-shadow: 0 0 8px var(--hc-teal);
+  transition: height 0.18s var(--hc-ease);
+}
+.hc-sidebar__nav-item--active .hc-sidebar__nav-indicator { height: 22px; }
+
+/* ── Bottom section ─────────────────────────────────────────── */
+.hc-sidebar__bottom {
+  padding: 8px 10px 14px;
+  border-top: 1px solid var(--hc-border2);
+  display: flex; flex-direction: column;
+  gap: 4px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--hc-teal) 2%, var(--hc-surface)));
+}
+
+/* Dark mode toggle */
+.hc-sidebar__darkmode-btn {
+  border-color: transparent !important;
+}
+.hc-sidebar__darkmode-btn:hover {
+  background: color-mix(in srgb, var(--hc-amber) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--hc-amber) 28%, transparent) !important;
+  color: var(--hc-amber) !important;
+}
+
+/* User card */
+.hc-sidebar__user {
+  display: flex; align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  margin-top: 4px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.hc-sidebar__user:hover { border-color: color-mix(in srgb, var(--hc-teal) 25%, transparent); }
+
+.hc-sidebar__user-avatar {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--hc-teal-dim);
+  border: 2px solid color-mix(in srgb, var(--hc-teal) 35%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: var(--hc-teal);
+  overflow: hidden;
+}
+.hc-sidebar__user-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hc-sidebar__user-info { flex: 1; min-width: 0; overflow: hidden; }
+.hc-sidebar__user-name {
+  display: block; font-size: 12px; font-weight: 700; color: var(--hc-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hc-sidebar__user-email {
+  display: block; font-size: 10px; color: var(--hc-text3); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hc-sidebar__signout-btn {
+  width: 28px; height: 28px; flex-shrink: 0;
+  border-radius: 8px; background: none;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text3);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.hc-sidebar__signout-btn:hover {
+  background: rgba(239,68,68,0.10);
+  color: var(--hc-red);
+  border-color: rgba(239,68,68,0.30);
+}
+
+/* ── Mobile Top Bar ─────────────────────────────────────────── */
+.hc-topbar {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--hc-topbar-h);
+  background: var(--hc-surface);
+  border-bottom: 1px solid var(--hc-border);
+  backdrop-filter: blur(20px);
+  z-index: 150;
+  align-items: center;
+  padding: 0 14px; gap: 10px;
+}
+.hc-topbar__icon-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--hc-text2);
+  display: flex; align-items: center; justify-content: center;
+  padding: 7px; border-radius: 9px;
+  transition: background 0.18s, color 0.18s;
+}
+.hc-topbar__icon-btn:hover { background: var(--hc-nav-hover-bg); color: var(--hc-text); }
+.hc-topbar__logo {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  font-size: 15px; font-weight: 700; color: var(--hc-text);
+}
+.hc-topbar__logo svg { color: var(--hc-teal); }
+.hc-topbar__actions { display: flex; align-items: center; gap: 6px; }
+.hc-topbar__bell { position: relative; }
+.hc-topbar__bell-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px;
+  background: var(--hc-red); border-radius: 50%;
+  border: 1.5px solid var(--hc-surface);
+}
+.hc-topbar__avatar {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 30%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--hc-teal);
+  overflow: hidden;
+}
+.hc-topbar__avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Drawer overlay ─────────────────────────────────────────── */
+.hc-drawer-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 250;
+}
+
+/* ── Drawer ─────────────────────────────────────────────────── */
+.hc-drawer {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: 280px;
+  background: var(--hc-surface);
+  border-right: 1px solid var(--hc-border);
+  z-index: 300;
+  display: flex; flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.25s var(--hc-ease);
+}
+.hc-drawer--open { transform: translateX(0); }
+
+.hc-drawer__header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 18px 14px;
+  border-bottom: 1px solid var(--hc-border2);
+}
+.hc-drawer__user { display: flex; align-items: center; gap: 10px; }
+.hc-drawer__avatar {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border-radius: 11px;
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 30%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: var(--hc-teal);
+  overflow: hidden;
+}
+.hc-drawer__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hc-drawer__user-name { font-size: 14px; font-weight: 600; color: var(--hc-text); margin: 0; }
+.hc-drawer__user-email { font-size: 11px; color: var(--hc-text3); margin: 2px 0 0; }
+
+.hc-drawer__nav {
+  flex: 1; padding: 10px;
+  display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto;
+}
+.hc-drawer__nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 11px;
+  background: none; border: 1px solid transparent;
+  color: var(--hc-text2);
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  cursor: pointer; text-align: left; width: 100%;
+  transition: background 0.18s, color 0.18s;
+}
+.hc-drawer__nav-item:hover { background: var(--hc-nav-hover-bg); color: var(--hc-text); }
+.hc-drawer__nav-item--active {
+  background: var(--hc-nav-active-bg);
+  border-color: color-mix(in srgb, var(--hc-teal) 28%, transparent);
+  color: var(--hc-nav-active-color); font-weight: 600;
+}
+.hc-drawer__nav-item--danger:hover { background: rgba(239,68,68,0.08); color: var(--hc-red); }
+
+.hc-drawer__footer {
+  padding: 10px; border-top: 1px solid var(--hc-border2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+/* ── Bottom Nav (mobile) ────────────────────────────────────── */
+.hc-bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--hc-bottom-nav-h);
+  background: var(--hc-surface);
+  border-top: 1px solid var(--hc-border);
+  z-index: 150;
+  justify-content: space-around; align-items: center;
+  padding: 0 4px;
+}
+.hc-bottom-nav::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hc-teal-glow), transparent);
+}
+.hc-bottom-nav__item {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  padding: 8px 10px; border-radius: 10px;
+  background: none; border: none;
+  color: var(--hc-text3);
+  font-family: inherit; font-size: 9px; font-weight: 600;
+  letter-spacing: 0.3px; cursor: pointer;
+  transition: color 0.18s, background 0.18s;
+  min-width: 52px;
+}
+.hc-bottom-nav__item--active {
+  color: var(--hc-teal);
+  background: var(--hc-teal-dim);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .hc-sidebar    { display: none; }
+  .hc-topbar     { display: flex; }
+  .hc-bottom-nav { display: flex; }
+  .hc-layout__main {
+    margin-left: 0 !important;
+    padding-top: var(--hc-topbar-h);
+    padding-bottom: var(--hc-bottom-nav-h);
+  }
+}
+
+/* ── Loading screen ─────────────────────────────────────────── */
+.hc-loading {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100vh; gap: 14px;
+  background: var(--hc-bg); color: var(--hc-text2);
+  font-size: 14px;
+}
+.hc-loading__logo {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: var(--hc-teal-dim); border: 1px solid var(--hc-teal);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--hc-teal); box-shadow: 0 0 20px var(--hc-teal-glow);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SIDEBAR ENHANCEMENTS — visual polish
+════════════════════════════════════════════════════════════════ */
+
+/* Sidebar depth shadow */
+.hc-sidebar {
+  box-shadow: 2px 0 20px rgba(0,0,0,0.04);
+}
+html.dark-mode .hc-sidebar {
+  box-shadow: 1px 0 0 rgba(0,210,255,0.08), 4px 0 30px rgba(0,0,0,0.5);
+}
+/* Right-edge glow in dark mode */
+html.dark-mode .hc-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0,210,255,0.18) 25%,
+    rgba(0,210,255,0.10) 75%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Collapsed nav items: center the icon */
+.hc-sidebar--collapsed .hc-sidebar__nav-item {
+  justify-content: center;
+  padding: 11px 0;
+}
+.hc-sidebar--collapsed .hc-sidebar__nav-indicator {
+  /* Keep indicator when collapsed */
+  left: 0;
+}
+
+/* Tooltip on collapsed hover */
+.hc-sidebar--collapsed .hc-sidebar__nav-item {
+  position: relative;
+}
+
+/* Collapsed user card: center avatar */
+.hc-sidebar--collapsed .hc-sidebar__user {
+  justify-content: center;
+  padding: 8px;
+}
+.hc-sidebar--collapsed .hc-sidebar__darkmode-btn {
+  justify-content: center;
+  padding: 11px 0;
+}
+
+/* Active nav: stronger background in light mode */
+html:not(.dark-mode) .hc-sidebar__nav-item--active {
+  background: color-mix(in srgb, var(--hc-teal) 10%, white);
+}
+
+/* Nav section divider */
+.hc-sidebar__nav-divider {
+  height: 1px;
+  background: var(--hc-border2);
+  margin: 8px 10px;
+  border: none;
+}
+
+/* Nav icon accent on active */
+.hc-sidebar__nav-item--active svg {
+  color: var(--hc-teal);
+  filter: drop-shadow(0 0 4px var(--hc-teal-glow));
+}

@@ -1,0 +1,389 @@
+/* ================================================================
+   src/styles/landing-light.css
+   HealthConnect Navigator — Light Mode Override
+   
+   HOW TO USE:
+   Import AFTER landing.css in your page:
+     import '@/styles/landing.css'
+     import '@/styles/landing-light.css'
+   
+   Light mode activates via:
+   1. @media (prefers-color-scheme: light) — automatic system detection
+   2. .lp-root--light-mode class on .lp-root — manual toggle fallback
+   
+   The auth slide panel stays white in light mode (it already is),
+   with minor refinements for the brighter overall context.
+   ================================================================ */
+
+/* ══════════════════════════════════════════════════════════════
+   SHARED LIGHT VARIABLE OVERRIDES
+   Applied under both system detection and manual class
+══════════════════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) {
+    --lp-navy:         #f0f6ff;
+    --lp-navy2:        #e2edf8;
+    --lp-teal:         #0099bb;
+    --lp-teal2:        #007a99;
+    --lp-teal-dim:     rgba(0,153,187,.10);
+    --lp-teal-glow:    rgba(0,153,187,.22);
+    --lp-red:          #e0304e;
+    --lp-red-dim:      rgba(224,48,78,.09);
+    --lp-violet:       #7c5cfc;
+    --lp-violet-dim:   rgba(124,92,252,.09);
+    --lp-amber:        #d97706;
+    --lp-amber-dim:    rgba(217,119,6,.10);
+    --lp-text:         rgba(10,22,40,.92);
+    --lp-text2:        rgba(10,22,40,.55);
+    --lp-text3:        rgba(10,22,40,.32);
+    --lp-border:       rgba(10,22,40,.08);
+    --lp-surf:         rgba(10,22,40,.04);
+  }
+}
+
+/* Manual class override (used in TSX when you want to force light) */
+.lp-root--light-mode {
+  --lp-navy:         #f0f6ff;
+  --lp-navy2:        #e2edf8;
+  --lp-teal:         #0099bb;
+  --lp-teal2:        #007a99;
+  --lp-teal-dim:     rgba(0,153,187,.10);
+  --lp-teal-glow:    rgba(0,153,187,.22);
+  --lp-red:          #e0304e;
+  --lp-red-dim:      rgba(224,48,78,.09);
+  --lp-violet:       #7c5cfc;
+  --lp-violet-dim:   rgba(124,92,252,.09);
+  --lp-amber:        #d97706;
+  --lp-amber-dim:    rgba(217,119,6,.10);
+  --lp-text:         rgba(10,22,40,.92);
+  --lp-text2:        rgba(10,22,40,.55);
+  --lp-text3:        rgba(10,22,40,.32);
+  --lp-border:       rgba(10,22,40,.08);
+  --lp-surf:         rgba(10,22,40,.04);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MIXIN — all light overrides (reused for both selectors)
+══════════════════════════════════════════════════════════════ */
+
+/* ── Root shell ──────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) {
+    background: #f0f6ff;
+    color: rgba(10,22,40,.92);
+  }
+}
+.lp-root--light-mode {
+  background: #f0f6ff;
+  color: rgba(10,22,40,.92);
+}
+
+/* ── Background ──────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-bg__mesh {
+    background:
+      radial-gradient(ellipse 65% 55% at 12% 18%, rgba(0,153,187,.12) 0%, transparent 60%),
+      radial-gradient(ellipse 55% 65% at 88% 78%, rgba(224,48,78,.07) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 80% at 50% 50%, rgba(220,234,250,.92) 0%, transparent 100%);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-bg__grid {
+    background-image:
+      linear-gradient(rgba(0,100,160,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,100,160,.028) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--1 {
+    background: radial-gradient(circle, rgba(0,153,187,.14), transparent 70%);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--2 {
+    background: radial-gradient(circle, rgba(224,48,78,.09), transparent 70%);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--3 {
+    background: radial-gradient(circle, rgba(124,92,252,.07), transparent 70%);
+  }
+}
+.lp-root--light-mode .lp-bg__mesh {
+  background:
+    radial-gradient(ellipse 65% 55% at 12% 18%, rgba(0,153,187,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 65% at 88% 78%, rgba(224,48,78,.07) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 80% at 50% 50%, rgba(220,234,250,.92) 0%, transparent 100%);
+}
+.lp-root--light-mode .lp-bg__grid {
+  background-image:
+    linear-gradient(rgba(0,100,160,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,100,160,.028) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+.lp-root--light-mode .lp-bg__orb--1 {
+  background: radial-gradient(circle, rgba(0,153,187,.14), transparent 70%);
+}
+.lp-root--light-mode .lp-bg__orb--2 {
+  background: radial-gradient(circle, rgba(224,48,78,.09), transparent 70%);
+}
+.lp-root--light-mode .lp-bg__orb--3 {
+  background: radial-gradient(circle, rgba(124,92,252,.07), transparent 70%);
+}
+
+/* ── Nav ─────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-nav {
+    background: rgba(240,246,255,.82);
+    border-bottom-color: rgba(10,22,40,.07);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-brand__name {
+    color: #0a1628;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-brand__tag {
+    color: #0099bb;
+    background: rgba(0,153,187,.10);
+    border-color: rgba(0,153,187,.20);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-brand__icon {
+    color: #fff;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost {
+    color: rgba(10,22,40,.60);
+    border-color: rgba(10,22,40,.12);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost:hover {
+    color: #0a1628;
+    background: rgba(10,22,40,.05);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--outline {
+    color: #0a1628;
+    border-color: rgba(10,22,40,.20);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--outline:hover {
+    background: rgba(10,22,40,.04);
+    border-color: rgba(10,22,40,.35);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--primary {
+    background: #0099bb;
+    color: #fff;
+    box-shadow: 0 4px 18px rgba(0,153,187,.28);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--primary:hover {
+    box-shadow: 0 7px 24px rgba(0,153,187,.35);
+  }
+}
+.lp-root--light-mode .lp-nav {
+  background: rgba(240,246,255,.82);
+  border-bottom-color: rgba(10,22,40,.07);
+}
+.lp-root--light-mode .lp-brand__name  { color: #0a1628; }
+.lp-root--light-mode .lp-brand__tag   { color: #0099bb; background: rgba(0,153,187,.10); border-color: rgba(0,153,187,.20); }
+.lp-root--light-mode .lp-brand__icon  { color: #fff; }
+.lp-root--light-mode .lp-btn--ghost   { color: rgba(10,22,40,.60); border-color: rgba(10,22,40,.12); }
+.lp-root--light-mode .lp-btn--ghost:hover { color: #0a1628; background: rgba(10,22,40,.05); }
+.lp-root--light-mode .lp-btn--outline { color: #0a1628; border-color: rgba(10,22,40,.20); }
+.lp-root--light-mode .lp-btn--outline:hover { background: rgba(10,22,40,.04); border-color: rgba(10,22,40,.35); }
+.lp-root--light-mode .lp-btn--primary { background: #0099bb; color: #fff; box-shadow: 0 4px 18px rgba(0,153,187,.28); }
+.lp-root--light-mode .lp-btn--primary:hover { box-shadow: 0 7px 24px rgba(0,153,187,.35); }
+
+/* ── Hero ─────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-eyebrow    { color: #0099bb; }
+  .lp-root:not(.lp-root--force-dark) .lp-live-dot   { background: #0099bb; box-shadow: 0 0 9px #0099bb; }
+  .lp-root:not(.lp-root--force-dark) .lp-hero__title { color: #0a1628; }
+  .lp-root:not(.lp-root--force-dark) .lp-hero__title em { color: #0099bb; }
+  .lp-root:not(.lp-root--force-dark) .lp-hero__sub  { color: rgba(10,22,40,.55); }
+  .lp-root:not(.lp-root--force-dark) .lp-trust-pill { color: rgba(10,22,40,.36); }
+}
+.lp-root--light-mode .lp-eyebrow     { color: #0099bb; }
+.lp-root--light-mode .lp-live-dot    { background: #0099bb; box-shadow: 0 0 9px #0099bb; }
+.lp-root--light-mode .lp-hero__title { color: #0a1628; }
+.lp-root--light-mode .lp-hero__title em { color: #0099bb; }
+.lp-root--light-mode .lp-hero__sub   { color: rgba(10,22,40,.55); }
+.lp-root--light-mode .lp-trust-pill  { color: rgba(10,22,40,.36); }
+
+/* ── Feature Cards ───────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-cards__label { color: rgba(10,22,40,.36); }
+
+  .lp-root:not(.lp-root--force-dark) .lp-card {
+    background: rgba(255,255,255,.72);
+    border-color: rgba(10,22,40,.08);
+    box-shadow: 0 2px 14px rgba(10,22,40,.05);
+    backdrop-filter: blur(8px);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-card:focus-visible { outline-color: #0099bb; }
+
+  .lp-root:not(.lp-root--force-dark) .lp-card--teal   { border-color: rgba(0,153,187,.15); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--violet { border-color: rgba(124,92,252,.15); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--red    { border-color: rgba(224,48,78,.15); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--amber  { border-color: rgba(217,119,6,.15); }
+
+  .lp-root:not(.lp-root--force-dark) .lp-card--teal::before   { background: linear-gradient(140deg, rgba(0,153,187,.07), transparent 60%); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--violet::before { background: linear-gradient(140deg, rgba(124,92,252,.07), transparent 60%); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--red::before    { background: linear-gradient(140deg, rgba(224,48,78,.07), transparent 60%); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--amber::before  { background: linear-gradient(140deg, rgba(217,119,6,.07), transparent 60%); }
+
+  .lp-root:not(.lp-root--force-dark) .lp-card--teal:hover   { border-color: rgba(0,153,187,.40);   box-shadow: 0 18px 44px rgba(0,153,187,.10); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--violet:hover { border-color: rgba(124,92,252,.40); box-shadow: 0 18px 44px rgba(124,92,252,.10); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--red:hover    { border-color: rgba(224,48,78,.40);  box-shadow: 0 18px 44px rgba(224,48,78,.10); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--amber:hover  { border-color: rgba(217,119,6,.40);  box-shadow: 0 18px 44px rgba(217,119,6,.10); }
+
+  .lp-root:not(.lp-root--force-dark) .lp-card--featured {
+    border-color: rgba(124,92,252,.28);
+    background: rgba(255,255,255,.85);
+  }
+
+  /* Icon containers */
+  .lp-root:not(.lp-root--force-dark) .lp-card--teal   .lp-card__icon { background: rgba(0,153,187,.10);   color: #0099bb;  border-color: rgba(0,153,187,.20); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--violet .lp-card__icon { background: rgba(124,92,252,.10); color: #7c5cfc; border-color: rgba(124,92,252,.20); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--red    .lp-card__icon { background: rgba(224,48,78,.09);  color: #e0304e; border-color: rgba(224,48,78,.18); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--amber  .lp-card__icon { background: rgba(217,119,6,.10);  color: #d97706; border-color: rgba(217,119,6,.20); }
+
+  /* Badges */
+  .lp-root:not(.lp-root--force-dark) .lp-card--teal   .lp-card__badge { background: rgba(0,153,187,.08);   color: #0099bb;  border-color: rgba(0,153,187,.16); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--violet .lp-card__badge { background: rgba(124,92,252,.08); color: #7c5cfc; border-color: rgba(124,92,252,.16); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--red    .lp-card__badge { background: rgba(224,48,78,.08);  color: #e0304e; border-color: rgba(224,48,78,.16); }
+  .lp-root:not(.lp-root--force-dark) .lp-card--amber  .lp-card__badge { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.16); }
+
+  /* Card text */
+  .lp-root:not(.lp-root--force-dark) .lp-card__title { color: #0a1628; }
+  .lp-root:not(.lp-root--force-dark) .lp-card__sub   { color: rgba(10,22,40,.55); }
+  .lp-root:not(.lp-root--force-dark) .lp-card__desc  { color: rgba(10,22,40,.38); }
+  .lp-root:not(.lp-root--force-dark) .lp-card__arrow { color: rgba(10,22,40,.28); }
+  .lp-root:not(.lp-root--force-dark) .lp-card:hover .lp-card__arrow { color: rgba(10,22,40,.55); }
+}
+
+.lp-root--light-mode .lp-cards__label { color: rgba(10,22,40,.36); }
+.lp-root--light-mode .lp-card {
+  background: rgba(255,255,255,.72);
+  border-color: rgba(10,22,40,.08);
+  box-shadow: 0 2px 14px rgba(10,22,40,.05);
+  backdrop-filter: blur(8px);
+}
+.lp-root--light-mode .lp-card:focus-visible { outline-color: #0099bb; }
+.lp-root--light-mode .lp-card--teal   { border-color: rgba(0,153,187,.15); }
+.lp-root--light-mode .lp-card--violet { border-color: rgba(124,92,252,.15); }
+.lp-root--light-mode .lp-card--red    { border-color: rgba(224,48,78,.15); }
+.lp-root--light-mode .lp-card--amber  { border-color: rgba(217,119,6,.15); }
+.lp-root--light-mode .lp-card--teal::before   { background: linear-gradient(140deg, rgba(0,153,187,.07), transparent 60%); }
+.lp-root--light-mode .lp-card--violet::before { background: linear-gradient(140deg, rgba(124,92,252,.07), transparent 60%); }
+.lp-root--light-mode .lp-card--red::before    { background: linear-gradient(140deg, rgba(224,48,78,.07), transparent 60%); }
+.lp-root--light-mode .lp-card--amber::before  { background: linear-gradient(140deg, rgba(217,119,6,.07), transparent 60%); }
+.lp-root--light-mode .lp-card--teal:hover   { border-color: rgba(0,153,187,.40);   box-shadow: 0 18px 44px rgba(0,153,187,.10); }
+.lp-root--light-mode .lp-card--violet:hover { border-color: rgba(124,92,252,.40); box-shadow: 0 18px 44px rgba(124,92,252,.10); }
+.lp-root--light-mode .lp-card--red:hover    { border-color: rgba(224,48,78,.40);  box-shadow: 0 18px 44px rgba(224,48,78,.10); }
+.lp-root--light-mode .lp-card--amber:hover  { border-color: rgba(217,119,6,.40);  box-shadow: 0 18px 44px rgba(217,119,6,.10); }
+.lp-root--light-mode .lp-card--featured     { border-color: rgba(124,92,252,.28); background: rgba(255,255,255,.85); }
+.lp-root--light-mode .lp-card--teal   .lp-card__icon { background: rgba(0,153,187,.10);   color: #0099bb;  border-color: rgba(0,153,187,.20); }
+.lp-root--light-mode .lp-card--violet .lp-card__icon { background: rgba(124,92,252,.10); color: #7c5cfc; border-color: rgba(124,92,252,.20); }
+.lp-root--light-mode .lp-card--red    .lp-card__icon { background: rgba(224,48,78,.09);  color: #e0304e; border-color: rgba(224,48,78,.18); }
+.lp-root--light-mode .lp-card--amber  .lp-card__icon { background: rgba(217,119,6,.10);  color: #d97706; border-color: rgba(217,119,6,.20); }
+.lp-root--light-mode .lp-card--teal   .lp-card__badge { background: rgba(0,153,187,.08);   color: #0099bb;  border-color: rgba(0,153,187,.16); }
+.lp-root--light-mode .lp-card--violet .lp-card__badge { background: rgba(124,92,252,.08); color: #7c5cfc; border-color: rgba(124,92,252,.16); }
+.lp-root--light-mode .lp-card--red    .lp-card__badge { background: rgba(224,48,78,.08);  color: #e0304e; border-color: rgba(224,48,78,.16); }
+.lp-root--light-mode .lp-card--amber  .lp-card__badge { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.16); }
+.lp-root--light-mode .lp-card__title { color: #0a1628; }
+.lp-root--light-mode .lp-card__sub   { color: rgba(10,22,40,.55); }
+.lp-root--light-mode .lp-card__desc  { color: rgba(10,22,40,.38); }
+.lp-root--light-mode .lp-card__arrow { color: rgba(10,22,40,.28); }
+.lp-root--light-mode .lp-card:hover .lp-card__arrow { color: rgba(10,22,40,.55); }
+
+/* ── Stats Bar ───────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-stats {
+    border-top-color: rgba(10,22,40,.07);
+    border-bottom-color: rgba(10,22,40,.07);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-stat { border-right-color: rgba(10,22,40,.07); }
+  .lp-root:not(.lp-root--force-dark) .lp-stat__n { color: #0a1628; }
+  .lp-root:not(.lp-root--force-dark) .lp-stat__l { color: rgba(10,22,40,.38); }
+}
+.lp-root--light-mode .lp-stats         { border-top-color: rgba(10,22,40,.07); border-bottom-color: rgba(10,22,40,.07); }
+.lp-root--light-mode .lp-stat          { border-right-color: rgba(10,22,40,.07); }
+.lp-root--light-mode .lp-stat__n       { color: #0a1628; }
+.lp-root--light-mode .lp-stat__l       { color: rgba(10,22,40,.38); }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-footer        { border-top-color: rgba(10,22,40,.07); }
+  .lp-root:not(.lp-root--force-dark) .lp-footer__brand { color: rgba(10,22,40,.50); }
+  .lp-root:not(.lp-root--force-dark) .lp-footer__copy  { color: rgba(10,22,40,.32); }
+  .lp-root:not(.lp-root--force-dark) .lp-footer__copy a { color: #0099bb; }
+}
+.lp-root--light-mode .lp-footer        { border-top-color: rgba(10,22,40,.07); }
+.lp-root--light-mode .lp-footer__brand { color: rgba(10,22,40,.50); }
+.lp-root--light-mode .lp-footer__copy  { color: rgba(10,22,40,.32); }
+.lp-root--light-mode .lp-footer__copy a { color: #0099bb; }
+
+/* ── Backdrop: lighter blur for light mode ───────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-backdrop {
+    background: rgba(180,200,228,.55);
+  }
+}
+.lp-root--light-mode .lp-backdrop { background: rgba(180,200,228,.55); }
+
+/* ── Auth Panel: light mode refinements ──────────────────────── */
+/* The panel is already white — just tighten shadow + borders */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-auth-panel {
+    box-shadow: -12px 0 50px rgba(10,22,40,.14), -1px 0 0 rgba(10,22,40,.06);
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-panel-close { background: #fff; }
+  .lp-root:not(.lp-root--force-dark) .lp-close-btn   {
+    background: #f1f5f9;
+    border: 1px solid rgba(10,22,40,.08);
+    color: #64748b;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-close-btn:hover {
+    background: #e2e8f0;
+    color: #0a1628;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-panel-brand {
+    border-bottom-color: #e9f0f8;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--primary {
+    background: #0099bb;
+    color: #fff;
+  }
+}
+.lp-root--light-mode .lp-auth-panel {
+  box-shadow: -12px 0 50px rgba(10,22,40,.14), -1px 0 0 rgba(10,22,40,.06);
+}
+.lp-root--light-mode .lp-panel-close   { background: #fff; }
+.lp-root--light-mode .lp-close-btn     { background: #f1f5f9; border: 1px solid rgba(10,22,40,.08); color: #64748b; }
+.lp-root--light-mode .lp-close-btn:hover { background: #e2e8f0; color: #0a1628; }
+.lp-root--light-mode .lp-panel-brand   { border-bottom-color: #e9f0f8; }
+
+/* Submit button in light mode — use teal instead of navy */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-submit {
+    background: #0a1628;
+    color: #fff;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-submit--signup {
+    background: linear-gradient(135deg, #0077a0, #0099bb);
+    color: #fff;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-submit--signup:hover:not(:disabled) {
+    box-shadow: 0 8px 22px rgba(0,153,187,.30);
+  }
+}
+.lp-root--light-mode .lp-submit        { background: #0a1628; color: #fff; }
+.lp-root--light-mode .lp-submit--signup { background: linear-gradient(135deg, #0077a0, #0099bb); color: #fff; }
+.lp-root--light-mode .lp-submit--signup:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0,153,187,.30); }
+
+/* ── Panel open: dim landing content (light mode only) ───────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark).lp-root--panel-open .lp-hero,
+  .lp-root:not(.lp-root--force-dark).lp-root--panel-open .lp-cards,
+  .lp-root:not(.lp-root--force-dark).lp-root--panel-open .lp-stats,
+  .lp-root:not(.lp-root--force-dark).lp-root--panel-open .lp-footer {
+    filter: brightness(0.90);
+    transition: filter 0.35s ease;
+  }
+}
+.lp-root--light-mode.lp-root--panel-open .lp-hero,
+.lp-root--light-mode.lp-root--panel-open .lp-cards,
+.lp-root--light-mode.lp-root--panel-open .lp-stats,
+.lp-root--light-mode.lp-root--panel-open .lp-footer {
+  filter: brightness(0.90);
+  transition: filter 0.35s ease;
+}
+

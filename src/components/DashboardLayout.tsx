@@ -1,49 +1,60 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
 import DashboardHeader from './DashboardHeader';
 import DashboardFooter from './DashboardFooter';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
   activeTab?: string;
-  showNotifications?: boolean;
-  className?: string;
-  showFloatingBg?: boolean;
+  /**
+   * Show the footer below page content.
+   * Default: true — dashboard, profile, emergency, and other scrollable pages
+   * Set false for viewport-locked pages (symptom checker) where footer would
+   * break the 100dvh layout.
+   */
   showFooter?: boolean;
+  /**
+   * Lock the layout to 100dvh with overflow:hidden.
+   * Use for pages that manage their own internal scroll (e.g. symptom checker).
+   * Adds hc-layout--locked class which is consumed by symptom-checker.css.
+   */
+  locked?: boolean;
+  className?: string;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
-  activeTab = 'dashboard',
-  showNotifications = true,
+  activeTab = '/dashboard',
+  showFooter = true,   // true keeps footer for dashboard, profile, emergency etc.
+  locked = false,
   className = '',
-  showFloatingBg = true,
-  showFooter = true
 }) => {
+  const [collapsed, setCollapsed] = useState(false);
+
+  const layoutClass = [
+    'hc-layout',
+    locked ? 'hc-layout--locked' : '',
+    className,
+  ].filter(Boolean).join(' ');
+
+  const mainClass = [
+    'hc-layout__main',
+    collapsed ? 'hc-layout__main--collapsed' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`dashboard-container ${className}`}>
-      {/* Floating Background Elements */}
-      {showFloatingBg && (
-        <>
-          <div className="dashboard-bg-element dashboard-bg-element-1"></div>
-          <div className="dashboard-bg-element dashboard-bg-element-2"></div>
-          <div className="dashboard-bg-element dashboard-bg-element-3"></div>
-        </>
-      )}
-
-      {/* Reusable Header */}
-      <DashboardHeader 
+    <div className={layoutClass}>
+      <DashboardHeader
         activeTab={activeTab}
+        onSidebarToggle={setCollapsed}
       />
-
-      {/* Main Content with proper padding for fixed header */}
-      <main className={`dashboard-content ${showFooter ? 'with-footer' : ''}`}>
-        {children}
-      </main>
-
-      {/* Footer */}
-      {showFooter && <DashboardFooter />}
+      <div className={mainClass}>
+        <main className="hc-layout__content">
+          {children}
+        </main>
+        {showFooter && <DashboardFooter />}
+      </div>
     </div>
   );
 };

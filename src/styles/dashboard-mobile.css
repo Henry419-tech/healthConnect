@@ -1,0 +1,843 @@
+/* ================================================================
+   src/styles/dashboard-mobile.css
+   Mobile app-style redesign for the dashboard.
+   Drop in AFTER dashboard.css & dashboard-header.css.
+   All rules are scoped inside @media (max-width: 640px) or
+   specific .mob-* classes — zero impact on desktop.
+   ================================================================ */
+
+/* ── Utility: mob-only — visible only on mobile ─────────────── */
+.mob-only { display: none; }
+
+
+/* ── Mobile sticky top bar ──────────────────────────────────── */
+/* Hidden by default; shown only on mobile via media query */
+.mob-topbar { display: none; }
+
+/* ── Bottom navigation bar ──────────────────────────────────── */
+/* Hidden by default; shown only on mobile via media query below */
+.mob-tab-bar { display: none; }
+
+/* ════════════════════════════════════════════════════════════════
+   ALL MOBILE OVERRIDES — strictly scoped to ≤ 640px
+   Desktop (> 640px) is completely unaffected.
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Utility ──────────────────────────────────────────────── */
+  .mob-only { display: flex; }
+
+  /* ── Body / scroll ────────────────────────────────────────── */
+  body {
+    overscroll-behavior-y: none;
+  }
+
+
+  /* ══════════════════════════════════════════════════════════
+     MOBILE STICKY TOP BAR
+  ══════════════════════════════════════════════════════════ */
+  .mob-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    padding: 0 16px;
+    height: 54px;
+    background: var(--hc-surface);
+    border-bottom: 1px solid var(--hc-border);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  html.dark-mode .mob-topbar {
+    background: rgba(7, 24, 40, 0.92);
+    border-bottom-color: rgba(0, 210, 255, 0.10);
+  }
+
+  .mob-topbar__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mob-topbar__logo-icon {
+    color: var(--hc-teal);
+    filter: drop-shadow(0 0 6px rgba(0,210,255,0.45));
+  }
+  .mob-topbar__logo-text {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    /* Two-tone: "Health" teal, "Connect" text color */
+    background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 48%, var(--hc-text) 48%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  html.dark-mode .mob-topbar__logo-text {
+    background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 48%, #e2f0ff 48%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
+  }
+
+  .mob-topbar__right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mob-topbar__btn {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: none;
+    border: 1px solid var(--hc-border);
+    color: var(--hc-text2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+    position: relative;
+  }
+  .mob-topbar__btn:hover {
+    background: var(--hc-teal-dim);
+    color: var(--hc-teal);
+  }
+  html.dark-mode .mob-topbar__btn {
+    border-color: rgba(0,210,255,0.12);
+  }
+
+  .mob-topbar__bell-dot {
+    position: absolute;
+    top: 7px; right: 7px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--hc-red);
+    border: 1.5px solid var(--hc-surface);
+  }
+  html.dark-mode .mob-topbar__bell-dot { border-color: #071828; }
+
+  .mob-topbar__avatar-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 2px;
+  }
+  .mob-topbar__avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--hc-teal-dim);
+    border: 2px solid color-mix(in srgb, var(--hc-teal) 35%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 12px; font-weight: 800;
+    color: var(--hc-teal);
+    overflow: hidden;
+  }
+  html.dark-mode .mob-topbar__avatar {
+    box-shadow: 0 0 10px rgba(0,210,255,0.20);
+  }
+  .mob-topbar__avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+
+  /* ── Suppress DashboardLayout's own mobile topbar & bottom nav ──
+     They activate at ≤1024px but we have our own mob-tab-bar.
+     Also undo the padding-top / padding-bottom they inject.      */
+  .hc-topbar     { display: none !important; }
+  .hc-bottom-nav { display: none !important; }
+  .hc-layout__main {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  /* Also hide the dashboard page's sticky search topbar on mobile */
+  .db-topbar { display: none !important; }
+
+  /* ── Page padding (accounts for our fixed mob-tab-bar) ──── */
+  .db-page {
+    padding: 0 0 76px !important;
+    gap: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MOBILE BOTTOM TAB BAR
+  ══════════════════════════════════════════════════════════ */
+  .mob-tab-bar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 300;
+    background: var(--hc-surface);
+    border-top: 1px solid var(--hc-border);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.10);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html.dark-mode .mob-tab-bar {
+    background: rgba(7, 24, 40, 0.96);
+    border-top-color: rgba(0, 210, 255, 0.12);
+    box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.5);
+  }
+  /* Glowing top edge in dark mode */
+  html.dark-mode .mob-tab-bar::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,210,255,0.25), transparent);
+  }
+
+  .mob-tab-bar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    height: 60px;
+  }
+
+  .mob-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--hc-text3);
+    letter-spacing: 0.3px;
+    transition: color 0.2s;
+    position: relative;
+  }
+  .mob-tab-btn svg { transition: transform 0.2s; }
+  .mob-tab-btn.active { color: var(--hc-teal); }
+  .mob-tab-btn.active svg { transform: scale(1.08); }
+
+  /* Active top indicator line */
+  .mob-tab-btn.active::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 28px; height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--hc-teal);
+    box-shadow: 0 0 8px var(--hc-teal-glow);
+  }
+
+  /* SOS badge dot */
+  .mob-tab-btn__dot {
+    position: absolute;
+    top: 4px; right: 10px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--hc-red);
+    border: 1.5px solid var(--hc-surface);
+  }
+  html.dark-mode .mob-tab-btn__dot {
+    border-color: #071828;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PAGE HEADER — greeting row with bell on mobile
+  ══════════════════════════════════════════════════════════ */
+  .db-page-header {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 20px 18px 14px !important;
+    gap: 0 !important;
+  }
+
+  /* Text block */
+  .db-page-header > div:first-child {
+    flex: 1;
+  }
+  .db-page-header__sub {
+    /* "Good morning ✨" */
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: var(--hc-text2) !important;
+    margin: 0 0 3px !important;
+    display: block !important;
+    letter-spacing: 0.1px !important;
+  }
+  .db-page-header__greeting {
+    font-size: 28px !important;
+    font-weight: 900 !important;
+    line-height: 1.1 !important;
+    margin: 0 !important;
+    color: var(--hc-text) !important;
+    letter-spacing: -1px !important;
+  }
+  html.dark-mode .db-page-header__greeting {
+    background: linear-gradient(135deg, #ffffff 30%, rgba(0,210,255,0.85) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Hide the desktop action buttons */
+  .db-page-header__actions {
+    display: none !important;
+  }
+
+
+  /* ══════════════════════════════════════════════════════════
+     HEALTH SCORE CARD
+  ══════════════════════════════════════════════════════════ */
+  .db-health-card {
+    margin: 0 16px 16px !important;
+    border-radius: 20px !important;
+    padding: 22px 18px 20px !important;
+    flex-wrap: nowrap !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    position: relative;
+    overflow: hidden;
+    /* Light mode: framework card surface */
+    background: var(--hc-surface) !important;
+    border-color: var(--hc-border2) !important;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.07) !important;
+  }
+
+  /* Dark mode: deep-space gradient */
+  html.dark-mode .db-health-card {
+    background: linear-gradient(135deg,
+      #002844 0%,
+      #003858 100%) !important;
+    border-color: rgba(0, 210, 255, 0.18) !important;
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+  /* Ambient glow */
+  html.dark-mode .db-health-card::after {
+    content: '';
+    position: absolute;
+    top: -30px; right: -20px;
+    width: 150px; height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,210,255,0.10) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Left content */
+  .db-health-card__left {
+    flex: none !important;
+    width: 100% !important;
+    position: relative;
+    z-index: 1;
+  }
+  .db-health-card__label {
+    font-size: 9.5px !important;
+    letter-spacing: 2.5px !important;
+  }
+  .db-health-card__score-row {
+    display: flex !important;
+    align-items: flex-end !important;
+    gap: 2px !important;
+    margin-bottom: 8px !important;
+  }
+  .db-health-card__score-num {
+    font-size: 60px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -3px !important;
+  }
+  .db-health-card__score-denom {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    margin-bottom: 8px !important;
+  }
+  .db-health-card__status {
+    font-size: 12.5px !important;
+    margin: 0 0 14px !important;
+  }
+  .db-health-card__badges {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 7px !important;
+  }
+  .db-health-card__badge {
+    font-size: 11px !important;
+    padding: 4px 11px !important;
+    border-radius: 100px !important;
+  }
+
+  /* Ring: absolutely positioned top-right */
+  .db-health-card__ring-wrap {
+    position: absolute !important;
+    top: 18px !important;
+    right: 18px !important;
+    width: 88px !important;
+    height: 88px !important;
+    z-index: 2;
+  }
+  .db-health-card__ring-wrap svg {
+    width: 88px !important;
+    height: 88px !important;
+  }
+  .db-health-card__ring-pct {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+  }
+
+  /* Vitals — 3 col row */
+  .db-vitals {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0 !important;
+    border-top: 1px solid var(--hc-border2) !important;
+    border-left: none !important;
+    padding: 16px 0 0 !important;
+    width: 100% !important;
+    position: relative;
+    z-index: 1;
+  }
+  html.dark-mode .db-vitals {
+    border-top-color: rgba(255,255,255,0.08) !important;
+  }
+  .db-vital {
+    padding: 0 10px !important;
+    margin: 0 !important;
+    min-width: unset !important;
+    border-right: 1px solid var(--hc-border2);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  html.dark-mode .db-vital {
+    border-right-color: rgba(255,255,255,0.08);
+  }
+  .db-vital:last-child { border-right: none; }
+  /* Only show first 3 vitals on mobile */
+  .db-vital:nth-child(n+4) { display: none !important; }
+
+  .db-vital__top {
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 2px !important;
+  }
+  .db-vital__val {
+    font-size: 21px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+  }
+  .db-vital__unit {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+  }
+  .db-vital__label {
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     ADVISORY BANNER
+  ══════════════════════════════════════════════════════════ */
+  .db-advisory {
+    margin: 0 16px 16px !important;
+    border-radius: 14px !important;
+    padding: 13px 14px !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 11px !important;
+  }
+  .db-advisory__icon {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+  }
+  .db-advisory__title { font-size: 12.5px !important; }
+  .db-advisory__text  { font-size: 11.5px !important; }
+  .db-advisory__cta   { display: none !important; }
+
+  /* ══════════════════════════════════════════════════════════
+     QUICK ACTIONS — 2 × 2 grid
+  ══════════════════════════════════════════════════════════ */
+  .db-section {
+    padding: 0 16px !important;
+    margin-bottom: 20px !important;
+  }
+  .db-section__head { margin-bottom: 14px !important; }
+  .db-section__title {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+  }
+
+  .db-quick-actions {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .db-quick-action {
+    padding: 18px 15px 16px !important;
+    border-radius: 18px !important;
+    gap: 12px !important;
+    min-height: 128px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+  .db-quick-action__icon {
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 14px !important;
+  }
+  .db-quick-action__title {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    margin: 0 0 4px !important;
+  }
+  .db-quick-action__sub {
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+  }
+  .db-quick-action__badge {
+    top: 11px !important;
+    right: 11px !important;
+    width: 19px !important;
+    height: 19px !important;
+    font-size: 9px !important;
+  }
+
+  /* Dark mode: richer card backgrounds */
+  html.dark-mode .db-quick-action--teal {
+    background: linear-gradient(145deg, #001E30 0%, #002840 100%) !important;
+    border-color: rgba(0, 210, 255, 0.20) !important;
+  }
+  html.dark-mode .db-quick-action--violet {
+    background: linear-gradient(145deg, #16083A 0%, #1E0F4A 100%) !important;
+    border-color: rgba(139, 92, 246, 0.22) !important;
+  }
+  html.dark-mode .db-quick-action--amber {
+    background: linear-gradient(145deg, #1E1200 0%, #261800 100%) !important;
+    border-color: rgba(245, 158, 11, 0.22) !important;
+  }
+  html.dark-mode .db-quick-action--red {
+    background: linear-gradient(145deg, #200606 0%, #2A0808 100%) !important;
+    border-color: rgba(239, 68, 68, 0.22) !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MAIN GRID — stack everything, reorder
+  ══════════════════════════════════════════════════════════ */
+  .db-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+  .db-grid__side { order: 1; }
+  .db-grid__main { order: 2; }
+
+  /* ── Cards ─────────────────────────────────────────────── */
+  .db-grid__side > .db-card,
+  .db-grid__main > .db-card {
+    margin: 0 16px 16px !important;
+    border-radius: 18px !important;
+  }
+  .db-card__header {
+    padding: 14px 16px !important;
+  }
+  .db-card__title {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+  /* "View All" / action link style on mobile */
+  .db-card__action {
+    background: none !important;
+    border: none !important;
+    color: var(--hc-teal) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 4px 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* ── Facility items ─────────────────────────────────────── */
+  .db-facility-item {
+    padding: 14px 16px !important;
+  }
+  .db-facility-item__name {
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+  }
+  .db-facility-item__meta {
+    font-size: 11px !important;
+    margin-bottom: 8px !important;
+  }
+  .db-facility-item__status {
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    padding: 3px 10px !important;
+    border-radius: 100px !important;
+  }
+  .db-facility-item__status--open {
+    background: rgba(16, 185, 129, 0.10) !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  }
+  .db-facility-item__status--closed {
+    background: rgba(239, 68, 68, 0.08) !important;
+    border: 1px solid rgba(239, 68, 68, 0.20) !important;
+  }
+  /* Hide the small dot; pill label is enough */
+  .db-facility-item__status-dot { display: none !important; }
+
+  /* ── Your Health Journey Stats ─────────────────────────── */
+  .db-stats {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    background: var(--hc-surface) !important;
+    gap: 0 !important;
+  }
+  .db-stat {
+    padding: 16px 12px 14px !important;
+    border-right: 1px solid var(--hc-border2) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+  .db-stat:last-child { border-right: none !important; }
+
+  /* Icon pill */
+  .db-stat__top {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-bottom: 9px !important;
+    flex-shrink: 0 !important;
+  }
+  .db-stat--teal   .db-stat__top { background: rgba(0,195,180,0.13) !important; color: var(--hc-teal)  !important; }
+  .db-stat--violet .db-stat__top { background: rgba(139,92,246,0.13) !important; color: #8b5cf6         !important; }
+  .db-stat--red    .db-stat__top { background: rgba(239,68,68,0.13)  !important; color: var(--hc-red)  !important; }
+
+  /* Big number */
+  .db-stat__value {
+    font-size: 28px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    color: var(--hc-text) !important;
+    margin: 0 0 3px !important;
+  }
+
+  /* Label */
+  .db-stat__label {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.7px !important;
+    text-transform: uppercase !important;
+    color: var(--hc-text2) !important;
+    margin: 0 !important;
+  }
+
+  /* Trend pill: sits inline below the label, wraps cleanly */
+  .db-stat__trend {
+    display: inline-block !important;
+    position: static !important;
+    margin-top: 7px !important;
+    font-size: 9px !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    border-radius: 100px !important;
+    line-height: 1.5 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    background: rgba(0,195,180,0.12) !important;
+    color: var(--hc-teal) !important;
+    border: 1px solid rgba(0,195,180,0.20) !important;
+  }
+  .db-stat--violet .db-stat__trend {
+    background: rgba(139,92,246,0.12) !important;
+    color: #8b5cf6 !important;
+    border-color: rgba(139,92,246,0.20) !important;
+  }
+
+  /* Insight: pinned to bottom */
+  .db-stat__insight {
+    margin-top: auto !important;
+    padding-top: 8px !important;
+    font-size: 9px !important;
+    color: var(--hc-text2) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    opacity: 0.6 !important;
+    position: static !important;
+  }
+
+  /* ── Activity list ──────────────────────────────────────── */
+  .db-activity-item { padding: 12px 16px !important; }
+  .db-activity-item__icon {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 11px !important;
+  }
+  .db-activity-item__title { font-size: 13px !important; }
+  .db-activity-item__time  { font-size: 11px !important; }
+
+  /* ── Emergency card — top row icon+title, desc, full-width btn ── */
+  .db-card--emergency {
+    flex-direction: column !important;
+    padding: 16px !important;
+    gap: 0 !important;
+    border: none !important;
+    background: #fff5f5 !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+  html.dark-mode .db-card--emergency {
+    background: rgba(220, 38, 38, 0.10) !important;
+    border: 1px solid rgba(220, 38, 38, 0.18) !important;
+  }
+  /* Top row: icon circle + title side by side */
+  .db-card--emergency .db-card__emergency-icon {
+    width: 42px !important; height: 42px !important;
+    border-radius: 12px !important;
+    background: rgba(220, 38, 38, 0.12) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    color: #dc2626 !important;
+    margin-bottom: 10px !important;
+  }
+  .db-card__emergency-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    margin-bottom: 14px !important;
+  }
+  .db-card__emergency-title {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    color: var(--hc-text) !important;
+  }
+  .db-card__emergency-desc {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    color: var(--hc-text-muted) !important;
+  }
+  .db-emergency-open-btn {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    margin-top: 0 !important;
+    border-radius: 12px !important;
+    background: #dc2626 !important;
+    color: #fff !important;
+    text-align: center !important;
+  }
+
+  /* ── Insights ───────────────────────────────────────────── */
+  .db-insights {
+    padding: 12px 16px 14px !important;
+    gap: 8px !important;
+  }
+  .db-insight-item { font-size: 12px !important; }
+
+  /* ── Empty / loading ────────────────────────────────────── */
+  .db-empty-state  { padding: 22px 16px !important; }
+  .db-state-center { padding: 22px 16px !important; }
+
+  /* ── Footer: hidden on mobile (tab bar replaces it) ─────── */
+  .dashboard-footer { display: none !important; }
+
+  /* ── Score Insight pills ("Complete your health profile…") ── */
+  .db-score-insights {
+    margin: 0 16px 16px !important;
+    gap: 8px !important;
+    display: flex !important;
+    flex-direction: column !important;  /* stack vertically — each is a full row */
+    flex-wrap: nowrap !important;
+  }
+  .db-score-insight {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding: 11px 14px !important;
+    border-radius: 14px !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    /* Stronger surface so cards read clearly over the page bg */
+    background: var(--hc-surface) !important;
+    border: 1px solid var(--hc-border2) !important;
+  }
+  html.dark-mode .db-score-insight {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(0,210,255,0.12) !important;
+    color: rgba(255,255,255,0.75) !important;
+  }
+  .db-score-insight svg {
+    flex-shrink: 0 !important;
+    margin-top: 2px !important;
+    color: var(--hc-teal) !important;
+  }
+
+} /* end @media (max-width: 640px) */
+
+/* ════════════════════════════════════════════════════════════════
+   Very small phones (≤ 390px) — minor tightening only
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .db-health-card__score-num { font-size: 52px !important; }
+  .db-page-header__greeting  { font-size: 22px !important; }
+  .db-quick-action__title    { font-size: 13.5px !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HEALTHCONNECT BRAND ENHANCEMENT — desktop sidebar (all sizes)
+════════════════════════════════════════════════════════════════ */
+
+/* Logo icon: stronger teal glow */
+.hc-sidebar__logo-icon {
+  box-shadow:
+    0 0 0 1px rgba(0,210,255,0.25),
+    0 0 18px rgba(0,210,255,0.30) !important;
+}
+
+/* "HealthConnect" title: two-tone gradient */
+.hc-sidebar__logo-title {
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.4px !important;
+  background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 46%, var(--hc-text) 46%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+html.dark-mode .hc-sidebar__logo-title {
+  background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 46%, #dff0ff 46%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Subtitle: slightly more visible */
+.hc-sidebar__logo-sub {
+  font-size: 9.5px !important;
+  letter-spacing: 1.8px !important;
+  color: var(--hc-teal) !important;
+  opacity: 0.65 !important;
+}
+html.dark-mode .hc-sidebar__logo-sub {
+  opacity: 0.55 !important;
+}

@@ -38,18 +38,20 @@ model Session {
 }
 
 model User {
-  id                 String             @id @default(cuid())
-  name               String?
-  email              String             @unique
-  password           String?
-  emailVerified      DateTime?
-  image              String?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  accounts           Account[]
-  sessions           Session[]
-  activities         UserActivity[]
-  emergencyContacts  EmergencyContact[]
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  password          String?
+  emailVerified     DateTime?
+  image             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  accounts          Account[]
+  sessions          Session[]
+  activities        UserActivity[]
+  emergencyContacts EmergencyContact[]
+  healthProfile     HealthProfile?
+  savedFacilities   SavedFacility[]    // ← NEW
 }
 
 model VerificationToken {
@@ -61,37 +63,145 @@ model VerificationToken {
 }
 
 model UserActivity {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   activityType String
   title        String
   description  String?
   metadata     Json?
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
   @@index([userId, createdAt])
   @@index([activityType])
+  @@index([userId, deletedAt])
+}
+
+model HealthProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bloodType   String?
+  dateOfBirth DateTime?
+  weightKg    Float?
+  heightCm    Float?
+  gender      String?
+  bmi         Float?
+  healthScore Int       @default(50)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  allergies     Allergy[]
+  medications   Medication[]
+  conditions    MedicalCondition[]
+  familyMembers FamilyMember[]
+  reminders     MedReminder[]
+}
+
+model Allergy {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  severity  String        // mild | moderate | severe
+  reaction  String?
+  createdAt DateTime      @default(now())
+}
+
+model Medication {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  dose      String?
+  frequency String?
+  startDate DateTime?
+  active    Boolean       @default(true)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model MedicalCondition {
+  id            String        @id @default(cuid())
+  profileId     String
+  profile       HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name          String
+  status        String        // managed | active | resolved
+  diagnosedYear String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+}
+
+model FamilyMember {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  relation  String
+  age       Int?
+  bloodType String?
+  createdAt DateTime      @default(now())
+}
+
+model MedReminder {
+  id           String        @id @default(cuid())
+  profileId    String
+  profile      HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  medicationId String?
+  name         String
+  dose         String?
+  time         String        // "08:00"
+  days         String        // JSON: ["Mon","Tue",...]
+  active       Boolean       @default(true)
+  lastTaken    DateTime?
+  createdAt    DateTime      @default(now())
 }
 
 model EmergencyContact {
   id           String   @id @default(cuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   name         String
   relationship String
   number       String
   priority     Int      @default(1)
   email        String?
   notes        String?  @db.Text
-  
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   @@index([userId, priority])
   @@index([userId, createdAt])
+}
+
+// ── NEW MODEL ────────────────────────────────────────────────────
+model SavedFacility {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // OSM/facility identity
+  facilityId        String   // e.g. "osm_node_12345678"
+  name              String
+  type              String   // hospital | clinic | pharmacy | health_center
+  address           String?
+  city              String?
+  region            String?
+  phone             String?
+  hours             String?
+  website           String?
+  emergencyServices Boolean  @default(false)
+
+  // Coordinates stored for instant map access without re-querying Overpass
+  latitude          Float
+  longitude         Float
+  distance          Float?   // km from user at time of save
+
+  savedAt           DateTime @default(now())
+
+  @@unique([userId, facilityId])   // one save per facility per user
+  @@index([userId, savedAt])
 }

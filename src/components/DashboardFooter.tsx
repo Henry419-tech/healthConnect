@@ -1,227 +1,79 @@
-'use client'
+'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-  Heart,
-  Shield,
-  Phone,
-  Mail,
-  MapPin,
-  ExternalLink,
-  AlertCircle,
-  Users,
-  FileText,
-  Lock,
-  Accessibility,
-  Globe,
-  Stethoscope,
-  Pill,
-  Hospital,
-  BookOpen,
-  HelpCircle
-} from 'lucide-react';
+import { Heart, Shield, Lock, FileText, HelpCircle, Activity } from 'lucide-react';
 
-interface FooterLinkProps {
-  href?: string;
-  onClick?: () => void;
-  external?: boolean;
-  children: React.ReactNode;
-  icon?: React.ComponentType<{ size: number }>;
+interface FooterProps {
+  onNavigate?: (path: string) => void;
 }
 
-const FooterLink: React.FC<FooterLinkProps> = ({ 
-  href, 
-  onClick, 
-  external = false, 
-  children, 
-  icon: Icon 
-}) => {
-  const router = useRouter();
-  
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (onClick) {
-      onClick();
-    } else if (href) {
-      if (external) {
-        window.open(href, '_blank', 'noopener noreferrer');
-      } else {
-        router.push(href);
-      }
-    }
-  };
-
-  return (
-    <button 
-      onClick={handleClick}
-      className="footer-link"
-      type="button"
-    >
-      {Icon && <Icon size={16} />}
-      {children}
-      {external && <ExternalLink size={12} className="external-link-icon" />}
-    </button>
-  );
-};
-
-const DashboardFooter: React.FC = () => {
-  const currentYear = new Date().getFullYear();
+const DashboardFooter: React.FC<FooterProps> = ({ onNavigate }) => {
+  const nav = (path: string) => onNavigate?.(path);
+  const year = new Date().getFullYear();
 
   return (
     <footer className="dashboard-footer">
-      {/* Main Footer Content */}
-      <div className="footer-main">
-        <div className="footer-content">
-          {/* Brand Section */}
-          <div className="footer-section footer-brand">
+      <div className="footer-inner">
+
+        {/* ── Top: Brand + Links ─────────────────── */}
+        <div className="footer-top">
+
+          {/* Brand */}
+          <div className="footer-brand">
             <div className="footer-logo">
               <div className="footer-logo-icon">
-                <Heart size={24} className="footer-logo-heart" />
+                <Heart size={16} />
               </div>
-              <h3 className="footer-logo-text">HealthConnect Navigator</h3>
+              <p className="footer-logo-text">HealthConnect</p>
             </div>
-            <p className="footer-brand-description">
-              Your trusted companion for navigating Ghana's healthcare system. 
-              Find facilities, check symptoms, and access emergency services with confidence.
-            </p>
-            <div className="footer-badges">
-              <div className="footer-badge">
-                <Shield size={16} />
-                <span>HIPAA Compliant</span>
-              </div>
-              <div className="footer-badge">
-                <Stethoscope size={16} />
-                <span>Medical Grade</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Services Section */}
-          <div className="footer-section">
-            <h4 className="footer-section-title">Our Services</h4>
-            <div className="footer-links">
-              <FooterLink href="/facilities" icon={Hospital}>
-                Healthcare Facilities
-              </FooterLink>
-              <FooterLink href="/symptom-checker" icon={Stethoscope}>
-                AI Symptom Checker
-              </FooterLink>
-              <FooterLink href="/emergency" icon={Phone}>
-                Emergency Hub
-              </FooterLink>
-              <FooterLink href="/pharmacies" icon={Pill}>
-                Pharmacy Locator
-              </FooterLink>
-            </div>
-          </div>
-
-          {/* Support Section */}
-          <div className="footer-section">
-            <h4 className="footer-section-title">Support & Resources</h4>
-            <div className="footer-links">
-              <FooterLink href="/help" icon={HelpCircle}>
-                Help Center
-              </FooterLink>
-              <FooterLink href="/health-resources" icon={BookOpen}>
-                Health Resources
-              </FooterLink>
-              <FooterLink href="/contact" icon={Mail}>
-                Contact Support
-              </FooterLink>
-              <FooterLink href="/accessibility" icon={Accessibility}>
-                Accessibility
-              </FooterLink>
-            </div>
-          </div>
-
-          {/* Legal Section */}
-          <div className="footer-section">
-            <h4 className="footer-section-title">Legal & Privacy</h4>
-            <div className="footer-links">
-              <FooterLink href="/privacy-policy" icon={Lock}>
-                Privacy Policy
-              </FooterLink>
-              <FooterLink href="/terms-of-service" icon={FileText}>
-                Terms of Service
-              </FooterLink>
-              <FooterLink href="/medical-disclaimer" icon={AlertCircle}>
-                Medical Disclaimer
-              </FooterLink>
-              <FooterLink href="/data-protection" icon={Shield}>
-                Data Protection
-              </FooterLink>
-            </div>
-          </div>
-
-          {/* Contact Section */}
-          <div className="footer-section">
-            <h4 className="footer-section-title">Get in Touch</h4>
-            <div className="footer-contact-info">
-              <div className="contact-item">
-                <Phone size={16} />
-                <div>
-                  <p className="contact-label">24/7 Support Hotline</p>
-                  <p className="contact-value">+233 (0) 30 123 4567</p>
-                </div>
-              </div>
-              <div className="contact-item">
-                <Mail size={16} />
-                <div>
-                  <p className="contact-label">Email Support</p>
-                  <p className="contact-value">support@healthconnect.gh</p>
-                </div>
-              </div>
-              <div className="contact-item">
-                <MapPin size={16} />
-                <div>
-                  <p className="contact-label">Location</p>
-                  <p className="contact-value">Accra, Ghana</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Medical Disclaimer Banner */}
-      <div className="footer-disclaimer">
-        <div className="disclaimer-content">
-          <AlertCircle size={20} className="disclaimer-icon" />
-          <div className="disclaimer-text">
-            <h5>Important Medical Disclaimer</h5>
-            <p>
-              This application is for informational purposes only and does not constitute medical advice. 
-              Always consult with qualified healthcare professionals for medical diagnosis and treatment. 
-              In case of emergency, call 911 or your local emergency services immediately.
+            <p className="footer-tagline">
+              Your trusted companion for navigating Ghana's healthcare system.
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* Footer Bottom */}
-      <div className="footer-bottom">
-        <div className="footer-bottom-content">
-          <div className="footer-copyright">
-            <p>© {currentYear} HealthConnect Navigator. All rights reserved.</p>
-            <p>Proudly serving Ghana's healthcare community.</p>
-          </div>
-          
-          <div className="footer-certifications">
-            <div className="certification-badge">
-              <Globe size={16} />
-              <span>WHO Guidelines</span>
+          {/* Nav groups */}
+          <nav className="footer-nav" aria-label="Footer navigation">
+
+            <div className="footer-nav-group">
+              <p className="footer-nav-title">Services</p>
+              <button className="footer-nav-link" onClick={() => nav('/facilities')}>Find Facilities</button>
+              <button className="footer-nav-link" onClick={() => nav('/symptom-checker')}>Symptom Checker</button>
+              <button className="footer-nav-link" onClick={() => nav('/emergency')}>Emergency Hub</button>
             </div>
-            <div className="certification-badge">
-              <Users size={16} />
-              <span>Community Driven</span>
+
+            <div className="footer-nav-group">
+              <p className="footer-nav-title">Support</p>
+              <button className="footer-nav-link" onClick={() => nav('/help')}>Help Centre</button>
+              <button className="footer-nav-link" onClick={() => nav('/contact')}>Contact Us</button>
+              <button className="footer-nav-link" onClick={() => nav('/accessibility')}>Accessibility</button>
             </div>
-          </div>
-          
-          <div className="footer-version">
-            <span className="version-badge">v2.1.0</span>
+
+            <div className="footer-nav-group">
+              <p className="footer-nav-title">Legal</p>
+              <button className="footer-nav-link" onClick={() => nav('/privacy')}>Privacy Policy</button>
+              <button className="footer-nav-link" onClick={() => nav('/terms')}>Terms of Service</button>
+              <button className="footer-nav-link" onClick={() => nav('/disclaimer')}>Medical Disclaimer</button>
+            </div>
+
+          </nav>
+        </div>
+
+        {/* ── Divider ────────────────────────────── */}
+        <hr className="footer-divider" />
+
+        {/* ── Bottom bar ─────────────────────────── */}
+        <div className="footer-bottom">
+          <p className="footer-copy">
+            © {year} <span>HealthConnect Navigator</span>. Built for Ghana's healthcare.
+          </p>
+          <div className="footer-pills">
+            <span className="footer-pill"><Shield size={11} /> HIPAA</span>
+            <span className="footer-pill"><Lock size={11} /> Secure</span>
+            <span className="footer-pill"><Activity size={11} /> Medical Grade</span>
+            <span className="footer-version">v2.0</span>
           </div>
         </div>
+
       </div>
     </footer>
   );

@@ -1,211 +1,282 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { 
-  Heart, 
-  User, 
-  Bell,
-  Moon,
-  Sun,
-  LogOut
+import {
+  Heart, Home, MapPin, Bot, Phone, User,
+  Bell, Moon, Sun, LogOut, PanelLeftClose,
+  PanelLeftOpen, Menu, X,
 } from 'lucide-react';
 
 interface DashboardHeaderProps {
   activeTab?: string;
+  onSidebarToggle?: (collapsed: boolean) => void;
 }
 
-const DashboardHeader: React.FC<DashboardHeaderProps> = ({ 
-  activeTab
-}) => {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+const NAV_ITEMS = [
+  { path: '/dashboard',       label: 'Dashboard',      icon: Home   },
+  { path: '/facilities',      label: 'Facilities',      icon: MapPin  },
+  { path: '/symptom-checker', label: 'Symptom Checker', icon: Bot    },
+  { path: '/emergency',       label: 'Emergency Hub',   icon: Phone  },
+  { path: '/profile',         label: 'Profile',         icon: User   },
+];
+
+const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarToggle }) => {
+  const { data: session } = useSession();
+  const router   = useRouter();
   const pathname = usePathname();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-  const [isScrolled, setIsScrolled] = useState(false);
-  
-  const userName = session?.user?.name || 'User';
+
+  const [collapsed,  setCollapsed]  = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const userName  = session?.user?.name  || 'User';
   const userEmail = session?.user?.email || null;
   const userImage = session?.user?.image || null;
-  
-  // Optimized scroll handler
-  const handleScroll = useCallback(() => {
-    const scrollTop = window.scrollY;
-    const shouldBeScrolled = scrollTop > 50;
-    
-    if (isScrolled !== shouldBeScrolled) {
-      setIsScrolled(shouldBeScrolled);
-    }
-  }, [isScrolled]);
 
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
-    
-    const throttledScrollHandler = () => {
-      if (timeoutId) return;
-      
-      timeoutId = setTimeout(() => {
-        handleScroll();
-        timeoutId = null;
-      }, 16);
-    };
+  const initials = (name: string) =>
+    name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-    window.addEventListener('scroll', throttledScrollHandler, { passive: true });
-    
-    return () => {
-      window.removeEventListener('scroll', throttledScrollHandler);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [handleScroll]);
+  const isActive = (path: string) => pathname === path || activeTab === path;
 
   const handleSignOut = async () => {
-    try {
-      await signOut({ 
-        callbackUrl: '/',
-        redirect: true 
-      });
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
+    try { await signOut({ callbackUrl: '/', redirect: true }); }
+    catch (e) { console.error(e); }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const toggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    onSidebarToggle?.(next);
   };
 
-  const isActive = (path: string) => {
-    return pathname === path || activeTab === path;
-  };
+  // Notify parent of initial state
+  useEffect(() => { onSidebarToggle?.(false); }, []); // eslint-disable-line
+
+  // Lock body scroll when mobile drawer open
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [drawerOpen]);
 
   return (
-    <header className={`dashboard-header ${isScrolled ? 'scrolled' : ''}`}>
-      <div className="dashboard-header-content">
-        <div className="dashboard-header-left">
-          {/* Logo */}
-          <div className="dashboard-logo">
-            <div className="dashboard-logo-icon">
-              <Heart size={20} className="dashboard-logo-heart" />
-            </div>
-            <h1 className="dashboard-logo-text">HealthConnect Navigator</h1>
-          </div>
+    <>
+      {/* ════════════════════════════════════════
+          DESKTOP SIDEBAR
+      ════════════════════════════════════════ */}
+      <aside className={`hc-sidebar${collapsed ? ' hc-sidebar--collapsed' : ''}`}>
 
-          {/* Navigation - Desktop Only */}
-          <nav className="dashboard-nav">
-            <button 
-              className={`dashboard-nav-item ${isActive('/dashboard') ? 'dashboard-nav-item-active' : ''}`}
-              onClick={() => router.push('/dashboard')}
-              type="button"
-            >
-              Dashboard
-            </button>
-            <button 
-              className={`dashboard-nav-item ${isActive('/facilities') ? 'dashboard-nav-item-active' : ''}`}
-              onClick={() => router.push('/facilities')}
-              type="button"
-            >
-              Facilities
-            </button>
-            <button 
-              className={`dashboard-nav-item ${isActive('/symptom-checker') ? 'dashboard-nav-item-active' : ''}`}
-              onClick={() => router.push('/symptom-checker')}
-              type="button"
-            >
-              Symptom Checker
-            </button>
-            <button 
-              className={`dashboard-nav-item ${isActive('/emergency') ? 'dashboard-nav-item-active' : ''}`}
-              onClick={() => router.push('/emergency')}
-              type="button"
-            >
-              Emergency
-            </button>
-          </nav>
+        {/* Logo + collapse toggle in same row */}
+        <div className="hc-sidebar__logo">
+          {/* Left: icon + text */}
+          <div className="hc-sidebar__logo-inner">
+            <div className="hc-sidebar__logo-mark">
+              <Heart size={15} />
+            </div>
+            <div className="hc-sidebar__logo-text">
+              <span className="hc-sidebar__logo-title">HealthConnect</span>
+              <span className="hc-sidebar__logo-sub">Navigator</span>
+            </div>
+          </div>
+          {/* Toggle — always visible on the right */}
+          <button
+            className="hc-sidebar__toggle-btn"
+            onClick={toggleCollapse}
+            type="button"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
         </div>
 
-        {/* User Actions */}
-        <div className="dashboard-user-actions">
-          {/* Dark Mode Toggle */}
-          <button 
-            className="dashboard-action-btn dark-mode-toggle-prominent"
+        {/* Nav */}
+        <nav className="hc-sidebar__nav">
+          {!collapsed && <span className="hc-sidebar__nav-label">Main Menu</span>}
+          {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+            <button
+              key={path}
+              className={`hc-sidebar__nav-item${isActive(path) ? ' hc-sidebar__nav-item--active' : ''}`}
+              onClick={() => router.push(path)}
+              type="button"
+              title={collapsed ? label : undefined}
+            >
+              <span className="hc-sidebar__nav-indicator" />
+              <Icon size={18} />
+              {!collapsed && <span>{label}</span>}
+            </button>
+          ))}
+        </nav>
+
+        {/* Bottom */}
+        <div className="hc-sidebar__bottom">
+          {/* Dark mode toggle */}
+          <button
+            className="hc-sidebar__nav-item hc-sidebar__darkmode-btn"
             onClick={toggleDarkMode}
             type="button"
-            aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode
+              ? <Sun size={18} />
+              : <Moon size={18} />}
+            {!collapsed && (
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            )}
+          </button>
+
+          {/* User card */}
+          <div className="hc-sidebar__user">
+            <div className="hc-sidebar__user-avatar">
+              {userImage
+                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
+                : <span>{initials(userName)}</span>}
+            </div>
+            {!collapsed && (
+              <>
+                <div className="hc-sidebar__user-info">
+                  <span className="hc-sidebar__user-name">{userName}</span>
+                  {userEmail && <span className="hc-sidebar__user-email">{userEmail}</span>}
+                </div>
+                <button
+                  className="hc-sidebar__signout-btn"
+                  onClick={handleSignOut}
+                  type="button"
+                  title="Sign out"
+                >
+                  <LogOut size={15} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* ════════════════════════════════════════
+          MOBILE TOP BAR
+      ════════════════════════════════════════ */}
+      <header className="hc-topbar">
+        <button
+          className="hc-topbar__icon-btn"
+          onClick={() => setDrawerOpen(true)}
+          type="button"
+          aria-label="Open menu"
+        >
+          <Menu size={22} />
+        </button>
+
+        <div className="hc-topbar__logo">
+          <Heart size={15} />
+          <span>HealthConnect</span>
+        </div>
+
+        <div className="hc-topbar__actions">
+          <button
+            className="hc-topbar__icon-btn"
+            onClick={toggleDarkMode}
+            type="button"
+            aria-label="Toggle dark mode"
           >
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-
-          {/* Notifications */}
-          <button 
-            className="dashboard-action-btn dashboard-notification-btn"
-            type="button"
-            aria-label="Notifications"
-          >
-            <Bell size={20} />
-            <span className="dashboard-notification-dot"></span>
+          <button className="hc-topbar__icon-btn hc-topbar__bell" type="button" aria-label="Notifications">
+            <Bell size={18} />
+            <span className="hc-topbar__bell-dot" />
           </button>
-          
-          {/* User Menu with Profile Image */}
-          <div className="dashboard-user-menu">
-            <button 
-              className="dashboard-action-btn dashboard-user-btn"
-              type="button"
-              aria-label="User menu"
-            >
-              {/* Profile Image or Avatar */}
-              <div className="dashboard-user-avatar">
-                {userImage ? (
-                  <img 
-                    src={userImage} 
-                    alt={userName}
-                    className="dashboard-user-avatar-image"
-                    key={userImage}
-                  />
-                ) : (
-                  <div className="dashboard-user-avatar-placeholder">
-                    {getInitials(userName)}
-                  </div>
-                )}
-              </div>
-              
-              <div className="dashboard-user-info">
-                <span className="dashboard-user-name">{userName}</span>
-                {userEmail && <span className="dashboard-user-email">{userEmail}</span>}
-              </div>
-            </button>
-            
-            {/* Dropdown Menu */}
-            <div className="dashboard-user-dropdown">
-              <button 
-                className="dashboard-dropdown-item" 
-                onClick={() => router.push('/profile')}
-                type="button"
-              >
-                <User size={16} />
-                Profile
-              </button>
-              <button 
-                className="dashboard-dropdown-item dashboard-signout-btn" 
-                onClick={handleSignOut}
-                type="button"
-              >
-                <LogOut size={16} />
-                Sign Out
-              </button>
-            </div>
+          <div className="hc-topbar__avatar">
+            {userImage
+              ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
+              : <span>{initials(userName)}</span>}
           </div>
         </div>
+      </header>
+
+      {/* ════════════════════════════════════════
+          MOBILE DRAWER OVERLAY
+      ════════════════════════════════════════ */}
+      {drawerOpen && (
+        <div
+          className="hc-drawer-overlay"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ════════════════════════════════════════
+          MOBILE DRAWER
+      ════════════════════════════════════════ */}
+      <div className={`hc-drawer${drawerOpen ? ' hc-drawer--open' : ''}`}>
+        <div className="hc-drawer__header">
+          <div className="hc-drawer__user">
+            <div className="hc-drawer__avatar">
+              {userImage
+                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
+                : <span>{initials(userName)}</span>}
+            </div>
+            <div>
+              <p className="hc-drawer__user-name">{userName}</p>
+              {userEmail && <p className="hc-drawer__user-email">{userEmail}</p>}
+            </div>
+          </div>
+          <button
+            className="hc-topbar__icon-btn"
+            onClick={() => setDrawerOpen(false)}
+            type="button"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="hc-drawer__nav">
+          {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+            <button
+              key={path}
+              className={`hc-drawer__nav-item${isActive(path) ? ' hc-drawer__nav-item--active' : ''}`}
+              onClick={() => { router.push(path); setDrawerOpen(false); }}
+              type="button"
+            >
+              <Icon size={19} /><span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="hc-drawer__footer">
+          <button
+            className="hc-drawer__nav-item"
+            onClick={toggleDarkMode}
+            type="button"
+          >
+            {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
+            <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+          <button
+            className="hc-drawer__nav-item hc-drawer__nav-item--danger"
+            onClick={handleSignOut}
+            type="button"
+          >
+            <LogOut size={19} /><span>Sign Out</span>
+          </button>
+        </div>
       </div>
-    </header>
+
+      {/* ════════════════════════════════════════
+          MOBILE BOTTOM NAV
+      ════════════════════════════════════════ */}
+      <nav className="hc-bottom-nav">
+        {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+          <button
+            key={path}
+            className={`hc-bottom-nav__item${isActive(path) ? ' hc-bottom-nav__item--active' : ''}`}
+            onClick={() => router.push(path)}
+            type="button"
+          >
+            <Icon size={21} /><span>{label}</span>
+          </button>
+        ))}
+      </nav>
+    </>
   );
 };
 

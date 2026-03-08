@@ -1,0 +1,57 @@
+/* ================================================================
+   src/styles/facilities-layout-fix.css
+   Drop AFTER facilities.css and facilities-mobile.css.
+   ================================================================ */
+
+/* ── 1. CSS-native sidebar sync via :has() ────────────────────────
+   Handles margin BEFORE JS hydrates — no blank flash on load.
+   The sidebar is position:fixed inside DashboardHeader, so
+   .facility-finder needs to offset itself by the sidebar width. */
+
+/* Expanded sidebar (default) */
+body:has(.hc-sidebar:not(.hc-sidebar--collapsed)) .facility-finder {
+  margin-left: var(--hc-sidebar-w, 240px) !important;
+  width: calc(100% - var(--hc-sidebar-w, 240px)) !important;
+}
+
+/* Collapsed sidebar */
+body:has(.hc-sidebar--collapsed) .facility-finder {
+  margin-left: var(--hc-sidebar-w-collapsed, 64px) !important;
+  width: calc(100% - var(--hc-sidebar-w-collapsed, 64px)) !important;
+}
+
+/* No sidebar in DOM yet (SSR / before hydration) — full width */
+body:not(:has(.hc-sidebar)) .facility-finder {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+/* ── 2. Below 1024px sidebar hides — full width ───────────────── */
+@media (max-width: 1024px) {
+  .facility-finder,
+  body:has(.hc-sidebar--collapsed) .facility-finder,
+  body:has(.hc-sidebar:not(.hc-sidebar--collapsed)) .facility-finder {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* ── 3. Leaflet map isolation ─────────────────────────────────── */
+#facility-map,
+.leaflet-container {
+  isolation: isolate;
+}
+.facility-finder-map-container > div:first-child {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* ── 4. Modal always on top ───────────────────────────────────── */
+.facility-detail-modal {
+  z-index: 9999 !important;
+}
+
+/* ── 5. Background colour for sidebar backdrop-blur ──────────── */
+html { background: var(--hc-bg, #f1f5f9); }
+html.dark-mode { background: var(--hc-bg, #020B14); }

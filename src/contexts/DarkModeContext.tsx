@@ -1,64 +1,130 @@
-'use client'
+'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+/**
+ * DarkModeContext
+ *
+ * Priority order:
+ *  1. User's explicit choice (stored in localStorage as "hc-theme": "dark" | "light")
+ *  2. OS / device preference via prefers-color-scheme
+ *
+ * This means:
+ *  - On first visit the app matches the device setting automatically.
+ *  - If the user clicks the toggle, that choice is saved and respected on return visits.
+ *  - If the user has never made an explicit choice AND their OS setting changes,
+ *    the app updates in real time.
+ *  - Calling resetToSystemPreference() clears the saved choice so the OS wins again.
+ */
 
-interface DarkModeContextType {
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+
+const STORAGE_KEY = 'hc-theme';
+
+type ThemeSource = 'system' | 'user';
+
+interface DarkModeContextValue {
   isDarkMode: boolean;
+  themeSource: ThemeSource;       // 'system' | 'user'
   toggleDarkMode: () => void;
+  resetToSystemPreference: () => void;
 }
 
-const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
+const DarkModeContext = createContext<DarkModeContextValue>({
+  isDarkMode: false,
+  themeSource: 'system',
+  toggleDarkMode: () => {},
+  resetToSystemPreference: () => {},
+});
+
+/* ── helpers ──────────────────────────────────────────────────── */
+
+function getSystemPreference(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getSavedPreference(): boolean | null {
+  if (typeof window === 'undefined') return null;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === 'dark') return true;
+  if (saved === 'light') return false;
+  return null; // nothing saved → defer to OS
+}
+
+function applyTheme(dark: boolean) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('dark-mode', dark);
+}
+
+/* ── provider ─────────────────────────────────────────────────── */
 
 export function DarkModeProvider({ children }: { children: React.ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = getSavedPreference();
+    return saved !== null ? saved : getSystemPreference();
+  });
 
-  // Initialize dark mode from localStorage or system preference
+  const [themeSource, setThemeSource] = useState<ThemeSource>(() =>
+    getSavedPreference() !== null ? 'user' : 'system'
+  );
+
+  // Apply class on mount and whenever isDarkMode changes
   useEffect(() => {
-    setMounted(true);
-    const savedMode = localStorage.getItem('darkMode');
-    
-    if (savedMode !== null) {
-      setIsDarkMode(savedMode === 'true');
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDarkMode(prefersDark);
-    }
+    applyTheme(isDarkMode);
+  }, [isDarkMode]);
+
+  // Listen for OS preference changes — only act when no user override is saved
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      // Only follow the OS if the user hasn't made an explicit choice
+      if (getSavedPreference() === null) {
+        setIsDarkMode(e.matches);
+        setThemeSource('system');
+      }
+    };
+
+    mq.addEventListener('change', handleChange);
+    return () => mq.removeEventListener('change', handleChange);
   }, []);
 
-  // Apply dark mode class to document
-  useEffect(() => {
-    if (mounted) {
-      if (isDarkMode) {
-        document.documentElement.classList.add('dark-mode');
-      } else {
-        document.documentElement.classList.remove('dark-mode');
-      }
-      localStorage.setItem('darkMode', isDarkMode.toString());
-    }
-  }, [isDarkMode, mounted]);
+  // Manual toggle: saves user's choice to localStorage
+  const toggleDarkMode = useCallback(() => {
+    setIsDarkMode(prev => {
+      const next = !prev;
+      localStorage.setItem(STORAGE_KEY, next ? 'dark' : 'light');
+      setThemeSource('user');
+      return next;
+    });
+  }, []);
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
-  };
-
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return null;
-  }
+  // Clear saved preference and snap back to OS setting
+  const resetToSystemPreference = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY);
+    const systemDark = getSystemPreference();
+    setIsDarkMode(systemDark);
+    setThemeSource('system');
+  }, []);
 
   return (
-    <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>
+    <DarkModeContext.Provider
+      value={{ isDarkMode, themeSource, toggleDarkMode, resetToSystemPreference }}
+    >
       {children}
     </DarkModeContext.Provider>
   );
 }
 
+/* ── hook ─────────────────────────────────────────────────────── */
+
 export function useDarkMode() {
-  const context = useContext(DarkModeContext);
-  if (context === undefined) {
-    throw new Error('useDarkMode must be used within a DarkModeProvider');
-  }
-  return context;
+  return useContext(DarkModeContext);
 }

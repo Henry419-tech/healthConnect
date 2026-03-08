@@ -1,0 +1,191 @@
+/* ================================================================
+   src/styles/profile-layout-fix.css
+
+   Profile Page Layout Fix
+   - Prevent sidebar collapse shift issues
+   - Ensure modals anchor to viewport (not layout column)
+   - Fix mobile scroll + spacing + identity layout
+   - Ensure proper background surface handling
+
+   IMPORTANT:
+   Do NOT apply overflow + positioned stacking context
+   on .hc-layout__main — it breaks position:fixed modals.
+   ================================================================ */
+
+
+/* ────────────────────────────────────────────────────────────────
+   1. Root Scroll & Background Surface
+   ──────────────────────────────────────────────────────────────── */
+
+html,
+body {
+  height: 100%;
+  background: var(--hc-bg, #f1f5f9);
+}
+
+html.dark-mode,
+html.dark-mode body {
+  background: var(--hc-bg, #020B14);
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   2. Main Layout Column
+   - Must NOT create stacking context
+   - Must NOT clip fixed-position children
+   ──────────────────────────────────────────────────────────────── */
+
+.hc-layout__main {
+  position: static;          /* Prevent stacking context */
+  overflow-x: hidden;
+  overflow-y: visible;       /* Critical: allow modals to escape */
+  min-height: 100vh;
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   3. Profile Page Container
+   ──────────────────────────────────────────────────────────────── */
+
+.pr-page {
+  width: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   4. Modal Overlay (Always Viewport Anchored)
+   ──────────────────────────────────────────────────────────────── */
+
+.pr-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000 !important; /* Above sidebar (~200) & tab bar (~300) */
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   5. Tablet & Smaller Screens (≤1024px)
+   ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .hc-layout__main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────────────────────────
+   6. Mobile Layout Fixes (≤640px)
+   ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+
+  /* Let body handle scrolling */
+  html,
+  body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .hc-layout__main {
+    overflow-y: visible !important;
+    height: auto;
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Prevent bottom tab bar overlap (~60px + safe area) */
+  .pr-page {
+    height: auto !important;
+    overflow: visible !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+
+  /* ── Identity Card Layout ───────────────────────────── */
+
+  .pr-identity {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 16px !important;
+    margin: 0 12px 14px !important;
+  }
+
+  .pr-identity__avatar-wrap,
+  .pr-identity__info {
+    width: 100%;
+  }
+
+  .pr-identity__name-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 18px !important;
+    box-sizing: border-box;
+  }
+
+  .pr-identity__actions {
+    flex-direction: row !important;
+    width: 100% !important;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .pr-identity__actions .pr-btn {
+    font-size: 12px;
+    padding: 7px 14px;
+  }
+
+
+  /* ── Page Header ───────────────────────────────────── */
+
+  .pr-page-header {
+    padding: 16px 12px 12px !important;
+    margin: 0 !important;
+  }
+
+
+  /* ── Section Margins ───────────────────────────────── */
+
+  .pr-alert,
+  .pr-stats,
+  .pr-medid-banner,
+  .pr-activity-banner,
+  .pr-loading,
+  .pr-grid {
+    margin: 0 12px 14px !important;
+  }
+
+  .pr-medid-banner,
+  .pr-activity-banner {
+    width: calc(100% - 24px) !important;
+  }
+
+  .pr-settings-section {
+    margin: 0 12px 80px !important;
+  }
+
+
+  /* ── Modal Centering (Mobile) ─────────────────────── */
+
+  .pr-modal-overlay {
+    display: flex;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+  }
+
+  .pr-modal {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 20px;
+    border: 1px solid var(--hc-border);
+    padding-bottom: 0;
+  }
+}
