@@ -37,7 +37,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
   });
   return NextResponse.json({ record });
 }
-export async function DELETE(req: NextRequest, { params }: { params: { resource: Resource } }) {
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ resource: Resource }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -45,7 +46,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { resource:
   if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { id } = await req.json();
-  const model = MODEL_MAP[params.resource];
+  const { resource } = await params;
+  const model = MODEL_MAP[resource];
   if (!model) return NextResponse.json({ error: 'Invalid resource' }, { status: 400 });
 
   await (prisma[model] as any).deleteMany({ where: { id, profileId: profile.id } });
