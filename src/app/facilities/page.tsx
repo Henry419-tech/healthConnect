@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -404,7 +404,7 @@ const SavedFacilitiesBar: React.FC<SavedFacilitiesBarProps> = ({
   );
 };
 
-export default function DynamicFacilityFinder() {
+function DynamicFacilityFinderInner() {
   // Component will export at the end
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -2245,5 +2245,18 @@ export default function DynamicFacilityFinder() {
         </div>
       </nav>
     </div>
+  );
+}
+export default function DynamicFacilityFinder() {
+  return (
+    <Suspense fallback={
+      <div className="loading-screen">
+        <div className="loading-content">
+          <div className="loading-title">Loading...</div>
+        </div>
+      </div>
+    }>
+      <DynamicFacilityFinderInner />
+    </Suspense>
   );
 }
