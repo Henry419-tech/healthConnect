@@ -22,14 +22,14 @@ async function getOrCreateProfile(userId: string) {
   });
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ resource: Resource }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ resource: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const profile = await getOrCreateProfile(session.user.id);
   const data = await req.json();
   const { resource } = await params;
-  const model = MODEL_MAP[resource];
+  const model = MODEL_MAP[resource as Resource];
   if (!model) return NextResponse.json({ error: 'Invalid resource' }, { status: 400 });
 
   const record = await (prisma[model] as any).create({
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
   return NextResponse.json({ record });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ resource: Resource }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ resource: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -47,7 +47,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ r
 
   const { id } = await req.json();
   const { resource } = await params;
-  const model = MODEL_MAP[resource];
+  const model = MODEL_MAP[resource as Resource];
   if (!model) return NextResponse.json({ error: 'Invalid resource' }, { status: 400 });
 
   await (prisma[model] as any).deleteMany({ where: { id, profileId: profile.id } });
