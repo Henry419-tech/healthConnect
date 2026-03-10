@@ -44,6 +44,28 @@ html.dark-mode body {
 
 
 /* ────────────────────────────────────────────────────────────────
+   3a. Avatar Upload Hint
+   ──────────────────────────────────────────────────────────────── */
+
+.pr-identity__avatar-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--hc-accent, #06b6d4);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.pr-identity__avatar-hint:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+
+/* ────────────────────────────────────────────────────────────────
    3. Profile Page Container
    ──────────────────────────────────────────────────────────────── */
 

@@ -755,6 +755,11 @@ const ProfilePage = () => {
               )}
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
+            {isEditing && (
+              <p className="pr-identity__avatar-hint" onClick={() => fileInputRef.current?.click()}>
+                Tap or click to upload a photo
+              </p>
+            )}
           </div>
 
           {/* Info */}
