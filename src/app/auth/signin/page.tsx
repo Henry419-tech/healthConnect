@@ -7,14 +7,15 @@
 import { redirect } from 'next/navigation'
 
 interface Props {
-  searchParams: { callbackUrl?: string; error?: string }
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>
 }
 
-export default function SignInPage({ searchParams }: Props) {
+export default async function SignInPage({ searchParams }: Props) {
+  const { callbackUrl, error } = await searchParams
   const params = new URLSearchParams()
   params.set('panel', 'signin')
-  if (searchParams.callbackUrl) params.set('callbackUrl', searchParams.callbackUrl)
-  if (searchParams.error)       params.set('error', searchParams.error)
+  if (callbackUrl) params.set('callbackUrl', callbackUrl)
+  if (error)       params.set('error', error)
 
   redirect(`/?${params.toString()}`)
 }
