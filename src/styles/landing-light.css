@@ -364,10 +364,57 @@
   .lp-root:not(.lp-root--force-dark) .lp-submit--signup:hover:not(:disabled) {
     box-shadow: 0 8px 22px rgba(0,153,187,.30);
   }
+
+  /* Eye icon (password toggle) — must always be visible */
+  .lp-root:not(.lp-root--force-dark) .lp-input-toggle {
+    color: #475569;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-input-toggle:hover {
+    color: #0f172a;
+  }
+
+  /* Terms light mode refinements */
+  .lp-root:not(.lp-root--force-dark) .lp-terms {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-terms:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-terms--error {
+    border-color: rgba(224,48,78,.50) !important;
+    background: #fff5f6 !important;
+  }
+
+  /* Error box light mode */
+  .lp-root:not(.lp-root--force-dark) .lp-form-error {
+    background: #fff1f2;
+    border-color: rgba(224,48,78,.30);
+    border-left-color: #e0304e;
+    color: #be123c;
+  }
 }
 .lp-root--light-mode .lp-submit        { background: #0a1628; color: #fff; }
 .lp-root--light-mode .lp-submit--signup { background: linear-gradient(135deg, #0077a0, #0099bb); color: #fff; }
 .lp-root--light-mode .lp-submit--signup:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0,153,187,.30); }
+
+/* Eye icon always visible in light mode */
+.lp-root--light-mode .lp-input-toggle       { color: #475569; }
+.lp-root--light-mode .lp-input-toggle:hover { color: #0f172a; }
+
+/* Terms in light mode */
+.lp-root--light-mode .lp-terms         { background: #f8fafc; border-color: #e2e8f0; }
+.lp-root--light-mode .lp-terms:hover   { border-color: #cbd5e1; background: #f1f5f9; }
+.lp-root--light-mode .lp-terms--error  { border-color: rgba(224,48,78,.50) !important; background: #fff5f6 !important; }
+
+/* Error box in light mode */
+.lp-root--light-mode .lp-form-error {
+  background: #fff1f2;
+  border-color: rgba(224,48,78,.30);
+  border-left-color: #e0304e;
+  color: #be123c;
+}
 
 /* ── Panel open: dim landing content (light mode only) ───────── */
 @media (prefers-color-scheme: light) {
@@ -386,4 +433,3 @@
   filter: brightness(0.90);
   transition: filter 0.35s ease;
 }
-
