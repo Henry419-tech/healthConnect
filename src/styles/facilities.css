@@ -6,30 +6,25 @@
 
 /* ── Page shell ─────────────────────────────────────────────── */
 /*
-  DashboardHeader renders a fixed 240px sidebar. This page sits as a
-  sibling so it needs margin-left to not render under the sidebar —
-  same pattern as hc-layout__main in dashboard-header.css.
+  Layout offset is handled by DashboardLayout → hc-layout__main.
+  .facility-finder only needs to fill the content column.
 */
 .facility-finder {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  /* min-height:100dvh + overflow-y:auto trapped scroll inside this div,
+     making fixed bars (hc-topbar, mob-tab-bar) scroll out of view.
+     Use min-height:100% and let hc-layout__main own the scroll. */
+  min-height: 100%;
   background: var(--hc-bg);
   color: var(--hc-text);
   font-family: 'Outfit', 'Inter', sans-serif;
   position: relative;
   isolation: isolate;
-  margin-left: var(--hc-sidebar-w, 240px);
-  width: calc(100% - var(--hc-sidebar-w, 240px));
+  width: 100%;
   min-width: 0;
   box-sizing: border-box;
   overflow-x: hidden;
-  overflow-y: auto;
-}
-/* sidebar-collapsed class kept for browsers without :has() support */
-.facility-finder.sidebar-collapsed {
-  margin-left: var(--hc-sidebar-w-collapsed, 64px);
-  width: calc(100% - var(--hc-sidebar-w-collapsed, 64px));
 }
 
 /* Background image texture — use absolute (not fixed) so it stays within
@@ -72,6 +67,16 @@ html.dark-mode .facility-finder::after {
 
 /* All content above texture */
 .facility-finder > * { position: relative; z-index: 1; }
+
+/* ── Hide mobile-only elements on desktop ───────────────────── */
+/* mob-topbar and mob-tab-bar visibility is controlled entirely by
+   dashboard-header.css (via hc-layout--has-mob-topbar).
+   Previously this block also hid those two classes — that caused them
+   to vanish on mobile because it fired AFTER dashboard-header.css.
+   .fac-mob-topbar is a legacy unused class; safe to hide here.     */
+.fac-mob-topbar {
+  display: none;
+}
 
 /* ── Loading screen ─────────────────────────────────────────── */
 .loading-screen {
@@ -188,98 +193,185 @@ html.dark-mode .facility-finder::after {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   LOCATION PERMISSION BANNER
+   LOCATION PERMISSION BANNER — clean, professional redesign
 ════════════════════════════════════════════════════════════════ */
-.location-permission-banner {
-  display: flex; align-items: flex-start; gap: 20px;
-  padding: 20px 24px; border-radius: 18px;
-  background: var(--hc-surface);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border: 1px solid color-mix(in srgb, var(--hc-teal) 25%, transparent);
-  box-shadow: var(--hc-shadow-lg);
+.loc-banner {
   position: relative;
-  animation: slideDown 0.3s var(--hc-ease);
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: locBannerIn 0.25s var(--hc-ease);
+  /* Reserve fixed height so nothing jumps when it appears/disappears */
 }
-html.dark-mode .location-permission-banner { background: rgba(7,24,40,0.85); }
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
+html.dark-mode .loc-banner {
+  background: rgba(7,24,40,0.90);
+  border-color: rgba(0,210,255,0.14);
+}
+@keyframes locBannerIn {
+  from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.location-banner-icon {
-  width: 52px; height: 52px; flex-shrink: 0; border-radius: 16px;
-  background: var(--hc-teal-dim); border: 1px solid var(--hc-teal);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--hc-teal); box-shadow: 0 0 20px var(--hc-teal-glow);
-}
-.location-banner-content { flex: 1; min-width: 0; }
-.location-banner-title {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 15px; font-weight: 700; color: var(--hc-text); margin: 0 0 6px;
-}
-.location-banner-description {
-  font-size: 13px; color: var(--hc-text2); line-height: 1.6; margin: 0 0 14px;
-}
-.location-banner-benefits { display: flex; flex-wrap: wrap; gap: 8px; }
-.location-benefit {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 11.5px; font-weight: 600; color: var(--hc-mint);
-  background: color-mix(in srgb, var(--hc-mint) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--hc-mint) 25%, transparent);
-  padding: 3px 10px; border-radius: 100px;
-}
-.location-banner-actions {
-  display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
-}
-.location-btn-secondary {
-  background: var(--hc-surface2) !important; color: var(--hc-text2) !important;
-  box-shadow: none !important;
-  border: 1px solid var(--hc-border) !important;
-}
-.location-btn-secondary:hover:not(:disabled) {
-  color: var(--hc-text) !important;
-  border-color: var(--hc-teal) !important;
-}
-.location-banner-close {
+/* Close button */
+.loc-banner__close {
   position: absolute; top: 14px; right: 14px;
-  width: 28px; height: 28px; border-radius: 8px;
-  background: none; border: none; color: var(--hc-text3); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px;
+  background: none; border: none; color: var(--hc-text3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
-.location-banner-close:hover { background: var(--hc-surface2); color: var(--hc-text); }
+.loc-banner__close:hover { background: var(--hc-surface2); color: var(--hc-text); }
+
+/* Top row: icon + heading */
+.loc-banner__top {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+}
+.loc-banner__icon-wrap {
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px;
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 30%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--hc-teal);
+  box-shadow: 0 0 16px var(--hc-teal-glow);
+}
+.loc-banner__title {
+  font-size: 15px; font-weight: 700; color: var(--hc-text);
+  margin: 0 0 3px;
+}
+.loc-banner__sub {
+  font-size: 12.5px; color: var(--hc-text2); margin: 0;
+}
+
+/* Benefits chips */
+.loc-banner__benefits {
+  display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px;
+}
+.loc-banner__benefit {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--hc-teal);
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 22%, transparent);
+  padding: 4px 10px; border-radius: 100px;
+}
+
+/* Action row */
+.loc-banner__actions {
+  display: flex; align-items: center; gap: 10px;
+}
+.loc-banner__btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px; border-radius: 11px; border: none;
+  background: var(--hc-teal); color: #020B14;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--hc-teal-glow);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.loc-banner__btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px var(--hc-teal-glow);
+}
+.loc-banner__btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.loc-banner__btn-ghost {
+  display: inline-flex; align-items: center;
+  padding: 10px 18px; border-radius: 11px;
+  background: none;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.loc-banner__btn-ghost:hover:not(:disabled) {
+  border-color: var(--hc-text3); color: var(--hc-text);
+  background: var(--hc-surface2);
+}
+.loc-banner__btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ════════════════════════════════════════════════════════════════
-   LOCATION CONFIRMATION
+   LOCATION CONFIRMATION CARD — functional refresh button
 ════════════════════════════════════════════════════════════════ */
-.location-confirmation {
-  display: flex; align-items: center; gap: 14px;
-  padding: 12px 20px; border-radius: 14px;
-  background: color-mix(in srgb, var(--hc-mint) 8%, var(--hc-surface));
-  backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--hc-mint) 28%, transparent);
-  animation: slideDown 0.25s var(--hc-ease);
+/* Wrapper reserves min-height so the page doesn't jump when
+   the card appears after location is fetched.                  */
+.loc-confirmation-wrap {
+  min-height: 64px;
 }
-.location-confirmation-icon {
+
+.loc-confirmation {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 13px;
+  background: color-mix(in srgb, var(--hc-teal) 7%, var(--hc-surface));
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 22%, transparent);
+  animation: locBannerIn 0.22s var(--hc-ease);
+}
+html.dark-mode .loc-confirmation {
+  background: rgba(0,60,80,0.45);
+  border-color: rgba(0,210,255,0.20);
+}
+
+.loc-confirmation__icon {
+  position: relative;
   width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
-  background: color-mix(in srgb, var(--hc-mint) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--hc-mint) 35%, transparent);
-  display: flex; align-items: center; justify-content: center; color: var(--hc-mint);
-}
-.location-confirmation-content { flex: 1; }
-.location-confirmation-content strong { display: block; font-size: 13px; font-weight: 700; color: var(--hc-text); }
-.location-confirmation-content p { font-size: 12px; color: var(--hc-text2); margin: 2px 0 0; }
-.location-confirmation-content small { font-size: 11px; display: block; margin-top: 2px; }
-.accuracy-good { color: var(--hc-mint); }
-.accuracy-low  { color: var(--hc-amber); }
-.location-refresh-btn {
-  width: 34px; height: 34px; border-radius: 9px;
-  background: none; border: 1px solid var(--hc-border);
-  color: var(--hc-text2); cursor: pointer;
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 30%, transparent);
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  color: var(--hc-teal);
 }
-.location-refresh-btn:hover:not(:disabled) {
-  background: var(--hc-teal-dim); color: var(--hc-teal); border-color: var(--hc-teal);
+/* Pulsing live dot */
+.loc-confirmation__pulse {
+  position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--hc-mint);
+  border: 2px solid var(--hc-surface);
+  box-shadow: 0 0 6px var(--hc-mint);
+  animation: locPulse 2s ease-in-out infinite;
+}
+@keyframes locPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
+}
+
+.loc-confirmation__body { flex: 1; min-width: 0; }
+.loc-confirmation__title {
+  font-size: 13px; font-weight: 700; color: var(--hc-text); margin: 0 0 2px;
+}
+.loc-confirmation__detail {
+  font-size: 12px; color: var(--hc-text2); margin: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loc-confirmation__acc {
+  font-size: 11px; margin: 2px 0 0; font-weight: 500;
+}
+.loc-confirmation__acc--good { color: var(--hc-mint); }
+.loc-confirmation__acc--low  { color: var(--hc-amber); }
+
+/* Refresh button — clearly labelled, functional */
+.loc-confirmation__refresh {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 13px; border-radius: 9px;
+  background: var(--hc-teal-dim);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 28%, transparent);
+  color: var(--hc-teal);
+  font-family: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.loc-confirmation__refresh:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--hc-teal) 18%, transparent);
+  border-color: var(--hc-teal);
+  transform: translateY(-1px);
+}
+.loc-confirmation__refresh:disabled {
+  opacity: 0.6; cursor: not-allowed;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -796,49 +888,66 @@ html.dark-mode .location-permission-banner { background: rgba(7,24,40,0.85); }
 }
 .facility-card-btn-info:hover { color: var(--hc-teal); border-color: var(--hc-teal) !important; }
 
+.facility-card-btn-save {
+  background: var(--hc-surface2); color: var(--hc-text2);
+  border: 1px solid var(--hc-border) !important;
+}
+.facility-card-btn-save:hover { color: var(--hc-teal); border-color: var(--hc-teal) !important; background: var(--hc-teal-dim) !important; }
+.facility-card-btn-save.saved {
+  background: var(--hc-teal-dim) !important; color: var(--hc-teal) !important;
+  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent) !important;
+}
+
 /* ════════════════════════════════════════════════════════════════
-   FACILITY DETAIL MODAL
+   FACILITY DETAIL MODAL — compact, accessible
 ════════════════════════════════════════════════════════════════ */
 .facility-detail-modal {
   position: fixed; inset: 0; z-index: 500;
   background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
-  padding: 20px; animation: fadeIn 0.2s ease;
+  padding: 16px; animation: fadeIn 0.2s ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .facility-detail-content {
-  position: relative; width: 100%; max-width: 540px;
-  max-height: 88vh; overflow-y: auto;
+  position: relative; width: 100%; max-width: 480px;
+  max-height: 82vh;
+  display: flex; flex-direction: column;
   background: var(--hc-surface);
   backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--hc-border);
-  border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+  border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,0.3);
   animation: scaleIn 0.22s var(--hc-ease-spring);
+  overflow: hidden;
 }
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.93); }
   to   { opacity: 1; transform: scale(1); }
 }
-.facility-detail-content::-webkit-scrollbar { width: 4px; }
-.facility-detail-content::-webkit-scrollbar-thumb { background: var(--hc-border); border-radius: 4px; }
+
+/* Scrollable body — grows to fill, stops before sticky actions */
+.facility-detail-scroll {
+  flex: 1; overflow-y: auto; min-height: 0;
+}
+.facility-detail-scroll::-webkit-scrollbar { width: 4px; }
+.facility-detail-scroll::-webkit-scrollbar-thumb { background: var(--hc-border); border-radius: 4px; }
 
 .modal-close-btn {
-  position: absolute; top: 16px; right: 16px; z-index: 1;
-  width: 32px; height: 32px; border-radius: 10px;
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 28px; height: 28px; border-radius: 8px;
   background: var(--hc-surface2); border: 1px solid var(--hc-border);
-  color: var(--hc-text2); cursor: pointer; font-size: 20px; line-height: 1;
+  color: var(--hc-text2); cursor: pointer; font-size: 18px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
 .modal-close-btn:hover { background: var(--hc-surface); color: var(--hc-text); }
 
 .facility-detail-header {
-  display: flex; align-items: flex-start; gap: 16px;
-  padding: 24px 24px 18px; border-bottom: 1px solid var(--hc-border2);
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 16px 12px; border-bottom: 1px solid var(--hc-border2);
 }
 .facility-detail-icon {
-  width: 56px; height: 56px; flex-shrink: 0; border-radius: 17px;
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: 13px;
   display: flex; align-items: center; justify-content: center;
 }
 .facility-detail-icon.hospital     { background: color-mix(in srgb, var(--hc-red) 12%, transparent);    color: var(--hc-red);    border: 1px solid color-mix(in srgb, var(--hc-red) 25%, transparent); }
@@ -846,66 +955,85 @@ html.dark-mode .location-permission-banner { background: rgba(7,24,40,0.85); }
 .facility-detail-icon.clinic       { background: color-mix(in srgb, var(--hc-teal) 12%, transparent);   color: var(--hc-teal);   border: 1px solid color-mix(in srgb, var(--hc-teal) 25%, transparent); }
 .facility-detail-icon.health_center{ background: color-mix(in srgb, var(--hc-violet) 12%, transparent); color: var(--hc-violet); border: 1px solid color-mix(in srgb, var(--hc-violet) 25%, transparent); }
 
-.facility-detail-title { flex: 1; }
+.facility-detail-title { flex: 1; min-width: 0; }
 .facility-detail-title h2 {
-  font-size: 18px; font-weight: 800; color: var(--hc-text); margin: 0 28px 4px 0; line-height: 1.25;
+  font-size: 15px; font-weight: 800; color: var(--hc-text);
+  margin: 0 28px 3px 0; line-height: 1.25;
 }
-.facility-detail-type { font-size: 13px; color: var(--hc-text2); margin: 0 0 2px; }
+.facility-detail-type { font-size: 12px; color: var(--hc-text2); margin: 0 0 2px; }
 .facility-detail-distance { font-size: 12px; font-weight: 700; color: var(--hc-teal); margin: 0; }
 
 .facility-detail-rating {
-  display: flex; align-items: center; gap: 4px;
-  font-size: 17px; font-weight: 800; color: var(--hc-amber); flex-shrink: 0;
+  display: flex; align-items: center; gap: 3px;
+  font-size: 14px; font-weight: 800; color: var(--hc-amber); flex-shrink: 0;
 }
-.facility-detail-rating .rating-reviews { font-size: 11px; color: var(--hc-text3); font-weight: 500; }
+.facility-detail-rating .rating-reviews { font-size: 10px; color: var(--hc-text3); font-weight: 500; }
 
-.facility-detail-body { padding: 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+.facility-detail-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
 .detail-section h3 {
-  font-size: 10.5px; font-weight: 800;
-  letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--hc-text3); margin: 0 0 10px;
+  font-size: 10px; font-weight: 800;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--hc-text3); margin: 0 0 7px;
 }
 .detail-section p {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--hc-text2); margin: 0 0 6px;
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--hc-text2); margin: 0 0 5px;
 }
 .detail-section p svg { color: var(--hc-teal); flex-shrink: 0; }
 .detail-section p:last-child { margin-bottom: 0; }
-.detail-service-tags, .detail-insurance-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.detail-service-tags, .detail-insurance-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .detail-service-tag {
-  padding: 4px 11px; border-radius: 100px; font-size: 12px; font-weight: 600;
+  padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600;
   background: var(--hc-teal-dim); color: var(--hc-teal);
   border: 1px solid color-mix(in srgb, var(--hc-teal) 25%, transparent);
 }
 .detail-insurance-tag {
-  padding: 4px 11px; border-radius: 100px; font-size: 12px; font-weight: 600;
+  padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600;
   background: color-mix(in srgb, var(--hc-mint) 10%, transparent); color: var(--hc-mint);
   border: 1px solid color-mix(in srgb, var(--hc-mint) 25%, transparent);
 }
 .emergency-service-notice {
-  display: flex; align-items: center; gap: 8px; margin-top: 10px;
-  padding: 10px 14px; border-radius: 10px;
-  font-size: 13px; font-weight: 600; color: var(--hc-red);
+  display: flex; align-items: center; gap: 7px; margin-top: 8px;
+  padding: 8px 12px; border-radius: 9px;
+  font-size: 12px; font-weight: 600; color: var(--hc-red);
   background: color-mix(in srgb, var(--hc-red) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--hc-red) 20%, transparent);
 }
 
-.facility-detail-actions { display: flex; gap: 10px; padding: 0 24px 24px; }
-.detail-action-btn {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px 16px; border-radius: 13px; border: none;
-  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+/* Sticky action bar — always visible at the bottom of the modal */
+.facility-detail-actions {
+  display: flex; gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--hc-border2);
+  background: var(--hc-surface);
+  flex-shrink: 0;
 }
-.detail-action-btn:hover { transform: translateY(-2px); }
+.detail-action-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px; border-radius: 11px; border: none;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.detail-action-btn:hover { transform: translateY(-1px); }
 .detail-action-btn.primary {
   background: linear-gradient(135deg, var(--hc-teal), var(--hc-mint));
-  color: #fff; box-shadow: 0 4px 16px var(--hc-teal-glow);
+  color: #fff; box-shadow: 0 3px 12px var(--hc-teal-glow);
 }
-.detail-action-btn.primary:hover { box-shadow: 0 8px 24px var(--hc-teal-glow); }
+.detail-action-btn.primary:hover { box-shadow: 0 6px 20px var(--hc-teal-glow); }
 .detail-action-btn.secondary {
   background: color-mix(in srgb, var(--hc-mint) 12%, var(--hc-surface2)); color: var(--hc-mint);
   border: 1px solid color-mix(in srgb, var(--hc-mint) 35%, transparent) !important;
+}
+.detail-action-btn.save-btn {
+  background: var(--hc-surface2); color: var(--hc-text2);
+  border: 1px solid var(--hc-border) !important;
+  flex: 0 0 auto; padding: 10px 14px;
+}
+.detail-action-btn.save-btn:hover { color: var(--hc-teal); border-color: var(--hc-teal) !important; }
+.detail-action-btn.save-btn.saved {
+  background: var(--hc-teal-dim); color: var(--hc-teal);
+  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent) !important;
 }
 
 /* ════════════════════════════════════════════════════════════════

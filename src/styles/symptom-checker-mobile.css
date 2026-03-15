@@ -27,24 +27,25 @@
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
 
+  /* Tab bar height token — canonical 60px across all pages */
+  :root { --sc-tab-bar-h: 60px; }
+
   /* ── Utility ──────────────────────────────────────────────── */
   .sc-mob-only { display: flex; }
   body { overscroll-behavior-y: none; }
 
   /* ══════════════════════════════════════════════════════════
      SUPPRESS DESKTOP CHROME
-     dashboard-header.css already hides .hc-sidebar at ≤1024px
-     and sets margin-left:0 on hc-layout__main.
-     We only need to suppress the topbar/bottom-nav it adds
-     and replace them with our own sc-mob-* equivalents.
+     hc-topbar/hc-bottom-nav are suppressed via
+     .hc-layout--has-mob-topbar in dashboard-header.css.
+     We only need to hide remaining desktop-only elements here.
   ══════════════════════════════════════════════════════════ */
-  .hc-topbar      { display: none !important; }
-  .hc-bottom-nav  { display: none !important; }
-  .db-topbar      { display: none !important; }
-  .mob-tab-bar    { display: none !important; }
+  .db-topbar       { display: none !important; }
+  .mob-tab-bar     { display: none !important; }
   .sc-panel-toggle { display: none !important; }
 
-  /* Remove padding injected by dashboard-header.css at ≤1024px */
+  /* Remove padding injected by dashboard-header.css at ≤1024px
+     (.hc-layout--has-mob-topbar handles padding-top already)   */
   .hc-layout__main {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -53,17 +54,19 @@
 
   /* ══════════════════════════════════════════════════════════
      ROOT LAYOUT CHAIN — full height flex column
-     hc-layout--locked already sets overflow:hidden on main
-     and content. We just need height:100dvh and flex column.
+     CRITICAL: These rules are scoped to pages that contain
+     .sc-page so they ONLY apply to the symptom checker.
+     Without this scoping, overflow:hidden leaks to emergency
+     and profile pages on client-side navigation (no full reload).
   ══════════════════════════════════════════════════════════ */
-  .hc-layout,
-  .hc-layout--locked {
+  .hc-layout:has(.sc-page),
+  .hc-layout--locked:has(.sc-page) {
     height: 100dvh !important;
     overflow: hidden !important;
   }
 
-  .hc-layout__main,
-  .hc-layout--locked .hc-layout__main {
+  .hc-layout:has(.sc-page) .hc-layout__main,
+  .hc-layout--locked:has(.sc-page) .hc-layout__main {
     height: 100dvh !important;
     display: flex !important;
     flex-direction: column !important;
@@ -71,8 +74,8 @@
     margin-left: 0 !important;
   }
 
-  .hc-layout__content,
-  .hc-layout--locked .hc-layout__content {
+  .hc-layout:has(.sc-page) .hc-layout__content,
+  .hc-layout--locked:has(.sc-page) .hc-layout__content {
     flex: 1 1 0% !important;
     min-height: 0 !important;
     overflow: hidden !important;
@@ -91,7 +94,7 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    padding-bottom: 52px !important; /* space for fixed tab bar */
+    padding-bottom: var(--sc-tab-bar-h) !important; /* space for fixed tab bar */
   }
 
   /* Grid: single flex column */
@@ -169,8 +172,8 @@
     justify-content: space-between;
     position: sticky;
     top: 0; z-index: 200;
-    padding: 0 14px;
-    height: 44px;
+    padding: 0 16px;
+    height: 56px;
     flex-shrink: 0;
     background: var(--hc-surface);
     border-bottom: 1px solid var(--hc-border);
@@ -201,9 +204,9 @@
     filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
   }
 
-  .sc-mob-topbar__right { display: flex; align-items: center; gap: 5px; }
+  .sc-mob-topbar__right { display: flex; align-items: center; gap: 6px; }
   .sc-mob-topbar__btn {
-    width: 38px; height: 38px; border-radius: 10px;
+    width: 36px; height: 36px; border-radius: 10px;
     background: none; border: 1px solid var(--hc-border);
     color: var(--hc-text2);
     display: flex; align-items: center; justify-content: center;
@@ -327,7 +330,7 @@
     display: none; /* toggled to flex by JS */
     flex-direction: column;
     position: fixed;
-    bottom: 60px; /* above tab bar */
+    bottom: var(--sc-tab-bar-h); /* sits exactly above tab bar */
     left: 0; right: 0;
     height: 82dvh;        /* tall enough to show all facilities */
     max-height: 82dvh;
@@ -384,49 +387,108 @@
   @keyframes scFadeIn { from{opacity:0} to{opacity:1} }
 
   /* ══════════════════════════════════════════════════════════
-     MOBILE BOTTOM TAB BAR
+     MOBILE BOTTOM TAB BAR — exact match to mob-tab-bar spec
+     dashboard-mobile.css is the canonical reference.
+     Only difference: sc- prefix on class names.
   ══════════════════════════════════════════════════════════ */
   .sc-mob-tab-bar {
     display: flex !important;
     position: fixed;
     bottom: 0; left: 0; right: 0; z-index: 400;
-    background: var(--hc-surface, rgba(7,24,40,0.97));
-    border-top: 1px solid var(--hc-border, rgba(255,255,255,0.08));
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    /* Safe area bottom for notched phones */
+    background: var(--hc-surface);
+    border-top: 1px solid var(--hc-border);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+  }
+  html.dark-mode .sc-mob-tab-bar {
+    background: rgba(5,18,32,0.97);
+    border-top-color: rgba(0,210,255,0.08);
     box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
   }
-  html.dark-mode .sc-mob-tab-bar { background: rgba(5,18,32,0.97); border-top-color: rgba(0,210,255,0.08); }
 
   .sc-mob-tab-bar__inner {
-    display: flex; align-items: center; width: 100%;
-    padding: 2px 0 1px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    height: 60px;
+    width: 100%;
   }
+
   .sc-mob-tab-btn {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 5px 8px 4px; border: none; background: none;
-    color: var(--hc-text3, rgba(255,255,255,0.35));
-    font-family: 'Outfit', 'Inter', sans-serif; font-size: 10px; font-weight: 600;
-    cursor: pointer; transition: color 0.18s; position: relative;
-    min-width: 0; letter-spacing: 0.2px;
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    border: none; background: none;
+    color: var(--hc-text3);
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.2px;
+    cursor: pointer; transition: color 0.2s;
+    position: relative;
+    min-width: 0;
+    -webkit-tap-highlight-color: transparent;
   }
-  .sc-mob-tab-btn.active { color: var(--hc-teal, #00D2FF); }
+  .sc-mob-tab-btn:active { opacity: 0.75; }
+  .sc-mob-tab-btn svg    { transition: transform 0.2s; }
+  .sc-mob-tab-btn.active { color: var(--hc-teal); }
+  .sc-mob-tab-btn.active svg { transform: scale(1.08); }
+
+  /* Active indicator — top edge line, identical to mob-tab-btn.active::after */
   .sc-mob-tab-btn.active::after {
     content: '';
-    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 20px; height: 2.5px; border-radius: 2px 2px 0 0;
-    background: var(--hc-teal, #00D2FF);
-    box-shadow: 0 0 8px rgba(0,210,255,0.5);
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 28px; height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--hc-teal);
+    box-shadow: 0 0 8px var(--hc-teal-glow);
   }
   .sc-mob-tab-btn__dot {
-    position: absolute; top: 5px; left: 50%;
-    transform: translateX(6px);
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #ef4444; border: 1.5px solid var(--hc-surface, #020B14);
+    display: none !important; /* replaced by sc-mob-sos-dot on the SOS button */
   }
-  html.dark-mode .sc-mob-tab-btn__dot { border-color: rgba(5,18,32,0.97); }
+
+  /* SOS tab button — normal colour, only the dot is red. */
+  .sc-mob-tab-btn--sos {
+    color: var(--hc-text3) !important;
+  }
+  .sc-mob-tab-btn--sos.active {
+    color: var(--hc-teal) !important;
+  }
+  /* No indicator line for SOS */
+  .sc-mob-tab-btn--sos.active::after {
+    display: none !important;
+  }
+
+  /* Icon wrapper — relative container for the dot */
+  .sc-mob-sos-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Red notification dot — top-right of the phone icon */
+  .sc-mob-sos-dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--hc-red, #ef4444);
+    border: 1.5px solid var(--hc-surface, #020B14);
+    box-shadow: 0 0 5px rgba(239,68,68,0.55);
+    pointer-events: none;
+  }
+  html.dark-mode .sc-mob-sos-dot { border-color: rgba(5,18,32,0.97); }
+  html:not(.dark-mode) .sc-mob-sos-dot { border-color: #ffffff; }
 
   /* ══════════════════════════════════════════════════════════
      ASSESSMENT VIEW — mobile
@@ -511,11 +573,17 @@ html:not(.dark-mode) .sc-mob-risk-bar__track { background: rgba(0,0,0,0.08); }
 html:not(.dark-mode) .sc-mob-risk-bar__fill::after { border-color: #f1f5f9; }
 html:not(.dark-mode) .sc-mob-risk-bar__panel-btn { background: rgba(8,145,178,0.08); border-color: rgba(8,145,178,0.28); color: #0891b2; }
 
-html:not(.dark-mode) .sc-mob-tab-bar { background: rgba(255,255,255,0.97); border-top-color: rgba(0,0,0,0.08); box-shadow: 0 -2px 16px rgba(0,0,0,0.06); }
-html:not(.dark-mode) .sc-mob-tab-btn { color: #94a3b8; }
+html:not(.dark-mode) .sc-mob-tab-bar {
+  background: rgba(255,255,255,0.97);
+  border-top-color: rgba(0,0,0,0.08);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
+}
+html:not(.dark-mode) .sc-mob-tab-btn       { color: #94a3b8; }
 html:not(.dark-mode) .sc-mob-tab-btn.active { color: #0891b2; }
-html:not(.dark-mode) .sc-mob-tab-btn__dot { border-color: #ffffff; }
-html:not(.dark-mode) .sc-mob-tab-btn.active::after { background: #0891b2; box-shadow: 0 0 8px rgba(8,145,178,0.4); }
+html:not(.dark-mode) .sc-mob-tab-btn.active::after {
+  background: #0891b2;
+  box-shadow: 0 0 8px rgba(8,145,178,0.4);
+}
 
 html:not(.dark-mode) .sc-mob-panel-sheet { background: rgba(248,250,252,0.99); border-top-color: rgba(0,0,0,0.08); }
 html:not(.dark-mode) .sc-mob-panel-sheet__handle::before { background: rgba(0,0,0,0.1); }

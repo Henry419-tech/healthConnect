@@ -19,7 +19,50 @@
   gap: 0 !important;
   max-width: 100% !important;
   overflow: visible !important;
+  position: relative;
 }
+
+/* Background image texture — same technique as facility-finder.
+   ::before = tiled medical icon pattern
+   ::after  = colour gradient overlay
+   All pr-page children get position:relative z-index:1 below.  */
+.pr-page::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  background-attachment: local;
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.pr-page::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(241,245,249,0.40) 0%,
+    rgba(224,242,254,0.25) 50%,
+    rgba(241,245,249,0.45) 100%
+  );
+  pointer-events: none;
+}
+html.dark-mode .pr-page::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  background-attachment: local;
+  opacity: 0.20;
+  mix-blend-mode: screen;
+}
+html.dark-mode .pr-page::after {
+  background: linear-gradient(
+    160deg,
+    rgba(2,11,20,0.42) 0%,
+    rgba(7,24,40,0.28) 50%,
+    rgba(2,11,20,0.48) 100%
+  );
+}
+
+/* All direct children above the background layers */
+.pr-page > * { position: relative; z-index: 1; }
 
 /* ── Page header ─────────────────────────────────────────────── */
 .pr-page-header {
@@ -49,9 +92,32 @@ html.dark-mode .pr-page-header__title {
 }
 
 .pr-page-header__sub {
-  font-size: 14px;
-  color: var(--hc-text2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-text3);
   margin: 0;
+  padding: 5px 12px 5px 8px;
+  border-radius: 100px;
+  background: color-mix(in srgb, var(--hc-teal) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 18%, transparent);
+  letter-spacing: 0.1px;
+}
+.pr-page-header__sub::before {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--hc-teal);
+  box-shadow: 0 0 6px var(--hc-teal-glow);
+  flex-shrink: 0;
+}
+html.dark-mode .pr-page-header__sub {
+  background: color-mix(in srgb, var(--hc-teal) 10%, transparent);
+  border-color: color-mix(in srgb, var(--hc-teal) 22%, transparent);
+  color: var(--hc-text2);
 }
 
 .pr-page-header__actions {
@@ -192,6 +258,67 @@ html.dark-mode .pr-identity__name-input { background: rgba(0,210,255,0.08); colo
   align-items: flex-end;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* ── Identity card — EDITING mode ───────────────────────────── */
+/* Stacks into vertical layout: avatar → name input → meta → actions */
+.pr-identity--editing {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+.pr-identity--editing .pr-identity__avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.pr-identity--editing .pr-identity__avatar {
+  width: 88px; height: 88px;
+  border-radius: 20px;
+  border: 2px dashed color-mix(in srgb, var(--hc-teal) 40%, transparent);
+  cursor: pointer;
+}
+.pr-identity--editing .pr-identity__avatar:hover {
+  border-color: var(--hc-teal);
+  transform: scale(1.03);
+}
+.pr-identity__avatar-hint {
+  font-size: 11.5px;
+  color: var(--hc-teal);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  margin: 0;
+  transition: opacity 0.15s;
+}
+.pr-identity__avatar-hint:hover { opacity: 0.7; }
+
+/* Name input fills full width */
+.pr-identity--editing .pr-identity__name-input {
+  font-size: 20px !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.pr-identity--editing .pr-identity__meta {
+  margin-bottom: 6px;
+}
+/* Actions: side-by-side buttons, right-aligned */
+.pr-identity--editing .pr-identity__actions {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 100%;
+}
+.pr-identity--editing .pr-identity__actions .pr-btn {
+  flex: 1;
+  justify-content: center;
+  max-width: 140px;
 }
 
 /* ── TAGS ────────────────────────────────────────────────────── */
@@ -1046,16 +1173,31 @@ html.dark-mode .pr-identity {
 ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
 
-  /* Page bottom clearance for tab bar */
-  .pr-page { padding-bottom: 80px !important; }
+  /* Page shell — top clears fixed mob-topbar (56px) + 16px breathing room.
+     Bottom clears fixed mob-tab-bar (60px) + 20px gap.                    */
+  .pr-page {
+    padding-top: 72px !important;
+    padding-bottom: 80px !important;
+  }
 
-  /* Page header */
+  /* Page header — show title on mobile, subtitle as styled pill */
   .pr-page-header {
-    padding: 20px 16px 16px;
-    margin: 0; flex-direction: column; align-items: flex-start; gap: 12px;
+    padding: 16px 16px 14px;
+    margin: 0; flex-direction: column; align-items: flex-start; gap: 8px;
+  }
+  .pr-page-header__title {
+    display: block !important;
+    font-size: 26px !important;
+    margin: 0 0 2px !important;
+    letter-spacing: -0.5px !important;
   }
   .pr-page-header__actions { display: none; }
   .pr-mob-edit { display: inline-flex; }
+  /* Subtitle stays as compact pill on mobile */
+  .pr-page-header__sub {
+    font-size: 11px !important;
+    padding: 4px 10px 4px 7px !important;
+  }
 
   .pr-alert { margin: 0 16px 12px; }
 
@@ -1070,6 +1212,40 @@ html.dark-mode .pr-identity {
   .pr-identity__avatar { width: 58px; height: 58px; font-size: 16px; border-radius: 13px; }
   .pr-identity__name   { font-size: 20px; }
   .pr-identity__actions { flex-direction: row; }
+
+  /* Editing mode on mobile — clean stacked layout */
+  .pr-identity--editing {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .pr-identity--editing .pr-identity__avatar-wrap {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+  .pr-identity--editing .pr-identity__avatar {
+    width: 64px !important; height: 64px !important;
+    flex-shrink: 0 !important;
+  }
+  .pr-identity__avatar-hint {
+    font-size: 11px !important;
+    text-align: left !important;
+  }
+  .pr-identity--editing .pr-identity__name-input {
+    font-size: 18px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .pr-identity--editing .pr-identity__actions {
+    flex-direction: row !important;
+    gap: 8px !important;
+  }
+  .pr-identity--editing .pr-identity__actions .pr-btn {
+    flex: 1 !important;
+    max-width: none !important;
+    justify-content: center !important;
+  }
 
   /* Stats — 2 columns on mobile */
   .pr-stats { margin: 0 16px 16px; gap: 8px; grid-template-columns: repeat(2, 1fr); }

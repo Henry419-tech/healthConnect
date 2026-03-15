@@ -12,7 +12,6 @@ import '@/styles/dashboard-header.css';
 import '@/styles/dashboard.css';
 import '@/styles/dashboard-mobile.css';
 import '@/styles/symptom-checker.css';
-import '@/styles/symptom-checker-layout-fix.css';
 import '@/styles/symptom-checker-mobile.css';
 import {
   Bot, AlertTriangle, CheckCircle, Clock, Thermometer, Heart,
@@ -433,7 +432,7 @@ export default function SymptomChecker() {
   // ─── RENDER ───────────────────────────────────────────────────────────────────
   return (
     
-<DashboardLayout activeTab="/symptom-checker" showFooter={true}>
+<DashboardLayout activeTab="/symptom-checker" locked showFooter={false} className="hc-layout--has-mob-topbar">
 
       {/* Welcome modal */}
       {showWelcome && (
@@ -871,23 +870,26 @@ export default function SymptomChecker() {
         )}
 
         {/* Mobile bottom tab bar — hidden on desktop via CSS */}
-        <nav className="sc-mob-tab-bar">
+        <nav className="sc-mob-tab-bar" aria-label="Main navigation">
           <div className="sc-mob-tab-bar__inner">
-            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/dashboard')}>
-              <Heart size={20}/><span>Home</span>
+            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/dashboard')} aria-label="Home">
+              <Heart size={22}/><span>Home</span>
             </button>
-            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/facilities')}>
-              <MapPin size={20}/><span>Find</span>
+            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/facilities')} aria-label="Find facilities">
+              <MapPin size={22}/><span>Find</span>
             </button>
-            <button className="sc-mob-tab-btn active" type="button">
-              <Bot size={20}/><span>Check</span>
+            <button className="sc-mob-tab-btn active" type="button" aria-current="page" aria-label="Symptom Checker">
+              <Bot size={22}/><span>Check</span>
             </button>
-            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/emergency')}>
-              <Phone size={20}/><span>SOS</span><span className="sc-mob-tab-btn__dot"/>
+            <button className="sc-mob-tab-btn sc-mob-tab-btn--sos" type="button" onClick={()=>router.push('/emergency')} aria-label="Emergency">
+              <span className="sc-mob-sos-icon-wrap">
+                <Phone size={20}/>
+                <span className="sc-mob-sos-dot"/>
+              </span>
+              <span>SOS</span>
             </button>
-            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/profile')}>
-              <div className="sc-mob-topbar__avatar" style={{width:22,height:22,fontSize:9}}>{userImage?<img src={userImage} alt={userName} referrerPolicy="no-referrer"/>:userInit}</div>
-              <span>Profile</span>
+            <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/profile')} aria-label="Profile">
+              <User size={22}/><span>Profile</span>
             </button>
           </div>
         </nav>

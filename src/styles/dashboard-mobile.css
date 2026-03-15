@@ -34,17 +34,17 @@
 
 
   /* ══════════════════════════════════════════════════════════
-     MOBILE STICKY TOP BAR
+     MOBILE STICKY TOP BAR — canonical height: 56px
   ══════════════════════════════════════════════════════════ */
   .mob-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    position: sticky;
-    top: 0;
+    position: fixed;
+    top: 0; left: 0; right: 0;
     z-index: 200;
     padding: 0 16px;
-    height: 54px;
+    height: 56px;
     background: var(--hc-surface);
     border-bottom: 1px solid var(--hc-border);
     backdrop-filter: blur(20px) saturate(180%);
@@ -148,16 +148,20 @@
      Also undo the padding-top / padding-bottom they inject.      */
   .hc-topbar     { display: none !important; }
   .hc-bottom-nav { display: none !important; }
-  .hc-layout__main {
+  .hc-layout__main,
+  .hc-layout__content {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    margin-top: 0 !important;
   }
   /* Also hide the dashboard page's sticky search topbar on mobile */
   .db-topbar { display: none !important; }
 
-  /* ── Page padding (accounts for our fixed mob-tab-bar) ──── */
+  /* ── Page padding ─────────────────────────────────────────── */
+  /* mob-topbar is position:fixed height 56px — needs top clearance.
+     mob-tab-bar is position:fixed height 60px — needs bottom clearance. */
   .db-page {
-    padding: 0 0 76px !important;
+    padding: 64px 0 76px !important;
     gap: 0 !important;
     max-width: 100% !important;
   }
@@ -200,7 +204,7 @@
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    padding: 6px 14px;
+    padding: 6px 4px;
     background: none;
     border: none;
     cursor: pointer;
@@ -211,6 +215,9 @@
     letter-spacing: 0.3px;
     transition: color 0.2s;
     position: relative;
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
   }
   .mob-tab-btn svg { transition: transform 0.2s; }
   .mob-tab-btn.active { color: var(--hc-teal); }
@@ -228,17 +235,51 @@
     box-shadow: 0 0 8px var(--hc-teal-glow);
   }
 
-  /* SOS badge dot */
-  .mob-tab-btn__dot {
-    position: absolute;
-    top: 4px; right: 10px;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--hc-red);
-    border: 1.5px solid var(--hc-surface);
+  /* SOS button — normal icon/text colour (same as all other tabs).
+     The red dot on the icon is the only visual distinguisher.    */
+  .mob-tab-btn--sos {
+    color: var(--hc-text3) !important;
   }
-  html.dark-mode .mob-tab-btn__dot {
-    border-color: #071828;
+  .mob-tab-btn--sos.active {
+    color: var(--hc-teal) !important;
+  }
+  /* Hide the indicator line for SOS when active */
+  .mob-tab-btn--sos.active::after {
+    display: none !important;
+  }
+
+  /* Flatten the pill capsule from dashboard-header.css into a
+     plain relative icon wrapper (same size as other nav icons)   */
+  .mob-tab-sos-icon {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 22px !important;
+    height: 22px !important;
+    background: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    animation: none !important;
+    color: inherit !important;
+  }
+
+  /* Red notification dot positioned top-right of the phone icon */
+  .mob-tab-sos-icon::after {
+    content: '' !important;
+    position: absolute !important;
+    top: -2px !important;
+    right: -3px !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    background: var(--hc-red, #ef4444) !important;
+    border: 1.5px solid var(--hc-surface) !important;
+    box-shadow: 0 0 5px rgba(239,68,68,0.55) !important;
+    pointer-events: none !important;
+  }
+  html.dark-mode .mob-tab-sos-icon::after {
+    border-color: rgba(7,24,40,0.96) !important;
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -258,13 +299,25 @@
     flex: 1;
   }
   .db-page-header__sub {
-    /* "Good morning ✨" */
+    /* "Good afternoon 🌤" */
     font-size: 13px !important;
     font-weight: 500 !important;
     color: var(--hc-text2) !important;
     margin: 0 0 3px !important;
     display: block !important;
     letter-spacing: 0.1px !important;
+  }
+
+  /* Force full-colour emoji rendering — isolates emoji from parent
+     text colour and uses the OS emoji font directly.             */
+  .db-greeting-emoji {
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                 'Twemoji Mozilla', 'Android Emoji', sans-serif !important;
+    font-style: normal !important;
+    color: unset !important;
+    -webkit-text-fill-color: unset !important;
+    text-shadow: none !important;
+    display: inline-block;
   }
   .db-page-header__greeting {
     font-size: 28px !important;

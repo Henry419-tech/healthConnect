@@ -846,6 +846,17 @@ html.dark-mode .db-empty-state__btn { color: #020B14; }
   background: rgba(239,68,68,0.1) !important;
 }
 
+/* ── Card header actions cluster ────────────────────────────
+   Replaces the former inline style={{ display:'flex', gap:6, alignItems:'center' }}
+   that was on the "Your Health Journey" card. Using a CSS class prevents
+   the flex layout from breaking on narrow mobile screens.            */
+.db-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* ════════════════════════════════════════════════════════════════
    RESPONSIVE
 ════════════════════════════════════════════════════════════════ */
@@ -931,10 +942,10 @@ html.dark-mode .db-notif-panel {
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
-/* Mobile: slide up as a sheet above the fixed tab bar */
+/* Mobile: slide up as a sheet above the fixed mob-tab-bar (60px) */
 @media (max-width: 640px) {
   .db-notif-panel {
-    top: auto; bottom: 72px;
+    top: auto; bottom: 68px; /* 60px tab bar + 8px breathing room */
     left: 12px; right: 12px;
     width: auto;
     max-height: 68vh;

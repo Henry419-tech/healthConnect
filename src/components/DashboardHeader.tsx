@@ -1,5 +1,8 @@
 'use client'
 
+import '@/styles/dashboard-header.css';
+import '@/styles/dashboard-mobile.css';
+
 import React, { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';

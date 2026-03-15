@@ -283,8 +283,13 @@
 .sc-spin-slow { animation: scSpin 1.4s linear infinite; }
 @keyframes scSpin { to { transform: rotate(360deg); } }
 
-.sc-loading   { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 14px; }
-.sc-loading p { font-size: 15px; font-weight: 700; color: var(--hc-text,#0f172a); margin: 0; }
+.sc-loading   {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100dvh; gap: 14px;
+  background: var(--hc-bg, #020B14);
+  color: var(--hc-teal, #00D2FF);
+}
+.sc-loading p { font-size: 15px; font-weight: 600; color: var(--hc-text2, rgba(255,255,255,0.55)); margin: 0; letter-spacing: 0.2px; }
 
 /* ══ RIGHT PANEL ══════════════════════════════════════════════════ */
 .sc-right       { grid-area: right; display: flex; flex-direction: column; overflow: hidden; min-height: 0; min-width: 0; background: var(--hc-surface,rgba(7,24,40,.45)); border-left: 1px solid var(--hc-border,rgba(255,255,255,.07)); opacity: 0; pointer-events: none; transition: opacity 0.2s ease 0.15s; }
@@ -421,11 +426,53 @@ html:not(.dark-mode) .sc-footer__brand p { color: #94a3b8; }
 html:not(.dark-mode) .sc-footer__links button { color: #64748b; }
 html:not(.dark-mode) .sc-footer__copy    { color: #94a3b8; }
 html:not(.dark-mode) .sc-overlay         { background: rgba(15,30,50,.72); }
-html:not(.dark-mode) .sc-modal--welcome  { background: linear-gradient(160deg,#f8fafc,#eef4fb 55%,#f0f7ff); border-color: rgba(0,170,220,.22); }
+html:not(.dark-mode) .sc-modal--welcome  {
+  background: linear-gradient(160deg, #ffffff, #f0f7ff 55%, #e8f4ff);
+  border-color: rgba(8,145,178,0.20);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.15), 0 0 40px rgba(8,145,178,0.06);
+}
+html:not(.dark-mode) .sc-modal--welcome::after {
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(8,145,178,.07), transparent 70%);
+}
+/* Header */
+html:not(.dark-mode) .sc-modal-header    { border-bottom-color: rgba(0,0,0,.08); }
 html:not(.dark-mode) .sc-modal-header h3 { color: #0f172a; }
 html:not(.dark-mode) .sc-modal-header p  { color: #0891b2; }
-html:not(.dark-mode) .sc-modal-icon      { background: rgba(0,185,230,.1); border-color: rgba(0,185,230,.3); color: #0891b2; }
-html:not(.dark-mode) .sc-modal-close     { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.1); color: #64748b; }
-html:not(.dark-mode) .sc-start-btn       { background: linear-gradient(135deg,#00b4d8,#0ea5e9); color: #fff; }
+html:not(.dark-mode) .sc-modal-icon      {
+  background: rgba(8,145,178,.10); border-color: rgba(8,145,178,.28); color: #0891b2;
+  box-shadow: 0 0 18px rgba(8,145,178,.12);
+}
+html:not(.dark-mode) .sc-modal-close     {
+  background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.1); color: #64748b;
+}
+html:not(.dark-mode) .sc-modal-close:hover { background: rgba(0,0,0,.09); color: #0f172a; }
+/* Body */
+html:not(.dark-mode) .sc-modal-body      { background: transparent; }
+html:not(.dark-mode) .sc-modal-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,.1); }
+/* Disclaimer card */
+html:not(.dark-mode) .sc-disclaimer {
+  background: rgba(245,158,11,.06);
+  border-color: rgba(245,158,11,.28);
+}
+html:not(.dark-mode) .sc-disclaimer h4   { color: #b45309; }
+html:not(.dark-mode) .sc-disclaimer ul li { color: #92400e; }
+html:not(.dark-mode) .sc-disclaimer ul li::before { color: #b45309; }
+/* Feature cards */
+html:not(.dark-mode) .sc-modal-features  { }
+html:not(.dark-mode) .sc-modal-feature   {
+  background: rgba(8,145,178,.06);
+  border-color: rgba(8,145,178,.16);
+}
+html:not(.dark-mode) .sc-modal-feature:hover { background: rgba(8,145,178,.11); }
+html:not(.dark-mode) .sc-modal-feature svg { color: #0891b2; }
+html:not(.dark-mode) .sc-modal-feature h5 { color: #0f172a; }
+html:not(.dark-mode) .sc-modal-feature p  { color: #475569; }
+/* Footer */
+html:not(.dark-mode) .sc-modal-footer    { border-top: 1px solid rgba(0,0,0,.07); }
+html:not(.dark-mode) .sc-start-btn       {
+  background: linear-gradient(135deg, #0891b2, #0ea5e9);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(8,145,178,.30), 0 0 20px rgba(8,145,178,.12);
+}
 html:not(.dark-mode) .sc-assess-section p { color: #475569; }
 html:not(.dark-mode) .sc-assess-list li   { color: #475569; }

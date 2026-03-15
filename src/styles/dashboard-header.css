@@ -663,3 +663,394 @@ html:not(.dark-mode) .hc-sidebar__nav-item--active {
   color: var(--hc-teal);
   filter: drop-shadow(0 0 4px var(--hc-teal-glow));
 }
+/* ════════════════════════════════════════════════════════════════
+   MOB-* DEFAULTS — must be top-level (outside any @media) so they
+   apply at all viewport widths and hide these on desktop.
+════════════════════════════════════════════════════════════════ */
+.mob-topbar  { display: none; }
+.mob-tab-bar { display: none; }
+.mob-only    { display: none; }
+
+/* ════════════════════════════════════════════════════════════════
+   HAS-MOB-TOPBAR LAYOUT VARIANT
+   Dashboard page passes className="hc-layout--has-mob-topbar".
+   On mobile: hide the generic hc-topbar/hc-bottom-nav, show the
+   dashboard's custom mob-topbar and mob-tab-bar instead.
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .hc-layout--has-mob-topbar .hc-topbar     { display: none !important; }
+  .hc-layout--has-mob-topbar .hc-bottom-nav { display: none !important; }
+  .hc-layout--has-mob-topbar .hc-layout__main {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+@media (max-width: 640px) {
+  .hc-layout--has-mob-topbar .mob-topbar  { display: flex !important; }
+  .hc-layout--has-mob-topbar .mob-tab-bar { display: block !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MOB-TOPBAR — custom dashboard mobile top bar
+════════════════════════════════════════════════════════════════ */
+.mob-topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  z-index: 150;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  gap: 8px;
+  background: var(--hc-surface);
+  border-bottom: 1px solid var(--hc-border);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+}
+html.dark-mode .mob-topbar {
+  background: rgba(7,24,40,0.90);
+  border-bottom-color: rgba(0,210,255,0.10);
+  box-shadow: 0 1px 0 rgba(0,210,255,0.08), 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.mob-topbar__left {
+  display: flex; align-items: center; gap: 7px;
+  flex-shrink: 0;
+}
+.mob-topbar__logo-icon {
+  color: var(--hc-teal);
+  filter: drop-shadow(0 0 5px rgba(0,210,255,0.45));
+}
+.mob-topbar__logo-text {
+  font-size: 16px; font-weight: 900; letter-spacing: -0.5px;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 47%, var(--hc-text) 47%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+html.dark-mode .mob-topbar__logo-text {
+  background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 47%, #dff0ff 47%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
+}
+
+.mob-topbar__right {
+  display: flex; align-items: center; gap: 6px;
+}
+
+.mob-topbar__btn {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: none;
+  color: var(--hc-text2);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.mob-topbar__btn:hover {
+  background: var(--hc-nav-hover-bg);
+  color: var(--hc-text);
+}
+html.dark-mode .mob-topbar__btn {
+  border-color: rgba(0,210,255,0.12);
+}
+
+/* Bell button with notification dot */
+.mob-topbar__bell {
+  position: relative;
+}
+.mob-topbar__bell-dot {
+  position: absolute;
+  top: 7px; right: 7px;
+  width: 7px; height: 7px;
+  background: var(--hc-red);
+  border-radius: 50%;
+  border: 1.5px solid var(--hc-surface);
+  pointer-events: none;
+}
+html.dark-mode .mob-topbar__bell-dot {
+  border-color: rgba(7,24,40,0.90);
+}
+
+/* Avatar button */
+.mob-topbar__avatar-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.mob-topbar__avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--hc-teal-dim);
+  border: 2px solid color-mix(in srgb, var(--hc-teal) 40%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: var(--hc-teal);
+  overflow: hidden;
+}
+html.dark-mode .mob-topbar__avatar {
+  box-shadow: 0 0 10px rgba(0,210,255,0.20);
+}
+.mob-topbar__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ════════════════════════════════════════════════════════════════
+   MOB-TAB-BAR — custom dashboard bottom navigation
+════════════════════════════════════════════════════════════════ */
+.mob-tab-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: var(--hc-surface);
+  border-top: 1px solid var(--hc-border);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html.dark-mode .mob-tab-bar {
+  background: rgba(7,24,40,0.96);
+  border-top-color: rgba(0,210,255,0.12);
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+}
+/* Subtle teal glow line on top edge */
+.mob-tab-bar::before {
+  content: '';
+  position: absolute; top: -1px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 5%, var(--hc-teal-glow) 50%, transparent 95%);
+  pointer-events: none;
+}
+
+.mob-tab-bar__inner {
+  display: flex;
+  align-items: stretch;
+  height: 60px;
+}
+
+.mob-tab-btn {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border: none; background: none;
+  color: var(--hc-text3);
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.18s;
+  min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-tab-btn:active { opacity: 0.75; }
+html.dark-mode .mob-tab-btn { color: var(--hc-text3); }
+
+/* Active state */
+.mob-tab-btn.active { color: var(--hc-teal); }
+html.dark-mode .mob-tab-btn.active { color: var(--hc-teal); }
+
+/* Active indicator line at top */
+.mob-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: var(--hc-teal);
+  box-shadow: 0 0 8px var(--hc-teal-glow);
+}
+
+/* SOS button — inherits mob-tab-btn, overrides colour */
+.mob-tab-btn--sos { color: var(--hc-red) !important; }
+.mob-tab-btn--sos.active { color: var(--hc-red) !important; }
+.mob-tab-btn--sos.active::after {
+  background: var(--hc-red) !important;
+  box-shadow: 0 0 8px rgba(239,68,68,0.60) !important;
+}
+
+/* SOS icon pill (red capsule wrapping the phone icon) */
+.mob-tab-sos-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 24px;
+  background: var(--hc-red);
+  border-radius: 8px;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.40);
+  transition: box-shadow 0.2s;
+}
+.mob-tab-btn--sos:active .mob-tab-sos-icon {
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.30);
+}
+/* Active SOS: pulsing glow */
+.mob-tab-btn--sos.active .mob-tab-sos-icon {
+  animation: sosPulse 1.6s ease-out infinite;
+}
+@keyframes sosPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.70), 0 2px 8px rgba(239,68,68,0.40); }
+  60%  { box-shadow: 0 0 0 8px rgba(239,68,68,0),    0 2px 8px rgba(239,68,68,0.40); }
+  100% { box-shadow: 0 0 0 0   rgba(239,68,68,0),    0 2px 8px rgba(239,68,68,0.40); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HC-TOPBAR MOBILE POLISH (≤640px)
+   Pages using hc-topbar (facilities, profile) should look
+   consistent with the custom mob-topbar on other pages.
+   - Hide the hamburger drawer button (useless with bottom tab bar)
+   - Style the logo to match mob-topbar two-tone treatment
+   - Size up the avatar to match mob-topbar__avatar (34px)
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Hide hamburger — navigation is handled by mob-tab-bar */
+  .hc-topbar > .hc-topbar__icon-btn:first-child {
+    display: none;
+  }
+
+  /* Logo: left-aligned, two-tone font matching mob-topbar */
+  .hc-topbar__logo {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 48%, var(--hc-text) 48%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  html.dark-mode .hc-topbar__logo {
+    background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 48%, #e2f0ff 48%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
+  }
+  /* Keep logo icon teal (svg color override won't work with text-fill trick,
+     so we target the svg directly) */
+  .hc-topbar__logo svg {
+    color: var(--hc-teal);
+    filter: drop-shadow(0 0 6px rgba(0,210,255,0.45));
+    flex-shrink: 0;
+    -webkit-text-fill-color: initial;
+  }
+
+  /* Avatar: match mob-topbar__avatar size + border radius */
+  .hc-topbar__avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid color-mix(in srgb, var(--hc-teal) 35%, transparent);
+    font-size: 12px;
+    font-weight: 800;
+  }
+  html.dark-mode .hc-topbar__avatar {
+    box-shadow: 0 0 10px rgba(0,210,255,0.20);
+  }
+
+  /* Icon buttons: match mob-topbar__btn size */
+  .hc-topbar__icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--hc-border);
+  }
+  html.dark-mode .hc-topbar__icon-btn {
+    border-color: rgba(0,210,255,0.12);
+  }
+
+  /* hc-bottom-nav: use mob-tab-bar styling for profile/facilities
+     (shown via hc-layout__main padding-bottom on these pages) */
+  .hc-bottom-nav {
+    height: 60px;
+    border-top: 1px solid var(--hc-border);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+  }
+  html.dark-mode .hc-bottom-nav {
+    background: rgba(7, 24, 40, 0.96);
+    border-top-color: rgba(0, 210, 255, 0.12);
+    box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+  }
+}
+
+/* Match hc-bottom-nav items to mob-tab-btn style at mobile */
+@media (max-width: 640px) {
+  .hc-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: auto;
+    padding-top: 0;
+  }
+  .hc-bottom-nav__item {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 14px;
+    border-radius: 0;
+    font-size: 10px;
+    gap: 3px;
+    position: relative;
+  }
+  .hc-bottom-nav__item--active {
+    color: var(--hc-teal);
+    background: none; /* remove pill background */
+  }
+  /* Top indicator line matching mob-tab-btn.active::after */
+  .hc-bottom-nav__item--active::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 28px; height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--hc-teal);
+    box-shadow: 0 0 8px var(--hc-teal-glow);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SOS TAB BUTTON — red glowing style across all pages
+   Used on: dashboard, facilities, emergency, symptom-checker
+   Classes: mob-tab-btn--sos / sc-mob-tab-btn.mob-tab-btn--sos
+════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* SOS icon wrapper — red pill background */
+  .mob-tab-sos-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 24px;
+    background: var(--hc-red, #ef4444);
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(239,68,68,0.45);
+    transition: box-shadow 0.2s;
+  }
+
+  /* SOS button label color */
+  .mob-tab-btn--sos {
+    color: var(--hc-red, #ef4444) !important;
+  }
+
+  /* Active SOS — pulsing red glow (emergency page) */
+  .mob-tab-btn--sos.active .mob-tab-sos-icon {
+    box-shadow:
+      0 0 0 0 rgba(239,68,68,0.7);
+    animation: sosPulse 1.6s ease-out infinite;
+  }
+  .mob-tab-btn--sos.active::after {
+    background: var(--hc-red, #ef4444) !important;
+    box-shadow: 0 0 8px rgba(239,68,68,0.8) !important;
+  }
+
+  @keyframes sosPulse {
+    0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.7), 0 0 8px rgba(239,68,68,0.45); }
+    60%  { box-shadow: 0 0 0 8px rgba(239,68,68,0),   0 0 8px rgba(239,68,68,0.45); }
+    100% { box-shadow: 0 0 0 0   rgba(239,68,68,0),   0 0 8px rgba(239,68,68,0.45); }
+  }
+
+  /* sc-mob-tab-bar SOS button same treatment */
+  .sc-mob-tab-bar .mob-tab-btn--sos {
+    color: var(--hc-red, #ef4444) !important;
+  }
+}

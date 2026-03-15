@@ -12,7 +12,6 @@ import '@/styles/dashboard.css';
 import '@/styles/footer.css';
 import '@/styles/dashboard-mobile.css';
 import '@/styles/profile.css';
-import '@/styles/profile-layout-fix.css';
 import {
   Heart, Camera, User, Mail, Moon, Sun, LogOut, Save, X,
   Check, AlertCircle, Edit2, Bell, Settings, Search,
@@ -588,7 +587,7 @@ const ProfilePage = () => {
 
   /* ── RENDER ─────────────────────────────────────────────── */
   return (
-    <DashboardLayout activeTab="/profile">
+    <DashboardLayout activeTab="/profile" className="hc-layout--has-mob-topbar">
 
       {/* ── Desktop topbar ─────────────────────────────────── */}
       <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
@@ -703,13 +702,28 @@ const ProfilePage = () => {
       </div>
 
       {/* ── Mobile bottom nav ──────────────────────────────── */}
-      <nav className="mob-tab-bar">
+      <nav className="mob-tab-bar" aria-label="Main navigation">
         <div className="mob-tab-bar__inner">
-          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button"><Heart size={22} />Home</button>
-          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button"><MapPin size={22} />Find</button>
-          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button"><Bot size={22} />Check</button>
-          <button className="mob-tab-btn" onClick={() => router.push('/emergency')} type="button"><Phone size={22} />SOS</button>
-          <button className="mob-tab-btn active" onClick={() => router.push('/profile')} type="button"><User size={22} />Profile</button>
+          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button" aria-label="Home">
+            <Heart size={22} />
+            Home
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button" aria-label="Find facilities">
+            <MapPin size={22} />
+            Find
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button" aria-label="Symptom Checker">
+            <Bot size={22} />
+            Check
+          </button>
+          <button className="mob-tab-btn mob-tab-btn--sos" onClick={() => router.push('/emergency')} type="button" aria-label="Emergency">
+            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
+            SOS
+          </button>
+          <button className="mob-tab-btn active" onClick={() => router.push('/profile')} type="button" aria-current="page" aria-label="Profile">
+            <User size={22} />
+            Profile
+          </button>
         </div>
       </nav>
 
@@ -743,7 +757,7 @@ const ProfilePage = () => {
         )}
 
         {/* ── Identity card ───────────────────────────────── */}
-        <div className="pr-identity">
+        <div className={`pr-identity${isEditing ? ' pr-identity--editing' : ''}`}>
           {/* Avatar */}
           <div className="pr-identity__avatar-wrap">
             <div className="pr-identity__avatar" onClick={() => isEditing && fileInputRef.current?.click()}>

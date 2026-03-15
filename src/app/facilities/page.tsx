@@ -5,11 +5,11 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import DashboardHeader from '@/components/DashboardHeader';
+import DashboardLayout from '@/components/DashboardLayout';
 import { trackActivity, activityTypes } from '@/lib/activityTracker';
 import '@/styles/facilities.css';
 import '@/styles/facilities-mobile.css';
-import '@/styles/facilities-layout-fix.css';
+import '@/styles/dashboard.css';
 import { 
   Search, MapPin, Phone, Clock, Star, Heart, Hospital, Pill, 
   Stethoscope, Map, List, Locate, Navigation, AlertCircle, 
@@ -168,21 +168,17 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
         if (result.state === 'granted') {
-          // Already granted — the main component handles auto-fetch, just hide banner
           onDismiss();
           return;
         }
         setTimeout(() => setIsVisible(true), 500);
-
         result.addEventListener('change', () => {
           if (result.state === 'granted') {
             setIsVisible(false);
             setTimeout(() => onDismiss(), 300);
           }
         });
-      }).catch(() => {
-        setTimeout(() => setIsVisible(true), 500);
-      });
+      }).catch(() => { setTimeout(() => setIsVisible(true), 500); });
     } else {
       setTimeout(() => setIsVisible(true), 500);
     }
@@ -197,79 +193,60 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="location-permission-banner">
-      <div className="location-banner-icon">
-        <MapPin size={28} />
-      </div>
-      
-      <div className="location-banner-content">
-        <h3 className="location-banner-title">
-          <Navigation size={18} />
-          Enable Location for Accurate Results
-        </h3>
-        <p className="location-banner-description">
-          Allow us to access your location to find the nearest healthcare facilities in your area. 
-          We use GPS for the most accurate results.
-        </p>
-        
-        <div className="location-banner-benefits">
-          <div className="location-benefit">
-            <Check size={14} />
-            <span>GPS-accurate distances</span>
-          </div>
-          <div className="location-benefit">
-            <Check size={14} />
-            <span>Find nearby facilities</span>
-          </div>
-          <div className="location-benefit">
-            <Check size={14} />
-            <span>Real-time directions</span>
-          </div>
-          <div className="location-benefit">
-            <Check size={14} />
-            <span>Emergency services</span>
-          </div>
+    <div className="loc-banner">
+      {/* Close */}
+      <button className="loc-banner__close" onClick={handleDismiss} aria-label="Dismiss" type="button">
+        <X size={16} />
+      </button>
+
+      {/* Icon + heading */}
+      <div className="loc-banner__top">
+        <div className="loc-banner__icon-wrap">
+          <MapPin size={22} />
+        </div>
+        <div className="loc-banner__heading">
+          <h3 className="loc-banner__title">Enable Location Access</h3>
+          <p className="loc-banner__sub">Find healthcare facilities closest to you</p>
         </div>
       </div>
-      
-      <div className="location-banner-actions">
+
+      {/* Benefits row */}
+      <div className="loc-banner__benefits">
+        {[
+          { icon: <Navigation size={13} />, text: 'Accurate distances' },
+          { icon: <MapPin size={13} />,     text: 'Nearby facilities'  },
+          { icon: <Check size={13} />,       text: 'Real-time results' },
+          { icon: <Phone size={13} />,       text: 'Emergency services' },
+        ].map(({ icon, text }) => (
+          <span key={text} className="loc-banner__benefit">
+            {icon}{text}
+          </span>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="loc-banner__actions">
         <button
-          className="facility-finder-location-btn"
+          className="loc-banner__btn-primary"
           onClick={onEnableLocation}
           disabled={isLoading}
           type="button"
         >
           {isLoading ? (
-            <>
-              <Loader2 size={20} className="spin" />
-              <span>Locating...</span>
-            </>
+            <><Loader2 size={16} className="spin" />Locating…</>
           ) : (
-            <>
-              <Crosshair size={20} />
-              <span>Enable GPS</span>
-            </>
+            <><Crosshair size={16} />Enable GPS</>
           )}
         </button>
-        
         <button
-          className="facility-finder-location-btn location-btn-secondary"
+          className="loc-banner__btn-ghost"
           onClick={handleDismiss}
           disabled={isLoading}
           type="button"
         >
-          <span>Maybe Later</span>
+          Maybe later
         </button>
       </div>
-      
-      <button
-        className="location-banner-close"
-        onClick={handleDismiss}
-        aria-label="Close banner"
-        type="button"
-      >
-        <X size={18} />
-      </button>
     </div>
   );
 };
@@ -289,31 +266,40 @@ const LocationConfirmation: React.FC<LocationConfirmationProps> = ({
   isRefreshing
 }) => {
   return (
-    <div className="location-confirmation">
-      <div className="location-confirmation-icon">
-        <MapPin size={20} />
+    <div className="loc-confirmation">
+      {/* Status dot + icon */}
+      <div className="loc-confirmation__icon">
+        <MapPin size={18} />
+        <span className="loc-confirmation__pulse" />
       </div>
-      <div className="location-confirmation-content">
-        <strong>Your location detected</strong>
-        {locationInfo?.city && locationInfo?.region ? (
-          <p>{locationInfo.city}, {locationInfo.region}</p>
-        ) : (
-          <p>Coordinates: {location[0].toFixed(4)}°N, {Math.abs(location[1]).toFixed(4)}°W</p>
-        )}
+
+      {/* Info */}
+      <div className="loc-confirmation__body">
+        <p className="loc-confirmation__title">Your location detected</p>
+        <p className="loc-confirmation__detail">
+          {locationInfo?.city && locationInfo?.region
+            ? `${locationInfo.city}, ${locationInfo.region}`
+            : `${location[0].toFixed(4)}°N, ${Math.abs(location[1]).toFixed(4)}°W`}
+        </p>
         {locationInfo?.accuracy && (
-          <small className={locationInfo.accuracy < 100 ? 'accuracy-good' : 'accuracy-low'}>
-            Accuracy: ±{Math.round(locationInfo.accuracy)}m 
-            {locationInfo.accuracy < 100 ? ' (GPS)' : ' (Network)'}
-          </small>
+          <p className={`loc-confirmation__acc${locationInfo.accuracy < 100 ? ' loc-confirmation__acc--good' : ' loc-confirmation__acc--low'}`}>
+            Accuracy: ±{Math.round(locationInfo.accuracy)}m
+            {locationInfo.accuracy < 100 ? ' · GPS' : ' · Network'}
+          </p>
         )}
       </div>
+
+      {/* Refresh button — functional, clearly labelled */}
       <button
-        className="location-refresh-btn"
+        className="loc-confirmation__refresh"
         onClick={onRefresh}
         disabled={isRefreshing}
         title="Refresh location"
+        type="button"
+        aria-label="Refresh location"
       >
-        <RefreshCw size={18} className={isRefreshing ? 'spin' : ''} />
+        <RefreshCw size={15} className={isRefreshing ? 'spin' : ''} />
+        <span>{isRefreshing ? 'Updating…' : 'Refresh'}</span>
       </button>
     </div>
   );
@@ -442,28 +428,12 @@ function DynamicFacilityFinderInner() {
   // Mobile navigation state
   const [activeBottomTab, setActiveBottomTab] = useState<string>('facilities');
 
-  // Sidebar collapsed state — kept for :has()-unsupported browsers only.
-  // Primary layout is driven by CSS :has() in facilities-layout-fix.css
-  // which works before JS hydrates and eliminates blank-page flash.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   // Ref for smooth scrolling
   const mapViewRef    = useRef<HTMLDivElement>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
 
   // Cancel any in-flight Overpass fetch on unmount
   useEffect(() => { return () => { fetchAbortRef.current?.abort(); }; }, []);
-
-  // Track sidebar for fallback class on browsers without :has()
-  useEffect(() => {
-    const sidebar = document.querySelector('.hc-sidebar');
-    if (!sidebar) return;
-    const check = () => setSidebarCollapsed(sidebar.classList.contains('hc-sidebar--collapsed'));
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -1343,18 +1313,30 @@ function DynamicFacilityFinderInner() {
   }
 
   return (
-    <div className={`facility-finder${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-      {/* Dashboard Header — desktop sidebar */}
-      <DashboardHeader activeTab="/facilities" />
+    /*
+      mob-topbar and mob-tab-bar MUST be direct children of DashboardLayout
+      (i.e. inside hc-layout__content, not nested inside .facility-finder).
+      dashboard-header.css activates them via:
+        .hc-layout--has-mob-topbar .mob-topbar  { display: flex }
+        .hc-layout--has-mob-topbar .mob-tab-bar { display: block }
+      If they're nested deeper (e.g. inside .facility-finder) the selectors
+      still match because CSS descendant selectors don't care about depth —
+      BUT position:fixed pulls them out of the layout flow anyway, so the
+      real issue is that facilities.css was hiding them with display:none.
+      That's now fixed. Keeping them here outside .facility-finder is the
+      cleanest structure: chrome above/below, content in the middle.
+    */
+    <DashboardLayout activeTab="/facilities" showFooter={false} className="hc-layout--has-mob-topbar">
 
-      {/* ── Mobile sticky top bar (matches dashboard mob-topbar) ── */}
-      <div className="mob-topbar fac-mob-topbar">
+      {/* ── Mobile sticky top bar ─────────────────────────────────
+           position:fixed — sits above all page content.
+           Shown at ≤640px via hc-layout--has-mob-topbar rules.   */}
+      <div className="mob-topbar">
         <div className="mob-topbar__left">
           <Heart size={18} className="mob-topbar__logo-icon" />
           <span className="mob-topbar__logo-text">HealthConnect</span>
         </div>
         <div className="mob-topbar__right">
-          {/* Dark / Light mode toggle */}
           <button
             className="mob-topbar__btn"
             type="button"
@@ -1362,18 +1344,6 @@ function DynamicFacilityFinderInner() {
             aria-label="Toggle dark mode"
           >
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {/* GPS locate button */}
-          <button
-            className={`mob-topbar__btn fac-mob-gps-btn${isLoadingLocation ? ' loading' : ''}`}
-            type="button"
-            onClick={getCurrentLocation}
-            disabled={isLoadingLocation}
-            aria-label="Find near me"
-          >
-            {isLoadingLocation
-              ? <Loader2 size={18} className="spin" />
-              : <Crosshair size={18} />}
           </button>
           <button
             ref={notifMobRef}
@@ -1389,6 +1359,7 @@ function DynamicFacilityFinderInner() {
             className="mob-topbar__avatar-btn"
             type="button"
             onClick={() => router.push('/profile')}
+            aria-label="Profile"
           >
             <div className="mob-topbar__avatar">
               {userImage
@@ -1398,6 +1369,66 @@ function DynamicFacilityFinderInner() {
           </button>
         </div>
       </div>
+
+      {/* ── Mobile bottom tab bar ─────────────────────────────────
+           position:fixed — sits below all page content.
+           Shown at ≤640px via hc-layout--has-mob-topbar rules.
+           SOS: plain Phone icon + red dot, matching image reference. */}
+      <nav className="mob-tab-bar" aria-label="Main navigation">
+        <div className="mob-tab-bar__inner">
+          <button
+            className={`mob-tab-btn${activeBottomTab === 'dashboard' ? ' active' : ''}`}
+            onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
+            type="button"
+            aria-label="Home"
+          >
+            <Heart size={22} />
+            Home
+          </button>
+          <button
+            className={`mob-tab-btn${activeBottomTab === 'facilities' ? ' active' : ''}`}
+            onClick={() => handleBottomNavClick('/facilities', 'facilities')}
+            type="button"
+            aria-current="page"
+            aria-label="Find facilities"
+          >
+            <MapPin size={22} />
+            Find
+          </button>
+          <button
+            className={`mob-tab-btn${activeBottomTab === 'symptom' ? ' active' : ''}`}
+            onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
+            type="button"
+            aria-label="Symptom Checker"
+          >
+            <Bot size={22} />
+            Check
+          </button>
+          <button
+            className={`mob-tab-btn fac-sos-btn${activeBottomTab === 'emergency' ? ' active' : ''}`}
+            onClick={() => handleBottomNavClick('/emergency', 'emergency')}
+            type="button"
+            aria-label="Emergency"
+          >
+            <span className="fac-sos-icon-wrap">
+              <Phone size={20} />
+              <span className="fac-sos-dot" />
+            </span>
+            SOS
+          </button>
+          <button
+            className={`mob-tab-btn${activeBottomTab === 'profile' ? ' active' : ''}`}
+            onClick={() => handleBottomNavClick('/profile', 'profile')}
+            type="button"
+            aria-label="Profile"
+          >
+            <User size={22} />
+            Profile
+          </button>
+        </div>
+      </nav>
+
+    <div className="facility-finder">
 
       {/* Notification panel */}
       {showNotifPanel && (
@@ -1478,15 +1509,17 @@ function DynamicFacilityFinderInner() {
           />
         )}
 
-        {/* Location Confirmation */}
-        {userLocation && (
-          <LocationConfirmation
-            location={userLocation}
-            locationInfo={locationInfo}
-            onRefresh={getCurrentLocation}
-            isRefreshing={isLoadingLocation}
-          />
-        )}
+        {/* Location Confirmation — wrapper reserves space to prevent page jump */}
+        <div className="loc-confirmation-wrap">
+          {userLocation && (
+            <LocationConfirmation
+              location={userLocation}
+              locationInfo={locationInfo}
+              onRefresh={getCurrentLocation}
+              isRefreshing={isLoadingLocation}
+            />
+          )}
+        </div>
 
         {/* Search and Filters */}
         <div className="facility-finder-controls">
@@ -1977,7 +2010,7 @@ function DynamicFacilityFinderInner() {
                           onClick={() => getDirections(facility)}
                           type="button"
                         >
-                          <Navigation size={18} />
+                          <Navigation size={16} />
                           Get Directions
                         </button>
                         {hasPhone && (
@@ -1986,17 +2019,28 @@ function DynamicFacilityFinderInner() {
                             onClick={() => window.open(`tel:${facility.phone}`, '_self')}
                             type="button"
                           >
-                            <Phone size={18} />
-                            Call Facility
+                            <Phone size={16} />
+                            Call
                           </button>
                         )}
+                        <button
+                          className={`facility-card-btn facility-card-btn-save${savedFacilityIds.has(facility.id) ? ' saved' : ''}`}
+                          onClick={() => toggleSaveFacility(facility)}
+                          disabled={isSavingFacility}
+                          type="button"
+                          title={savedFacilityIds.has(facility.id) ? 'Remove from saved' : 'Save facility'}
+                        >
+                          {savedFacilityIds.has(facility.id)
+                            ? <><BookmarkCheck size={15} />Saved</>
+                            : <><Bookmark size={15} />Save</>}
+                        </button>
                         <button 
                           className="facility-card-btn facility-card-btn-info"
                           onClick={() => handleFacilitySelect(facility)}
                           type="button"
                         >
-                          <Info size={18} />
-                          View Details
+                          <Info size={16} />
+                          Details
                         </button>
                       </div>
                     </div>
@@ -2016,7 +2060,12 @@ function DynamicFacilityFinderInner() {
         <div className="facility-detail-modal" onClick={() => setSelectedFacility(null)}>
           <div className="facility-detail-content" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close-btn" onClick={() => setSelectedFacility(null)} type="button">×</button>
-            
+
+            {/* Drag handle — real flex child (not ::before) so flex column stays intact */}
+            <div className="facility-detail-drag-handle" />
+
+            {/* Scrollable section */}
+            <div className="facility-detail-scroll">
             <div className="facility-detail-header">
               <div className={`facility-detail-icon ${selectedFacility.type}`}>
                 {React.createElement(getFacilityIconComponent(selectedFacility.type), { size: 32 })}
@@ -2086,16 +2135,17 @@ function DynamicFacilityFinderInner() {
                 )}
               </div>
             </div>
+            </div>{/* end facility-detail-scroll */}
             
             <div className="facility-detail-actions">
               <button className="detail-action-btn primary" onClick={() => getDirections(selectedFacility)} type="button">
-                <Navigation size={20} />
-                Get Directions
+                <Navigation size={16} />
+                Directions
               </button>
               {hasPhone && (
                 <button className="detail-action-btn secondary" onClick={() => window.open(`tel:${selectedFacility.phone}`, '_self')} type="button">
-                  <Phone size={20} />
-                  Call Now
+                  <Phone size={16} />
+                  Call
                 </button>
               )}
               <button
@@ -2106,8 +2156,8 @@ function DynamicFacilityFinderInner() {
                 title={savedFacilityIds.has(selectedFacility.id) ? 'Remove from saved' : 'Save facility'}
               >
                 {savedFacilityIds.has(selectedFacility.id)
-                  ? <><BookmarkCheck size={20} />Saved</>
-                  : <><Bookmark size={20} />Save</>}
+                  ? <><BookmarkCheck size={16} />Saved</>
+                  : <><Bookmark size={16} />Save</>}
               </button>
             </div>
           </div>
@@ -2199,52 +2249,8 @@ function DynamicFacilityFinderInner() {
         </div>
       </footer>
 
-      {/* Bottom tab bar — mobile only, matches dashboard mob-tab-bar */}
-      <nav className="mob-tab-bar">
-        <div className="mob-tab-bar__inner">
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'dashboard' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
-            type="button"
-          >
-            <Heart size={22} />
-            Home
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'facilities' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/facilities', 'facilities')}
-            type="button"
-          >
-            <MapPin size={22} />
-            Find
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'symptom' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
-            type="button"
-          >
-            <Bot size={22} />
-            Check
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'emergency' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/emergency', 'emergency')}
-            type="button"
-          >
-            <Phone size={22} />
-            SOS
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'profile' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/profile', 'profile')}
-            type="button"
-          >
-            <User size={22} />
-            Profile
-          </button>
-        </div>
-      </nav>
     </div>
+    </DashboardLayout>
   );
 }
 export default function DynamicFacilityFinder() {

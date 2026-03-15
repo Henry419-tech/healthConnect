@@ -15,6 +15,48 @@
   position: relative;
 }
 
+/* Background image texture — same technique as facility-finder.
+   ::before = tiled medical icon pattern
+   ::after  = colour gradient overlay
+   All em-page children get position:relative z-index:1 below.  */
+.em-page::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  background-attachment: local;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.em-page::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(241,245,249,0.45) 0%,
+    rgba(224,242,254,0.28) 50%,
+    rgba(241,245,249,0.50) 100%
+  );
+  pointer-events: none;
+}
+html.dark-mode .em-page::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  background-attachment: local;
+  opacity: 0.20;
+  mix-blend-mode: screen;
+}
+html.dark-mode .em-page::after {
+  background: linear-gradient(
+    160deg,
+    rgba(2,11,20,0.45) 0%,
+    rgba(7,24,40,0.30) 50%,
+    rgba(2,11,20,0.50) 100%
+  );
+}
+
+/* All direct children above the background layers */
+.em-page > * { position: relative; z-index: 1; }
+
 /* ── Spin animation ──────────────────────────────────────────── */
 @keyframes em-spin { to { transform: rotate(360deg); } }
 .em-spin { animation: em-spin 1s linear infinite; }
@@ -135,10 +177,27 @@ html.dark-mode .em-hero__title {
 
 .em-hero__sub {
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--hc-text2);
   max-width: 440px;
   margin: 0 0 24px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 3px solid rgba(255,77,109,0.50);
+}
+html.dark-mode .em-hero__sub {
+  background: rgba(255,77,109,0.05);
+  border-color: rgba(255,255,255,0.06);
+  border-left-color: rgba(255,77,109,0.45);
+  color: rgba(255,255,255,0.55);
+}
+html:not(.dark-mode) .em-hero__sub {
+  background: rgba(255,77,109,0.05);
+  border-color: rgba(0,0,0,0.06);
+  border-left-color: rgba(220,38,38,0.40);
+  color: #475569;
 }
 
 .em-hero__actions {
@@ -1226,18 +1285,55 @@ html.dark-mode .em-location-card__city { color: #fff; }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   MOBILE TAB BAR — SOS active button
+   MOBILE TAB BAR — SOS button on emergency page
+   Overrides dashboard-mobile.css + dashboard-header.css.
+   Plain phone icon + red notification dot — no pill, no animation.
+   Matches the facilities page SOS style exactly.
 ──────────────────────────────────────────────────────────────── */
 .mob-tab-btn--sos .mob-tab-sos-icon {
-  display: flex; align-items: center; justify-content: center;
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #ff4d6d, #e8002d);
-  box-shadow: 0 0 16px rgba(255, 40, 70, 0.5);
-  margin-bottom: -4px; margin-top: -8px;
-  animation: em-blink 2s ease-in-out infinite;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
 }
-.mob-tab-btn--sos { color: #ff4d6d !important; }
+.mob-tab-btn--sos .mob-tab-sos-icon::after {
+  content: '' !important;
+  position: absolute !important;
+  top: -2px !important;
+  right: -3px !important;
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 50% !important;
+  background: var(--hc-red, #ef4444) !important;
+  border: 1.5px solid var(--hc-surface) !important;
+  box-shadow: 0 0 5px rgba(239,68,68,0.55) !important;
+  pointer-events: none !important;
+}
+html.dark-mode .mob-tab-btn--sos .mob-tab-sos-icon::after {
+  border-color: rgba(7,24,40,0.96) !important;
+}
+/* ── SOS nav button — RED only on the emergency page ──────────
+   Scoped with :has(.em-page) so this ONLY applies when the
+   emergency page is mounted. Prevents colour bleed to other pages
+   on client-side navigation (same fix used for overflow:hidden
+   on the symptom checker).                                       */
+.hc-layout:has(.em-page) .mob-tab-btn--sos {
+  color: var(--hc-red, #ef4444) !important;
+}
+.hc-layout:has(.em-page) .mob-tab-btn--sos.active {
+  color: var(--hc-red, #ef4444) !important;
+}
+.hc-layout:has(.em-page) .mob-tab-btn--sos.active::after {
+  display: none !important;
+}
 
 /* ──────────────────────────────────────────────────────────────
    RESPONSIVE — TABLET  (641px–1024px)
@@ -1254,6 +1350,20 @@ html.dark-mode .em-location-card__city { color: #fff; }
    RESPONSIVE — MOBILE  (≤640px)
 ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
+
+  /* ── Clear the fixed mob-topbar (54px) + mob-tab-bar (60px) ──
+     em-page overrides db-page with padding:0, so we restore the
+     top clearance here. Bottom clearance handles the tab bar.   */
+  .em-page {
+    padding-top: 56px !important;
+    padding-bottom: 76px !important;
+  }
+  /* Offset background pattern so it starts where content starts,
+     not in the topbar clearance padding area above the hero.    */
+  .em-page::before,
+  .em-page::after {
+    top: 56px !important;
+  }
 
   /* Hero */
   .em-hero {
@@ -1297,7 +1407,7 @@ html.dark-mode .em-location-card__city { color: #fff; }
     gap: 10px;
   }
 
-  /* Mobile tabs */
+  /* Mobile tabs — sticky just below the fixed mob-topbar */
   .em-mob-tabs {
     display: flex;
     gap: 0;
@@ -1350,9 +1460,311 @@ html.dark-mode .em-location-card__city { color: #fff; }
   .em-med-id__row { flex-wrap: wrap; }
   .em-med-id__val { text-align: left; }
 
-  /* Footer clearance above fixed tab bar */
-  .dashboard-footer,
-  .hc-footer {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
-  }
+  /* Footer — hidden on mobile (mob-tab-bar replaces it) */
+  .dashboard-footer { display: none !important; }
+}
+/* ──────────────────────────────────────────────────────────────
+   PERSONALISED FIRST AID — highlight card
+──────────────────────────────────────────────────────────────── */
+.em-guide--personalised,
+.em-guide[class*="personal-"] {
+  border: 1.5px solid rgba(255,77,109,0.35) !important;
+  background: rgba(255,77,109,0.06) !important;
+}
+.em-guide--personalised .em-guide__title,
+.em-guide[class*="personal-"] .em-guide__title {
+  color: #ff4d6d !important;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   QUICK GRID — extended to 6 cards (2x3 on desktop, 2x3 mobile)
+──────────────────────────────────────────────────────────────── */
+.em-quick-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+.em-quick-card--mint {
+  background: color-mix(in srgb, #34d399 8%, var(--hc-surface2));
+  border-color: rgba(52,211,153,0.22);
+  color: #34d399;
+}
+.em-quick-card--mint .em-quick-card__title { color: #34d399; }
+.em-quick-card--blue {
+  background: color-mix(in srgb, #60a5fa 8%, var(--hc-surface2));
+  border-color: rgba(96,165,250,0.22);
+  color: #60a5fa;
+}
+.em-quick-card--blue .em-quick-card__title { color: #60a5fa; }
+
+/* ──────────────────────────────────────────────────────────────
+   SOS ELAPSED TIMER
+──────────────────────────────────────────────────────────────── */
+.em-sos-sent__timer {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px;
+  background: rgba(255,77,109,0.12);
+  border: 1px solid rgba(255,77,109,0.25);
+  font-size: 14px; font-weight: 800;
+  color: #ff4d6d;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  margin: 4px 0 8px;
+}
+.em-sos-sent__timer-label {
+  font-size: 11px; font-weight: 500;
+  color: rgba(255,77,109,0.7);
+  letter-spacing: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   BREATHING GUIDE MODAL
+──────────────────────────────────────────────────────────────── */
+.em-breathing-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(2,11,20,0.88);
+  backdrop-filter: blur(16px);
+  display: flex; align-items: center; justify-content: center;
+  animation: em-fade-in 0.2s ease;
+}
+.em-breathing-modal {
+  position: relative;
+  width: 320px; max-width: 90vw;
+  padding: 32px 28px;
+  border-radius: 28px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 2px 0 rgba(255,255,255,0.9) inset;
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  text-align: center;
+  animation: em-slide-up 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+html.dark-mode .em-breathing-modal {
+  background: rgba(7,24,40,0.90);
+  border-color: rgba(0,210,255,0.14);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 0 40px rgba(0,210,255,0.04);
+}
+/* Title / text colours for light mode */
+html:not(.dark-mode) .em-breathing-title { color: #0f172a !important; }
+html:not(.dark-mode) .em-breathing-cycle { color: #64748b !important; }
+html:not(.dark-mode) .em-breathing-phase { color: #0f172a !important; }
+html:not(.dark-mode) .em-breathing-hint  { color: #94a3b8 !important; }
+html:not(.dark-mode) .em-breathing-close {
+  background: rgba(0,0,0,0.04) !important;
+  border-color: rgba(0,0,0,0.10) !important;
+  color: #64748b !important;
+}
+html:not(.dark-mode) .em-breathing-core {
+  background: color-mix(in srgb, var(--breath-color, #00D2FF) 10%, #ffffff) !important;
+}
+@keyframes em-slide-up {
+  from { opacity: 0; transform: translateY(24px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
+}
+.em-breathing-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: var(--hc-surface2); border: 1px solid var(--hc-border);
+  color: var(--hc-text3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s;
+}
+.em-breathing-close:hover { color: var(--hc-text); }
+.em-breathing-title { font-size: 18px; font-weight: 800; color: var(--hc-text); margin: 0 0 4px; }
+.em-breathing-cycle { font-size: 12px; color: var(--hc-text3); margin: 0 0 28px; }
+.em-breathing-circle {
+  position: relative;
+  width: 160px; height: 160px;
+  margin: 0 auto 24px;
+  display: flex; align-items: center; justify-content: center;
+}
+.em-breathing-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid var(--breath-color, #00D2FF);
+  opacity: 0.3;
+  transition: transform 0.8s ease, opacity 0.4s;
+}
+.em-breathing-ring--inhale  { animation: breathIn 4s ease-in-out forwards; }
+.em-breathing-ring--hold    { animation: breathHold 7s linear forwards; }
+.em-breathing-ring--exhale  { animation: breathOut 8s ease-in-out forwards; }
+.em-breathing-ring--rest    { opacity: 0.15; transform: scale(0.85); }
+@keyframes breathIn   { from { transform: scale(0.85); opacity: 0.3; } to { transform: scale(1.15); opacity: 0.7; } }
+@keyframes breathHold { from { transform: scale(1.15); opacity: 0.7; } to { transform: scale(1.15); opacity: 0.7; } }
+@keyframes breathOut  { from { transform: scale(1.15); opacity: 0.7; } to { transform: scale(0.85); opacity: 0.2; } }
+.em-breathing-core {
+  position: relative; z-index: 1;
+  width: 110px; height: 110px; border-radius: 50%;
+  background: color-mix(in srgb, var(--breath-color, #00D2FF) 10%, var(--hc-surface));
+  border: 2px solid color-mix(in srgb, var(--breath-color, #00D2FF) 30%, transparent);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px;
+  transition: background 0.8s, border-color 0.8s;
+}
+.em-breathing-phase { font-size: 13px; font-weight: 700; color: var(--hc-text); }
+.em-breathing-secs  { font-size: 22px; font-weight: 900; color: var(--breath-color, #00D2FF); font-variant-numeric: tabular-nums; }
+.em-breathing-hint  { font-size: 11px; color: var(--hc-text3); margin: 0; }
+
+/* ──────────────────────────────────────────────────────────────
+   PERSONAL EMERGENCY CARD MODAL
+──────────────────────────────────────────────────────────────── */
+.em-card-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(2,11,20,0.82);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: em-fade-in 0.2s ease;
+}
+.em-personal-card {
+  position: relative;
+  width: 100%; max-width: 400px;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 22px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.16), 0 2px 0 rgba(255,255,255,0.9) inset;
+  backdrop-filter: blur(32px) saturate(1.4);
+  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  overflow: hidden;
+  animation: em-slide-up 0.28s cubic-bezier(0.34,1.56,0.64,1);
+}
+html.dark-mode .em-personal-card {
+  background: rgba(7,24,40,0.92);
+  border-color: rgba(255,77,109,0.16);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 0 40px rgba(255,77,109,0.04);
+}
+/* Light mode text overrides */
+html:not(.dark-mode) .em-personal-card__name { color: #0f172a !important; }
+html:not(.dark-mode) .em-personal-card__brand { color: #0f172a !important; }
+html:not(.dark-mode) .em-personal-card__key   { color: #64748b !important; }
+html:not(.dark-mode) .em-personal-card__val   { color: #0f172a !important; }
+html:not(.dark-mode) .em-personal-card__compat-title { color: #64748b !important; }
+html:not(.dark-mode) .em-personal-card__compat-label { color: #94a3b8 !important; }
+html:not(.dark-mode) .em-personal-card__ts    { color: #94a3b8 !important; }
+html:not(.dark-mode) .em-personal-card__row {
+  background: rgba(0,0,0,0.03) !important;
+  border-color: rgba(0,0,0,0.07) !important;
+}
+html:not(.dark-mode) .em-personal-card__row--highlight {
+  background: rgba(255,77,109,0.07) !important;
+  border-color: rgba(255,77,109,0.18) !important;
+}
+html:not(.dark-mode) .em-personal-card__row--warn {
+  background: rgba(245,158,11,0.07) !important;
+  border-color: rgba(245,158,11,0.20) !important;
+}
+html:not(.dark-mode) .em-personal-card__blood-compat {
+  background: rgba(255,77,109,0.04) !important;
+  border-color: rgba(255,77,109,0.12) !important;
+}
+html:not(.dark-mode) .em-personal-card__actions {
+  border-top-color: rgba(0,0,0,0.07) !important;
+}
+html:not(.dark-mode) .em-personal-card__edit {
+  background: rgba(0,0,0,0.04) !important;
+  border-color: rgba(0,0,0,0.10) !important;
+  color: #475569 !important;
+}
+html:not(.dark-mode) .em-card-close {
+  background: rgba(0,0,0,0.04) !important;
+  border-color: rgba(0,0,0,0.10) !important;
+  color: #64748b !important;
+}
+.em-card-close {
+  position: absolute; top: 14px; right: 14px; z-index: 1;
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--hc-surface2); border: 1px solid var(--hc-border);
+  color: var(--hc-text3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s;
+}
+.em-card-close:hover { color: var(--hc-text); }
+
+.em-personal-card__header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 20px 12px;
+  background: linear-gradient(135deg, rgba(255,77,109,0.10), rgba(255,77,109,0.04));
+  border-bottom: 1px solid rgba(255,77,109,0.15);
+}
+.em-personal-card__logo {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  background: rgba(255,77,109,0.12); border: 1px solid rgba(255,77,109,0.25);
+  display: flex; align-items: center; justify-content: center; color: #ff4d6d;
+}
+.em-personal-card__brand { font-size: 12px; font-weight: 800; color: var(--hc-text); margin: 0; }
+.em-personal-card__label { font-size: 10px; color: #ff4d6d; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 0; }
+
+.em-personal-card__name {
+  font-size: 20px; font-weight: 900; color: var(--hc-text);
+  margin: 0; padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--hc-border2);
+}
+
+.em-personal-card__rows { padding: 10px 20px; display: flex; flex-direction: column; gap: 6px; }
+.em-personal-card__row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 10px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+}
+.em-personal-card__row--highlight { background: rgba(255,77,109,0.07); border-color: rgba(255,77,109,0.20); }
+.em-personal-card__row--warn      { background: rgba(251,191,36,0.07); border-color: rgba(251,191,36,0.22); }
+.em-personal-card__row svg         { flex-shrink: 0; color: var(--hc-text3); }
+.em-personal-card__row--highlight svg { color: #ff4d6d; }
+.em-personal-card__row--warn svg      { color: var(--hc-amber); }
+.em-personal-card__key { font-size: 11px; font-weight: 700; color: var(--hc-text3); flex-shrink: 0; width: 80px; }
+.em-personal-card__val { font-size: 12px; font-weight: 600; color: var(--hc-text); flex: 1; min-width: 0; word-break: break-word; }
+
+/* Blood compatibility section */
+.em-personal-card__blood-compat {
+  margin: 4px 20px 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,77,109,0.05);
+  border: 1px solid rgba(255,77,109,0.14);
+}
+.em-personal-card__compat-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: var(--hc-text3); margin: 0 0 8px; }
+.em-personal-card__compat-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.em-personal-card__compat-row:last-child { margin-bottom: 0; }
+.em-personal-card__compat-label { font-size: 10px; font-weight: 600; color: var(--hc-text3); white-space: nowrap; flex-shrink: 0; }
+.em-personal-card__compat-tags  { display: flex; flex-wrap: wrap; gap: 4px; }
+.em-personal-card__blood-tag {
+  padding: 2px 8px; border-radius: 100px; font-size: 10.5px; font-weight: 700;
+  background: rgba(255,77,109,0.08); color: #ff4d6d;
+  border: 1px solid rgba(255,77,109,0.18);
+}
+.em-personal-card__blood-tag--self {
+  background: #ff4d6d; color: #fff; border-color: #ff4d6d;
+}
+
+/* Actions */
+.em-personal-card__actions {
+  display: flex; gap: 10px; padding: 12px 20px 10px;
+  border-top: 1px solid var(--hc-border2);
+}
+.em-personal-card__copy,
+.em-personal-card__edit {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px; border-radius: 11px;
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s;
+}
+.em-personal-card__copy {
+  background: rgba(255,77,109,0.10); color: #ff4d6d;
+  border: 1px solid rgba(255,77,109,0.25);
+}
+.em-personal-card__copy:hover { background: rgba(255,77,109,0.18); }
+.em-personal-card__edit {
+  background: var(--hc-surface2); color: var(--hc-text2);
+  border: 1px solid var(--hc-border);
+}
+.em-personal-card__edit:hover { color: var(--hc-teal); border-color: var(--hc-teal); }
+
+.em-personal-card__ts { font-size: 10px; color: var(--hc-text3); text-align: center; padding: 0 20px 14px; margin: 0; }
+
+/* ── Mobile adjustments ─────────────────────────────────────── */
+@media (max-width: 640px) {
+  .em-quick-grid { grid-template-columns: 1fr 1fr; }
+  .em-breathing-modal { padding: 28px 20px; }
+  .em-breathing-circle { width: 140px; height: 140px; }
+  .em-breathing-core { width: 96px; height: 96px; }
+  .em-personal-card__key { width: 70px; }
 }

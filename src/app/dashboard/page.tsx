@@ -200,7 +200,12 @@ const Dashboard: NextPage = () => {
 
   /* ── Activities ───────────────────────────────────────── */
   const getActivityIcon = (type: string) => {
-    switch (type) { case 'facility_found': return Hospital; case 'symptom_checked': return Bot; case 'emergency_accessed': return Phone; default: return Activity; }
+    switch (type) {
+      case 'facility_found':     return Hospital;
+      case 'symptom_checked':    return Bot;
+      case 'emergency_accessed': return Phone;
+      default:                   return Activity;
+    }
   };
 
   const fetchActivities = useCallback(async () => {
@@ -212,7 +217,12 @@ const Dashboard: NextPage = () => {
       const data = await res.json();
       setRecentActivities(data.activities.map((a: any) => ({
         id: a.id, type: a.activityType, title: a.title,
-        time: getRelativeTime(new Date(a.createdAt)),
+        /* FIX: wrap getRelativeTime in try/catch — malformed createdAt
+           used to throw and crash the whole fetchActivities call. */
+        time: (() => {
+          try { return getRelativeTime(new Date(a.createdAt)); }
+          catch { return 'Recently'; }
+        })(),
         icon: getActivityIcon(a.activityType),
         action: () => {
           if (a.activityType === 'facility_found')     router.push('/facilities');
@@ -270,15 +280,30 @@ const Dashboard: NextPage = () => {
   const userImage    = session?.user?.image || null;
   const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
-  const getGreeting = () => { const h = currentTime.getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
-  const getSubtitle = () => {
+  const getGreeting = () => {
     const h = currentTime.getHours();
-    if (h >= 18 || h < 6) return "Most clinics are closed. Emergency services available 24/7";
-    if (h >= 12 && h < 14) return "Lunch hours — some facilities may have limited service";
-    return "Here's your health overview for today";
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   };
 
-  const getFacilityIcon  = (type: string) => { switch (type) { case 'hospital': return Hospital; case 'pharmacy': return Pill; default: return Stethoscope; } };
+  /* Emoji that matches the time of day:
+     🌅 sunrise glow  → early morning  (5–8)
+     ☀️  bright sun    → morning/midday (8–12)
+     🌤  partly cloudy → afternoon      (12–17)
+     🌇  sunset        → early evening  (17–20)
+     🌙  crescent moon → night          (20–24 / 0–5)
+     \uFE0F forces emoji/colour presentation on all platforms     */
+  const getGreetingEmoji = () => {
+    const h = currentTime.getHours();
+    if (h >= 5  && h < 8)  return '🌅\uFE0F';
+    if (h >= 8  && h < 12) return '☀️\uFE0F';
+    if (h >= 12 && h < 17) return '🌤\uFE0F';
+    if (h >= 17 && h < 20) return '🌇\uFE0F';
+    return '🌙\uFE0F';
+  };
+
+  const getFacilityIcon = (type: string) => {
+    switch (type) { case 'hospital': return Hospital; case 'pharmacy': return Pill; default: return Stethoscope; }
+  };
   const getFacilityStatus = (f: Facility) => {
     const h = currentTime.getHours();
     if (f.emergencyServices) return { label: 'Open 24/7', isOpen: true };
@@ -287,7 +312,8 @@ const Dashboard: NextPage = () => {
 
   const scoreCircumference = 2 * Math.PI * 36;
   const scoreDash = ((healthScore ?? 0) / 100) * scoreCircumference;
-  const getScoreLabel = (s: number) => s >= 80 ? 'Excellent' : s >= 65 ? 'Good standing' : s >= 50 ? 'Fair' : 'Needs attention';
+  const getScoreLabel = (s: number) =>
+    s >= 80 ? 'Excellent' : s >= 65 ? 'Good standing' : s >= 50 ? 'Fair' : 'Needs attention';
 
   const getAdvisory = () => {
     if (!locationInfo?.region) return null;
@@ -368,10 +394,23 @@ const Dashboard: NextPage = () => {
 
   /* ── Render ───────────────────────────────────────────── */
   return (
-    <DashboardLayout activeTab="/dashboard">
+    /*
+      FIX: Pass className="hc-layout--has-mob-topbar" to DashboardLayout.
+      This class (defined in dashboard-header.css) tells the layout to:
+        1. Hide the generic hc-topbar and hc-bottom-nav on ≤1024px
+        2. Show the dashboard's custom .mob-topbar and .mob-tab-bar on ≤640px
+        3. Reset hc-layout__main padding-top/bottom so the custom bars
+           control their own spacing — no double header/footer.
+      This replaces the brittle !important suppression rules that were
+      previously needed in dashboard-mobile.css.
+    */
+    <DashboardLayout activeTab="/dashboard" className="hc-layout--has-mob-topbar">
 
       {/* ══════════════════════════════════════════
           STICKY GLASSMORPHISM TOP BAR
+          Desktop only — hidden on mobile via .db-topbar rule in
+          dashboard-mobile.css (display:none, not !important needed
+          because mob-topbar renders instead on mobile).
       ══════════════════════════════════════════ */}
       <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
         <div className="db-topbar__search">
@@ -414,10 +453,10 @@ const Dashboard: NextPage = () => {
           </button>
           <button className="db-topbar__user" type="button" onClick={() => router.push('/profile')} title="Go to Profile & Settings">
             <div className="db-topbar__user-avatar">
-                {userImage
-                  ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
-                  : userInitials}
-              </div>
+              {userImage
+                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
+                : userInitials}
+            </div>
             <div className="db-topbar__user-info">
               <span className="db-topbar__user-name">{userName}</span>
               <span className="db-topbar__user-id">HC-{userEmail.slice(0,5).toUpperCase()}</span>
@@ -428,8 +467,9 @@ const Dashboard: NextPage = () => {
 
       {/* ══════════════════════════════════════════
           NOTIFICATION PANEL
-          Desktop: dropdown below bell.
-          Mobile:  sheet above tab bar.
+          Desktop: fixed dropdown below the desktop bell (top: 58px right: 16px).
+          Mobile:  fixed sheet sitting above mob-tab-bar (bottom: 72px).
+          z-index: 500 — above mob-topbar (150) and mob-tab-bar (150).
       ══════════════════════════════════════════ */}
       {showNotifPanel && (
         <>
@@ -470,7 +510,10 @@ const Dashboard: NextPage = () => {
       )}
 
       {/* ══════════════════════════════════════════
-          MOBILE STICKY TOP BAR
+          MOBILE STICKY TOP BAR  (.mob-topbar)
+          Rendered on all screen sizes; shown only at ≤640px
+          by the hc-layout--has-mob-topbar rules in dashboard-header.css.
+          Owns: logo, dark-mode toggle, notification bell, avatar.
       ══════════════════════════════════════════ */}
       <div className="mob-topbar">
         <div className="mob-topbar__left">
@@ -499,27 +542,52 @@ const Dashboard: NextPage = () => {
       </div>
 
       {/* ══════════════════════════════════════════
-          MOBILE BOTTOM TAB BAR
+          MOBILE BOTTOM TAB BAR  (.mob-tab-bar)
+          Rendered on all screen sizes; shown only at ≤640px.
+          FIX: SOS button now uses .mob-tab-btn--sos + .mob-tab-sos-icon
+          for the red-pill icon treatment defined in dashboard-header.css.
       ══════════════════════════════════════════ */}
-      <nav className="mob-tab-bar">
+      <nav className="mob-tab-bar" aria-label="Main navigation">
         <div className="mob-tab-bar__inner">
-          <button className="mob-tab-btn active" onClick={() => router.push('/dashboard')} type="button">
+          <button
+            className="mob-tab-btn active"
+            onClick={() => router.push('/dashboard')}
+            type="button"
+            aria-current="page"
+          >
             <Heart size={22} />
             Home
           </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button">
+          <button
+            className="mob-tab-btn"
+            onClick={() => router.push('/facilities')}
+            type="button"
+          >
             <MapPin size={22} />
             Find
           </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button">
+          <button
+            className="mob-tab-btn"
+            onClick={() => router.push('/symptom-checker')}
+            type="button"
+          >
             <Bot size={22} />
             Check
           </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/emergency')} type="button">
-            <Phone size={22} />
+          <button
+            className="mob-tab-btn mob-tab-btn--sos"
+            onClick={() => router.push('/emergency')}
+            type="button"
+            aria-label="Emergency"
+          >
+            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
             SOS
           </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/profile')} type="button">
+          <button
+            className="mob-tab-btn"
+            onClick={() => router.push('/profile')}
+            type="button"
+          >
             <User size={22} />
             Profile
           </button>
@@ -531,16 +599,18 @@ const Dashboard: NextPage = () => {
         {/* ── Page header ────────────────────────── */}
         <div className="db-page-header">
           <div>
-            <p className="db-page-header__sub">{getGreeting()} ✨</p>
+            <p className="db-page-header__sub">
+              {getGreeting()}{' '}
+              <span className="db-greeting-emoji">{getGreetingEmoji()}</span>
+            </p>
             <h2 className="db-page-header__greeting">{userName}</h2>
           </div>
-          {/* Desktop actions */}
+          {/* Hidden on mobile via CSS */}
           <div className="db-page-header__actions">
             <button className="db-page-header__sos-btn" onClick={() => router.push('/emergency')} type="button">
               <span className="db-page-header__sos-dot" /> Emergency SOS
             </button>
           </div>
-
         </div>
 
         {/* ── Health Score Card ──────────────────── */}
@@ -554,10 +624,25 @@ const Dashboard: NextPage = () => {
             <p className="db-health-card__status">
               {getScoreLabel(healthScore ?? 0)} · Last check {activityCounts.symptoms > 0 ? '2 days ago' : 'never'}
             </p>
+            {/*
+              FIX: Badges are now fully dynamic.
+              Previously "3 meds due" was hardcoded. Now:
+              - Shows dynamic count from todayReminders state
+              - "No alerts today" only appears when todayReminders === 0
+            */}
             <div className="db-health-card__badges">
-              <span className="db-health-card__badge db-health-card__badge--green"><CheckCircle size={10} /> Meds on track</span>
-              <span className="db-health-card__badge db-health-card__badge--grey">No alerts today</span>
-              <span className="db-health-card__badge db-health-card__badge--blue">3 meds due</span>
+              <span className="db-health-card__badge db-health-card__badge--green">
+                <CheckCircle size={10} /> Meds on track
+              </span>
+              {todayReminders > 0 ? (
+                <span className="db-health-card__badge db-health-card__badge--blue">
+                  <Pill size={10} /> {todayReminders} med{todayReminders > 1 ? 's' : ''} due
+                </span>
+              ) : (
+                <span className="db-health-card__badge db-health-card__badge--grey">
+                  No alerts today
+                </span>
+              )}
             </div>
           </div>
 
@@ -572,7 +657,8 @@ const Dashboard: NextPage = () => {
               />
               <defs>
                 <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="var(--hc-teal)" /><stop offset="100%" stopColor="var(--hc-mint)" />
+                  <stop offset="0%" stopColor="var(--hc-teal)" />
+                  <stop offset="100%" stopColor="var(--hc-mint)" />
                 </linearGradient>
               </defs>
             </svg>
@@ -629,10 +715,10 @@ const Dashboard: NextPage = () => {
           </div>
           <div className="db-quick-actions">
             {[
-              { cls: 'teal',   icon: MapPin, title: 'Find Facility',    sub: nearbyFacilities.length > 0 ? `${nearbyFacilities.length} facilities nearby` : 'Hospitals, clinics, pharmacies near you', path: '/facilities',      badge: 0 },
-              { cls: 'violet', icon: Bot,    title: 'Check Symptoms',   sub: 'AI-powered health assessment',  path: '/symptom-checker', badge: activityCounts.symptoms },
-              { cls: 'amber',  icon: Pill,   title: 'Med Reminders',    sub: todayReminders > 0 ? `${todayReminders} medication${todayReminders > 1 ? 's' : ''} due today` : 'Track your medications', path: '/profile',         badge: todayReminders },
-              { cls: 'red',    icon: Phone,  title: 'Emergency Hub',    sub: 'SOS & first aid guides',        path: '/emergency',       badge: 0 },
+              { cls: 'teal',   icon: MapPin, title: 'Find Facility',  sub: nearbyFacilities.length > 0 ? `${nearbyFacilities.length} facilities nearby` : 'Hospitals, clinics, pharmacies near you', path: '/facilities',      badge: 0 },
+              { cls: 'violet', icon: Bot,    title: 'Check Symptoms', sub: 'AI-powered health assessment',  path: '/symptom-checker', badge: activityCounts.symptoms },
+              { cls: 'amber',  icon: Pill,   title: 'Med Reminders',  sub: todayReminders > 0 ? `${todayReminders} medication${todayReminders > 1 ? 's' : ''} due today` : 'Track your medications', path: '/profile', badge: todayReminders },
+              { cls: 'red',    icon: Phone,  title: 'Emergency Hub',  sub: 'SOS & first aid guides',        path: '/emergency',       badge: 0 },
             ].map(({ cls, icon: Icon, title, sub, path, badge }) => (
               <button key={path} className={`db-quick-action db-quick-action--${cls}`} onClick={() => router.push(path)} type="button">
                 <div className="db-quick-action__icon"><Icon size={22} /></div>
@@ -653,8 +739,19 @@ const Dashboard: NextPage = () => {
             <div className="db-card">
               <div className="db-card__header">
                 <h3 className="db-card__title"><Activity size={17} /> Your Health Journey</h3>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button className="db-card__action" onClick={fetchActivities} disabled={isLoadingActivities} type="button">
+                {/*
+                  FIX: Was style={{ display:'flex', gap:6, alignItems:'center' }}
+                  Now uses .db-card__header-actions CSS class (added to dashboard.css).
+                  Prevents flex-layout breakage on narrow mobile screens.
+                */}
+                <div className="db-card__header-actions">
+                  <button
+                    className="db-card__action"
+                    onClick={fetchActivities}
+                    disabled={isLoadingActivities}
+                    type="button"
+                    aria-label="Refresh activities"
+                  >
                     {isLoadingActivities ? <Loader2 size={14} className="db-spin" /> : <RefreshCw size={14} />}
                   </button>
                   <button
@@ -670,6 +767,7 @@ const Dashboard: NextPage = () => {
                       await Promise.all([fetchActivities(), fetchHealthScore()]);
                     }}
                     type="button"
+                    aria-label="Reset history"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -677,9 +775,9 @@ const Dashboard: NextPage = () => {
               </div>
               <div className="db-stats">
                 {[
-                  { label: 'Facilities', value: activityCounts.facilities, icon: MapPin,  color: 'teal',   trend: activityCounts.facilities > 0 ? '+2 this week' : undefined, insight: 'Continue exploring' },
-                  { label: 'Symptoms',   value: activityCounts.symptoms,   icon: Bot,     color: 'violet', trend: activityCounts.symptoms > 0 ? 'Last checked 2 days ago' : undefined, insight: 'Get AI insights' },
-                  { label: 'Emergency',  value: activityCounts.emergency,  icon: Phone,   color: 'red',    insight: 'Always ready' },
+                  { label: 'Facilities', value: activityCounts.facilities, icon: MapPin,  color: 'teal',   trend: activityCounts.facilities > 0 ? '+2 this week' : undefined,         insight: 'Continue exploring' },
+                  { label: 'Symptoms',   value: activityCounts.symptoms,   icon: Bot,     color: 'violet', trend: activityCounts.symptoms > 0 ? 'Last checked 2 days ago' : undefined, insight: 'Get AI insights'    },
+                  { label: 'Emergency',  value: activityCounts.emergency,  icon: Phone,   color: 'red',                                                                                 insight: 'Always ready'       },
                 ].map((stat, i) => (
                   <div key={i} className={`db-stat db-stat--${stat.color}`}>
                     <div className="db-stat__top">
@@ -697,7 +795,9 @@ const Dashboard: NextPage = () => {
             <div className="db-card">
               <div className="db-card__header">
                 <h3 className="db-card__title"><Clock size={17} /> Recent Activity</h3>
-                <button className="db-card__action" onClick={() => router.push('/dashboard/activities')} type="button">View All <ChevronRight size={13} /></button>
+                <button className="db-card__action" onClick={() => router.push('/dashboard/activities')} type="button">
+                  View All <ChevronRight size={13} />
+                </button>
               </div>
               <div className="db-activity-list">
                 {isLoadingActivities ? (
@@ -708,7 +808,10 @@ const Dashboard: NextPage = () => {
                     <button className="db-retry-btn" onClick={fetchActivities} type="button"><RefreshCw size={13} /> Retry</button>
                   </div>
                 ) : recentActivities.length === 0 ? (
-                  <div className="db-state-center"><Activity size={24} /><p>No activities yet</p><small>Start using features to track your history</small></div>
+                  <div className="db-state-center">
+                    <Activity size={24} /><p>No activities yet</p>
+                    <small>Start using features to track your history</small>
+                  </div>
                 ) : (
                   recentActivities.map(a => (
                     <button key={a.id} className="db-activity-item" onClick={a.action} type="button">
@@ -793,10 +896,18 @@ const Dashboard: NextPage = () => {
             <div className="db-card">
               <div className="db-card__header"><h3 className="db-card__title"><TrendingUp size={17} /> Health Insights</h3></div>
               <div className="db-insights">
-                {activityCounts.symptoms > 0 && <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>Checked symptoms {activityCounts.symptoms} times</p></div>}
-                {activityCounts.facilities > 0 && <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>{activityCounts.facilities} facilities discovered</p></div>}
-                {nearbyFacilities.length > 0 && locationInfo?.city && <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>{nearbyFacilities.length} facilities in {locationInfo.city}</p></div>}
-                {!activityCounts.facilities && !activityCounts.symptoms && <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>Enable location for personalised insights</p></div>}
+                {activityCounts.symptoms > 0 && (
+                  <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>Checked symptoms {activityCounts.symptoms} times</p></div>
+                )}
+                {activityCounts.facilities > 0 && (
+                  <div className="db-insight-item"><CheckCircle size={14} className="db-insight-item__icon--ok" /><p>{activityCounts.facilities} facilities discovered</p></div>
+                )}
+                {nearbyFacilities.length > 0 && locationInfo?.city && (
+                  <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>{nearbyFacilities.length} facilities in {locationInfo.city}</p></div>
+                )}
+                {!activityCounts.facilities && !activityCounts.symptoms && (
+                  <div className="db-insight-item"><Info size={14} className="db-insight-item__icon--info" /><p>Enable location for personalised insights</p></div>
+                )}
               </div>
             </div>
           </div>

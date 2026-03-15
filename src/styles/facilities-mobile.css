@@ -4,7 +4,21 @@
    Drop in AFTER facilities.css.
    All rules scoped inside @media (max-width: 640px) — zero
    impact on desktop/tablet layouts.
+
+   MOBILE CHROME ARCHITECTURE:
+   ────────────────────────────
+   The facilities page uses DashboardLayout with
+   className="hc-layout--has-mob-topbar". This tells
+   dashboard-header.css to:
+     1. Hide generic hc-topbar and hc-bottom-nav on ≤1024px
+     2. Show mob-topbar (page-owned) and mob-tab-bar on ≤640px
+     3. Reset hc-layout__main padding-top/bottom to 0
+
+   The page-level mob-topbar + mob-tab-bar JSX are styled in
+   dashboard-header.css and shown by hc-layout--has-mob-topbar.
+   This file only handles page-specific layout overrides.
    ================================================================ */
+
 
 /* ════════════════════════════════════════════════════════════════
    ALL MOBILE OVERRIDES — strictly scoped to ≤ 640px
@@ -17,105 +31,84 @@
   /* ── Page shell ───────────────────────────────────────────── */
   .facility-finder {
     margin-left: 0 !important;
+    /* No margin/padding-top here — facility-finder-content owns the
+       top clearance for the fixed mob-topbar (56px).               */
+    margin-top: 0 !important;
     padding-top: 0 !important;
   }
 
-  /* Hide desktop sidebar + its own topbar/bottom-nav on mobile */
-  .hc-topbar     { display: none !important; }
-  .hc-bottom-nav { display: none !important; }
-  .hc-layout__main {
+  /* ── Kill every source of inherited top spacing ───────────── */
+  /* dashboard-header.css sets padding-top:56px on hc-layout__main
+     at ≤1024px for hc-topbar. hc-layout--has-mob-topbar resets it
+     to 0 at that breakpoint, but we add !important here as a belt-
+     and-braces guard so no cascade race can re-introduce the gap.  */
+  .hc-layout__main,
+  .hc-layout__content {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
-  }
-
-  /* ════════════════════════════════════════════════════════════
-     MOBILE STICKY TOP BAR
-     Uses the same .mob-topbar classes as dashboard-mobile.css,
-     so it looks identical. We only show it on mobile via this
-     file; the element is rendered in the JSX with class
-     "mob-topbar fac-mob-topbar".
-  ════════════════════════════════════════════════════════════ */
-
-  /* mob-topbar is hidden by default in dashboard-mobile.css;
-     show it here for the facilities page */
-  .fac-mob-topbar {
-    display: flex !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 200 !important;
-  }
-
-  /* Hide the clunky desktop page header on mobile */
-  .facility-finder-page-header {
-    display: none !important;
-  }
-
-  /* GPS locate icon button — teal-tinted square, matches mob-topbar__btn shape */
-  .fac-mob-gps-btn {
-    color: var(--hc-teal) !important;
-    background: var(--hc-teal-dim) !important;
-    border-color: color-mix(in srgb, var(--hc-teal) 30%, transparent) !important;
-  }
-  .fac-mob-gps-btn:hover {
-    background: color-mix(in srgb, var(--hc-teal) 18%, transparent) !important;
-    border-color: var(--hc-teal) !important;
-  }
-  .fac-mob-gps-btn:active { transform: scale(0.94) !important; }
-  .fac-mob-gps-btn:disabled { opacity: 0.55 !important; cursor: not-allowed !important; }
-  .fac-mob-gps-btn.loading {
-    color: var(--hc-teal) !important;
-    background: var(--hc-teal-dim) !important;
+    margin-top: 0 !important;
   }
 
   /* ── Content wrapper ──────────────────────────────────────── */
+  /* mob-topbar is position:fixed at top:0, height 56px.
+     padding-top:64px = 56px topbar + 8px breathing room.
+     Bottom padding clears the 60px mob-tab-bar + 16px gap.     */
   .facility-finder-content {
-    padding: 12px 14px 82px !important;
+    padding: 64px 14px 82px !important;
     gap: 10px !important;
     max-width: 100% !important;
   }
 
+  /* Hide the desktop page header on mobile (mob-topbar replaces it) */
+  .facility-finder-page-header { display: none !important; }
+
   /* ════════════════════════════════════════════════════════════
-     LOCATION CONFIRMATION BANNER
+     LOCATION CONFIRMATION — new class names
   ════════════════════════════════════════════════════════════ */
-  .location-confirmation {
-    padding: 11px 14px !important;
-    border-radius: 14px !important;
+  .loc-confirmation-wrap {
+    min-height: 58px !important; /* prevents jump when card appears */
+  }
+  .loc-confirmation {
+    padding: 10px 14px !important;
+    border-radius: 13px !important;
     gap: 10px !important;
   }
-  .location-confirmation-icon {
+  .loc-confirmation__icon {
     width: 34px !important;
     height: 34px !important;
     border-radius: 10px !important;
     flex-shrink: 0 !important;
   }
-  .location-confirmation-content strong { font-size: 13px !important; font-weight: 700 !important; }
-  .location-confirmation-content p      { font-size: 12px !important; margin: 1px 0 0 !important; }
-  .location-confirmation-content small  { font-size: 11px !important; margin-top: 2px !important; }
-  .location-refresh-btn {
-    width: 30px !important; height: 30px !important;
-    border-radius: 9px !important; flex-shrink: 0 !important;
+  .loc-confirmation__title  { font-size: 13px !important; font-weight: 700 !important; }
+  .loc-confirmation__detail { font-size: 11.5px !important; }
+  .loc-confirmation__acc    { font-size: 10.5px !important; }
+  .loc-confirmation__refresh {
+    padding: 6px 11px !important;
+    font-size: 11.5px !important;
+    border-radius: 8px !important;
   }
 
   /* ════════════════════════════════════════════════════════════
-     LOCATION PERMISSION BANNER
+     LOCATION PERMISSION BANNER — new class names
   ════════════════════════════════════════════════════════════ */
-  .location-permission-banner {
-    flex-direction: column !important;
+  .loc-banner {
     padding: 16px !important;
-    gap: 12px !important;
     border-radius: 16px !important;
   }
-  .location-banner-icon {
-    width: 44px !important; height: 44px !important;
-    border-radius: 12px !important; align-self: flex-start !important;
+  .loc-banner__top    { gap: 12px !important; margin-bottom: 12px !important; }
+  .loc-banner__icon-wrap {
+    width: 40px !important; height: 40px !important;
+    border-radius: 11px !important; flex-shrink: 0 !important;
   }
-  .location-banner-title       { font-size: 14px !important; }
-  .location-banner-description { font-size: 12.5px !important; margin-bottom: 10px !important; }
-  .location-banner-benefits    { gap: 6px !important; }
-  .location-benefit            { font-size: 11px !important; padding: 3px 8px !important; }
-  .location-banner-actions     { flex-direction: row !important; gap: 8px !important; }
-  .location-banner-actions .facility-finder-location-btn {
-    max-width: none !important; flex: 1 !important;
+  .loc-banner__title  { font-size: 14px !important; }
+  .loc-banner__sub    { font-size: 12px !important; }
+  .loc-banner__benefits { gap: 6px !important; margin-bottom: 14px !important; }
+  .loc-banner__benefit  { font-size: 11px !important; padding: 3px 9px !important; }
+  .loc-banner__actions  { gap: 8px !important; flex-wrap: wrap !important; }
+  .loc-banner__btn-primary,
+  .loc-banner__btn-ghost {
+    flex: 1 !important; justify-content: center !important;
+    padding: 11px 14px !important; font-size: 13px !important;
   }
 
   /* ════════════════════════════════════════════════════════════
@@ -225,17 +218,6 @@
     box-shadow: 0 2px 8px var(--hc-teal-glow) !important;
   }
 
-  /* Filter toggle button */
-  .facility-finder-filter-toggle {
-    width: 44px !important; height: 50px !important;
-    border-radius: 0 !important; flex-shrink: 0 !important;
-    border-color: transparent !important;
-    border-left: 1px solid var(--hc-border) !important;
-    background: none !important;
-    margin-right: 0 !important;
-    padding: 0 8px !important;
-  }
-
   /* Extended filters panel */
   .facility-finder-filters-extended {
     border-radius: 14px !important;
@@ -289,9 +271,9 @@
   .facility-finder-map-container > div:first-child,
   .facility-finder-map {
     width: 100% !important;
-    height: 62vw !important;          /* scales with screen width */
-    min-height: 300px !important;     /* never shorter than 300px */
-    max-height: 420px !important;     /* cap on very wide phones */
+    height: 62vw !important;
+    min-height: 300px !important;
+    max-height: 420px !important;
     border-radius: 18px !important;
     overflow: hidden !important;
     border: 1px solid var(--hc-border) !important;
@@ -430,83 +412,101 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     FACILITY DETAIL MODAL — bottom sheet
+     FACILITY DETAIL MODAL — bottom sheet on mobile
+     The modal overlay covers inset:0, but the mob-tab-bar sits
+     at z-index:150 at the bottom. We push the sheet up by the
+     tab bar height (60px) so the action buttons are never hidden.
   ════════════════════════════════════════════════════════════ */
   .facility-detail-modal {
-    padding: 12px !important; align-items: flex-end !important;
+    padding: 0 !important;
+    align-items: flex-end !important;
+    /* Inset shrinks the overlay bottom so the sheet sits above the tab bar */
+    bottom: 60px !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
   .facility-detail-content {
-    border-radius: 24px 24px 20px 20px !important;
-    max-height: 88vh !important; overflow-y: auto !important;
+    border-radius: 20px 20px 0 0 !important;
+    /* height gives the flex column a concrete anchor so flex:1 on the
+       scroll wrapper and flex-shrink:0 on the action bar both work.  */
+    height: 75vh !important;
+    max-height: 75vh !important;
     width: 100% !important; max-width: 100% !important;
     animation: sheetSlideUp 0.28s var(--hc-ease) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  /* Scrollable area — grows to fill all space above the action bar */
+  .facility-detail-scroll {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
   @keyframes sheetSlideUp {
     from { opacity: 0; transform: translateY(40px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .facility-detail-content::before {
-    content: '';
-    display: block;
-    width: 40px; height: 4px;
-    border-radius: 100px;
-    background: var(--hc-border);
-    margin: 12px auto 0;
+  /* Drag handle is rendered as a real JSX div, not ::before, so the
+     flex column order is clean: handle → scroll → actions.         */
+  .facility-detail-content::before { display: none !important; }
+  /* Drag handle — real flex child, flex-shrink:0 so it never collapses */
+  .facility-detail-drag-handle {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 10px 0 4px !important;
+    flex-shrink: 0 !important;
+  }
+  .facility-detail-drag-handle::before {
+    content: '' !important;
+    display: block !important;
+    width: 40px !important; height: 4px !important;
+    border-radius: 100px !important;
+    background: var(--hc-border) !important;
   }
   .modal-close-btn {
-    top: 14px !important; right: 16px !important;
-    font-size: 22px !important; width: 32px !important; height: 32px !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
-    border-radius: 8px !important;
-    background: var(--hc-surface2) !important;
-    border: 1px solid var(--hc-border) !important;
-    line-height: 1 !important;
+    top: 12px !important; right: 14px !important;
   }
   .facility-detail-header {
-    padding: 16px 16px 12px !important; gap: 12px !important; flex-wrap: nowrap !important;
+    padding: 12px 14px 10px !important; gap: 10px !important;
   }
-  .facility-detail-icon   { width: 48px !important; height: 48px !important; border-radius: 14px !important; flex-shrink: 0 !important; }
-  .facility-detail-title h2 { font-size: 16px !important; font-weight: 800 !important; line-height: 1.3 !important; margin: 0 0 3px !important; }
-  .facility-detail-type   { font-size: 12px !important; margin: 0 0 2px !important; }
-  .facility-detail-distance { font-size: 12px !important; font-weight: 700 !important; color: var(--hc-teal) !important; margin: 0 !important; }
-  .facility-detail-rating {
-    flex-direction: row !important; align-items: center !important;
-    gap: 4px !important; flex-shrink: 0 !important; align-self: flex-start !important;
-  }
-  .facility-detail-rating .rating-value  { font-size: 15px !important; }
-  .facility-detail-rating .rating-reviews { font-size: 11px !important; }
-  .facility-detail-body { padding: 12px 16px !important; gap: 14px !important; }
-  .detail-section h3 {
-    font-size: 12px !important; font-weight: 700 !important;
-    letter-spacing: 0.8px !important; text-transform: uppercase !important;
-    color: var(--hc-text3) !important; margin: 0 0 10px !important;
-  }
-  .detail-section p { font-size: 13px !important; gap: 7px !important; display: flex !important; align-items: flex-start !important; margin: 0 0 6px !important; }
-  .detail-service-tags, .detail-insurance-tags { gap: 5px !important; flex-wrap: wrap !important; }
-  .detail-service-tag, .detail-insurance-tag {
-    font-size: 11.5px !important; padding: 4px 10px !important; border-radius: 100px !important;
-  }
-  .emergency-service-notice {
-    margin-top: 10px !important; padding: 10px 12px !important;
-    border-radius: 10px !important; font-size: 12.5px !important; gap: 7px !important;
-  }
+  .facility-detail-icon   { width: 40px !important; height: 40px !important; border-radius: 12px !important; flex-shrink: 0 !important; }
+  .facility-detail-title h2 { font-size: 14px !important; font-weight: 800 !important; margin: 0 24px 2px 0 !important; }
+  .facility-detail-type   { font-size: 11.5px !important; }
+  .facility-detail-distance { font-size: 11.5px !important; }
+  .facility-detail-body { padding: 10px 14px !important; gap: 10px !important; }
+  .detail-section h3 { font-size: 9.5px !important; margin: 0 0 6px !important; }
+  .detail-section p { font-size: 12.5px !important; gap: 6px !important; }
+  .detail-service-tags, .detail-insurance-tags { gap: 5px !important; }
+  .detail-service-tag, .detail-insurance-tag { font-size: 11px !important; padding: 3px 8px !important; }
+  .emergency-service-notice { padding: 8px 10px !important; font-size: 12px !important; }
+  /* Sticky action bar — always at bottom, never scrolls away */
   .facility-detail-actions {
-    display: flex !important; flex-direction: column !important;
-    gap: 8px !important; padding: 0 16px 20px !important;
+    padding: 10px 14px 14px !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+    background: var(--hc-surface) !important;
+    border-top: 1px solid var(--hc-border2) !important;
   }
   .detail-action-btn {
-    width: 100% !important; flex: none !important;
-    justify-content: center !important; padding: 13px 16px !important;
-    font-size: 14px !important; font-weight: 700 !important; border-radius: 14px !important;
+    padding: 12px 10px !important;
+    font-size: 12.5px !important;
+    border-radius: 11px !important;
+    min-height: 44px !important; /* accessible tap target */
   }
 
   /* ════════════════════════════════════════════════════════════
-     BOTTOM TAB BAR
-     mob-tab-bar / mob-tab-btn already styled in dashboard-mobile.css.
-     We only need to ensure they're VISIBLE on this page too.
+     BOTTOM TAB BAR  — facilities page owns its own mob-tab-bar
+     mob-topbar / mob-tab-bar are styled in dashboard-header.css.
+     hc-layout--has-mob-topbar (set on DashboardLayout in page.tsx)
+     activates them at ≤640px. No override needed here.
   ════════════════════════════════════════════════════════════ */
-  .mob-tab-bar { display: flex !important; }
 
+  /* Notification panel: bottom position clears mob-tab-bar (60px) */
+  .db-notif-panel {
+    bottom: 68px !important; /* 60px tab bar + 8px breathing room */
+  }
 
   /* ════════════════════════════════════════════════════════════
      SAVED FACILITIES BAR — mobile
@@ -525,11 +525,60 @@
   .saved-chip__name  { font-size: 12px !important; }
   .saved-chip__meta  { font-size: 10.5px !important; }
 
-  /* ── Old dashboard-bottom-nav: hide it (replaced by mob-tab-bar) */
+  /* ── Legacy bottom nav: hidden (replaced by mob-tab-bar) ───── */
   .dashboard-bottom-nav { display: none !important; }
 
   /* ── Footer hidden on mobile ──────────────────────────────── */
   .dashboard-footer { display: none !important; }
+
+  /* ════════════════════════════════════════════════════════════
+     SOS TAB BUTTON — same color as all other nav buttons
+     Default: grey (hc-text3). Active: teal (hc-teal).
+     No red, no dot — consistent with dashboard and other pages.
+     The phone icon sits at the same size as Home/Find/Check/Profile.
+  ════════════════════════════════════════════════════════════ */
+  .fac-sos-btn {
+    color: var(--hc-text3) !important;
+  }
+  .fac-sos-btn.active {
+    color: var(--hc-teal) !important;
+  }
+  /* No active indicator line for SOS */
+  .fac-sos-btn.active::after {
+    display: none !important;
+  }
+
+  /* Plain icon wrapper — same size as other nav icons */
+  .fac-sos-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    color: inherit;
+  }
+
+  /* Red dot — top-right of phone icon, matches all other pages */
+  .fac-sos-dot {
+    position: absolute !important;
+    top: -2px !important;
+    right: -3px !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    background: var(--hc-red, #ef4444) !important;
+    border: 1.5px solid var(--hc-surface) !important;
+    box-shadow: 0 0 5px rgba(239,68,68,0.55) !important;
+    pointer-events: none !important;
+    display: block !important;
+  }
+  html.dark-mode .fac-sos-dot {
+    border-color: rgba(7,24,40,0.96) !important;
+  }
+  html:not(.dark-mode) .fac-sos-dot {
+    border-color: #ffffff !important;
+  }
 
   /* ── Mobile side menu drawer ──────────────────────────────── */
   .mobile-nav-overlay {

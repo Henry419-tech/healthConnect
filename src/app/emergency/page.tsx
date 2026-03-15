@@ -12,7 +12,6 @@ import '@/styles/dashboard-header.css';
 import '@/styles/dashboard.css';
 import '@/styles/dashboard-mobile.css';
 import '@/styles/emergency.css';
-import '@/styles/emergency-layout-fix.css';
 import {
   Phone, MapPin, Heart, User, Bell, Moon, Sun,
   Bot, Shield, AlertTriangle, Copy, Check,
@@ -20,6 +19,7 @@ import {
   Loader2, X, Activity, Zap,
   Wind, Droplets, Thermometer, Eye, Flame,
   Plus, BookOpen, ExternalLink, AlertCircle, Info,
+  Pill, HeartPulse, ClipboardList, Clock, Edit2,
 } from 'lucide-react';
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -158,7 +158,118 @@ const GHANA_SERVICES: GhanaService[] = [
   { id: 'korle',     name: 'Korle Bu Hospital',          description: 'Teaching Hospital — Accra',          number: '0302674201', icon: Plus,          color: 'teal'   },
 ];
 
-/* ─── Component ─────────────────────────────────────────────── */
+/* ─── Blood type compatibility ───────────────────────────────── */
+const BLOOD_COMPATIBILITY: Record<string, { canReceiveFrom: string[]; canDonateTo: string[] }> = {
+  'A+':  { canReceiveFrom: ['A+','A-','O+','O-'],                    canDonateTo: ['A+','AB+'] },
+  'A-':  { canReceiveFrom: ['A-','O-'],                              canDonateTo: ['A+','A-','AB+','AB-'] },
+  'B+':  { canReceiveFrom: ['B+','B-','O+','O-'],                    canDonateTo: ['B+','AB+'] },
+  'B-':  { canReceiveFrom: ['B-','O-'],                              canDonateTo: ['B+','B-','AB+','AB-'] },
+  'AB+': { canReceiveFrom: ['A+','A-','B+','B-','AB+','AB-','O+','O-'], canDonateTo: ['AB+'] },
+  'AB-': { canReceiveFrom: ['A-','B-','AB-','O-'],                   canDonateTo: ['AB+','AB-'] },
+  'O+':  { canReceiveFrom: ['O+','O-'],                              canDonateTo: ['A+','B+','AB+','O+'] },
+  'O-':  { canReceiveFrom: ['O-'],                                   canDonateTo: ['A+','A-','B+','B-','AB+','AB-','O+','O-'] },
+};
+
+/* ─── Personalised guides from Medical ID ────────────────────── */
+// Keywords that map to first aid guide IDs
+const CONDITION_GUIDE_MAP: { keywords: string[]; guideId: string; label: string }[] = [
+  { keywords: ['epilep','seizure','convuls'],        guideId: 'seizure',   label: 'Epilepsy' },
+  { keywords: ['heart','cardiac','coronary','angina'], guideId: 'cpr',     label: 'Heart Condition' },
+  { keywords: ['diabet','hypoglycemi'],              guideId: 'diabetic',  label: 'Diabetes' },
+  { keywords: ['asthm','bronch'],                   guideId: 'asthma',    label: 'Asthma' },
+];
+const ALLERGY_GUIDE_TRIGGERS = ['peanut','nut','bee','wasp','venom','penicill','latex','shellfish','fish','egg','milk','wheat','soy','sesame'];
+
+function buildPersonalisedGuides(
+  allergies: HealthProfileData['allergies'],
+  conditions: HealthProfileData['conditions'],
+  medications: HealthProfileData['medications'],
+): FirstAidGuide[] {
+  const guides: FirstAidGuide[] = [];
+
+  /* Allergy action guide — only if user has severe/critical allergies */
+  const severeAllergies = (allergies || []).filter(a => a.severity === 'severe' || ALLERGY_GUIDE_TRIGGERS.some(t => a.name.toLowerCase().includes(t)));
+  if (severeAllergies.length > 0) {
+    const allergyList = severeAllergies.map(a => a.name).join(', ');
+    const hasEpipen = (medications || []).some(m => m.active && /epipen|epinephrine|adrenaline/i.test(m.name));
+    guides.push({
+      id: 'personal-allergy',
+      title: `⚠️ Your Allergy Alert: ${allergyList}`,
+      icon: AlertTriangle,
+      severity: 'critical',
+      offline: true,
+      warning: `This guide is personalised from your Medical ID. You have recorded severe allergies to: ${allergyList}.`,
+      steps: [
+        { instruction: `You have recorded severe allergies to: ${allergyList}. If you are having a reaction: stay calm, stop contact with the trigger immediately.` },
+        ...(hasEpipen ? [
+          { instruction: 'Use your EpiPen / epinephrine auto-injector immediately — outer thigh, through clothing if needed. Hold for 10 seconds.', tip: 'EpiPen buys time — it does NOT replace emergency care. Call 193 even after using it.' },
+        ] : [
+          { instruction: 'If you have an EpiPen prescribed, use it now. If not, call 193 immediately — anaphylaxis can progress rapidly.', tip: 'Inform the 193 operator of your known allergies so they can prepare the right treatment.' },
+        ]),
+        { instruction: 'Call 193 immediately. State: "I am having an allergic reaction to [trigger]". Lie flat with legs raised unless breathing is difficult — then sit up.' },
+        { instruction: 'Do NOT take antihistamines as a substitute for epinephrine in a severe reaction — they work too slowly for anaphylaxis.' },
+        { instruction: 'If breathing stops or consciousness is lost, begin CPR. A second EpiPen dose can be given after 5–15 minutes if symptoms return.' },
+        { instruction: 'Even if symptoms improve after EpiPen, go to hospital immediately — biphasic reactions can occur hours later.', tip: 'Always seek emergency care after any severe allergic reaction, even if you feel better.' },
+      ],
+    });
+  }
+
+  /* Condition-specific pinned guides */
+  for (const cond of (conditions || []).filter(c => c.status !== 'resolved')) {
+    const match = CONDITION_GUIDE_MAP.find(m => m.keywords.some(kw => cond.name.toLowerCase().includes(kw)));
+    if (match?.guideId === 'diabetic' && !guides.find(g => g.id === 'personal-diabetic')) {
+      guides.push({
+        id: 'personal-diabetic',
+        title: '🩸 Your Diabetes — Emergency',
+        icon: Droplets,
+        severity: 'high',
+        offline: true,
+        warning: 'Personalised from your Medical ID. For diabetic emergencies: low blood sugar (hypoglycaemia) is more immediately dangerous than high blood sugar.',
+        steps: [
+          { instruction: 'LOW blood sugar signs: shaking, sweating, confusion, pale skin, rapid heartbeat, hunger. HIGH blood sugar: extreme thirst, frequent urination, fruity breath, fatigue.' },
+          { instruction: 'If conscious and can swallow — give 15–20g fast-acting sugar: 4 glucose tablets, 150ml fruit juice, or 3–4 teaspoons of sugar in water.', tip: 'Do NOT give food or drink to anyone who is unconscious or unable to swallow safely.' },
+          { instruction: 'Recheck in 15 minutes. If no improvement, give another 15–20g sugar. If still not improving after two doses, call 193.' },
+          { instruction: 'If unconscious, call 193 immediately. Place in recovery position. Do NOT attempt to give anything by mouth.', tip: 'Tell 193 dispatcher the person has diabetes — they can send glucagon.' },
+          { instruction: 'For HIGH blood sugar emergency (diabetic ketoacidosis): drink water, take prescribed insulin if available and conscious, call 193 or go to hospital.' },
+        ],
+      });
+    }
+    if (match?.guideId === 'asthma' && !guides.find(g => g.id === 'personal-asthma')) {
+      const hasInhaler = (medications || []).some(m => m.active && /inhaler|salbutamol|ventolin|albuterol|becotide|symbicort/i.test(m.name));
+      guides.push({
+        id: 'personal-asthma',
+        title: '💨 Your Asthma — Emergency',
+        icon: Wind,
+        severity: 'high',
+        offline: true,
+        warning: 'Personalised from your Medical ID. A severe asthma attack can be life-threatening. Do not delay seeking help.',
+        steps: [
+          { instruction: 'Sit upright — leaning slightly forward with hands on knees. Do NOT lie down. Loosen any tight clothing around the neck and chest.' },
+          ...(hasInhaler ? [
+            { instruction: 'Use your reliever inhaler (usually blue) immediately: shake, exhale fully, seal lips around mouthpiece, press and inhale slowly, hold 10 seconds. Repeat every 30–60 seconds, up to 10 puffs.', tip: 'Using a spacer doubles the amount of medication that reaches your lungs.' },
+          ] : [
+            { instruction: 'If you have a reliever inhaler (blue/Ventolin), use it now — 1 puff every 30–60 seconds, up to 10 puffs. If no inhaler is available, call 193 immediately.' },
+          ]),
+          { instruction: 'If no improvement after 10 puffs, or symptoms are severe (can\'t speak in sentences, lips turning blue), call 193 immediately.' },
+          { instruction: 'Stay calm and encourage slow, controlled breathing. Panic worsens bronchospasm. Try breathing in through the nose and out through pursed lips.' },
+          { instruction: 'Continue giving reliever inhaler every 15 minutes while waiting for emergency services. Note the time and number of puffs given for the paramedics.' },
+        ],
+      });
+    }
+  }
+
+  return guides;
+}
+
+/* ─── Breathing guide phases — outside component to prevent stale
+       closure inside startBreathing useCallback([])            ── */
+const BREATH_PHASES: { phase: 'inhale'|'hold'|'exhale'|'rest'; label: string; secs: number; color: string }[] = [
+  { phase: 'inhale', label: 'Breathe In',  secs: 4, color: '#00D2FF' },
+  { phase: 'hold',   label: 'Hold',        secs: 7, color: '#a78bfa' },
+  { phase: 'exhale', label: 'Breathe Out', secs: 8, color: '#34d399' },
+  { phase: 'rest',   label: 'Rest',        secs: 1, color: '#64748b' },
+];
+
 const EmergencyPage: NextPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -202,6 +313,18 @@ const EmergencyPage: NextPage = () => {
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  /* SOS elapsed timer */
+  const [sosElapsed,      setSosElapsed]      = useState(0);
+  const sosTimerRef                           = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* Breathing guide (for panic/anxiety) */
+  const [showBreathing,   setShowBreathing]   = useState(false);
+  const [breathPhase,     setBreathPhase]     = useState<'inhale'|'hold'|'exhale'|'rest'>('inhale');
+  const [breathCount,     setBreathCount]     = useState(0);
+  const breathTimerRef                        = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* Personal Emergency Card share */
+  const [showPersonalCard, setShowPersonalCard] = useState(false);
   // Notification panel
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [notifsRead,     setNotifsRead]     = useState(false);
@@ -469,6 +592,77 @@ const EmergencyPage: NextPage = () => {
     setSosCountdown(3);
     setSosSendResult(null);
     setSosSending(false);
+    setSosElapsed(0);
+    if (sosTimerRef.current) clearInterval(sosTimerRef.current);
+  };
+
+  /* ── SOS elapsed timer — starts when SOS is sent ─────────── */
+  useEffect(() => {
+    if (sosSent) {
+      setSosElapsed(0);
+      sosTimerRef.current = setInterval(() => setSosElapsed(s => s + 1), 1000);
+    } else {
+      if (sosTimerRef.current) clearInterval(sosTimerRef.current);
+    }
+    return () => { if (sosTimerRef.current) clearInterval(sosTimerRef.current); };
+  }, [sosSent]);
+
+  const formatElapsed = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  /* ── Breathing guide (4-7-8 calming pattern) ─────────────── */
+  const startBreathing = useCallback(() => {
+    setShowBreathing(true);
+    setBreathPhase('inhale');
+    setBreathCount(0);
+    let phaseIdx = 0;
+    let phaseElapsed = 0;
+    if (breathTimerRef.current) clearInterval(breathTimerRef.current);
+    breathTimerRef.current = setInterval(() => {
+      phaseElapsed++;
+      if (phaseElapsed >= BREATH_PHASES[phaseIdx].secs) {
+        phaseElapsed = 0;
+        phaseIdx = (phaseIdx + 1) % BREATH_PHASES.length;
+        setBreathPhase(BREATH_PHASES[phaseIdx].phase);
+        if (phaseIdx === 0) setBreathCount(c => c + 1);
+      }
+    }, 1000);
+  }, []);
+  const stopBreathing = useCallback(() => {
+    if (breathTimerRef.current) clearInterval(breathTimerRef.current);
+    setShowBreathing(false);
+    setBreathPhase('inhale');
+    setBreathCount(0);
+  }, []);
+  useEffect(() => () => { if (breathTimerRef.current) clearInterval(breathTimerRef.current); }, []);
+
+  /* ── Personalised guides derived from Medical ID ─────────── */
+  const personalisedGuides = React.useMemo(
+    () => buildPersonalisedGuides(healthProfile?.allergies, healthProfile?.conditions, healthProfile?.medications),
+    [healthProfile],
+  );
+  const allFirstAidGuides = [...personalisedGuides, ...FIRST_AID_GUIDES];
+
+  /* ── Copy personal emergency card ─────────────────────────── */
+  const copyPersonalCard = async () => {
+    const lines = [
+      `=== EMERGENCY MEDICAL ID — ${userName} ===`,
+      `Blood Type: ${medIdBloodType}`,
+      `Allergies: ${medIdAllergies}`,
+      `Conditions: ${medIdConditions}`,
+      `Medications: ${medIdMedications}`,
+      `Emergency Contact: ${medIdContact}`,
+      location ? `Location: https://maps.google.com/?q=${location.lat},${location.lng}` : '',
+      `Generated: ${new Date().toLocaleString()}`,
+    ].filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(lines);
+      setCopiedId('card');
+      setTimeout(() => setCopiedId(null), 3000);
+    } catch { /* ignore */ }
   };
 
   /* ── Copy to clipboard ────────────────────────────────────── */
@@ -598,7 +792,7 @@ const EmergencyPage: NextPage = () => {
   const emHasUnread = emNotifications.some(n=>n.id!=='empty') && !notifsRead;
   const toggleNotifPanel = () => { setShowNotifPanel(p=>!p); setNotifsRead(true); };
 
-  const filteredGuides = FIRST_AID_GUIDES.filter(g =>
+  const filteredGuides = allFirstAidGuides.filter(g =>
     searchQuery ? g.title.toLowerCase().includes(searchQuery.toLowerCase()) : true,
   );
 
@@ -618,7 +812,7 @@ const EmergencyPage: NextPage = () => {
 
   /* ── Render ───────────────────────────────────────────────── */
   return (
-    <DashboardLayout activeTab="/emergency">
+    <DashboardLayout activeTab="/emergency" className="hc-layout--has-mob-topbar">
 
       {/* ── Desktop topbar ─────────────────────────────────── */}
       <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
@@ -731,15 +925,34 @@ const EmergencyPage: NextPage = () => {
       )}
 
       {/* ── Mobile bottom nav ──────────────────────────────── */}
-      <nav className="mob-tab-bar">
+      <nav className="mob-tab-bar" aria-label="Main navigation">
         <div className="mob-tab-bar__inner">
-          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button"><Heart size={22} />Home</button>
-          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button"><MapPin size={22} />Find</button>
-          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button"><Bot size={22} />Check</button>
-          <button className="mob-tab-btn mob-tab-btn--sos active" onClick={() => router.push('/emergency')} type="button">
-            <span className="mob-tab-sos-icon"><Phone size={22} /></span>SOS
+          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button" aria-label="Home">
+            <Heart size={22} />
+            Home
           </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/profile')} type="button"><User size={22} />Profile</button>
+          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button" aria-label="Find facilities">
+            <MapPin size={22} />
+            Find
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button" aria-label="Symptom Checker">
+            <Bot size={22} />
+            Check
+          </button>
+          <button
+            className="mob-tab-btn mob-tab-btn--sos active"
+            onClick={() => router.push('/emergency')}
+            type="button"
+            aria-current="page"
+            aria-label="Emergency"
+          >
+            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
+            SOS
+          </button>
+          <button className="mob-tab-btn" onClick={() => router.push('/profile')} type="button" aria-label="Profile">
+            <User size={22} />
+            Profile
+          </button>
         </div>
       </nav>
 
@@ -799,6 +1012,13 @@ const EmergencyPage: NextPage = () => {
                 <div className="em-sos-sent">
                   <div className="em-sos-sent__icon"><Check size={36} /></div>
                   <p className="em-sos-sent__label">SOS Activated</p>
+
+                  {/* Elapsed timer */}
+                  <div className="em-sos-sent__timer">
+                    <Clock size={14} />
+                    <span>{formatElapsed(sosElapsed)}</span>
+                    <span className="em-sos-sent__timer-label">elapsed since activation</span>
+                  </div>
 
                   {/* Location line */}
                   <p className="em-sos-sent__sub">
@@ -905,10 +1125,10 @@ const EmergencyPage: NextPage = () => {
 
           {/* Quick cards */}
           <div className="em-quick-grid">
-            <a href="tel:112" className="em-quick-card em-quick-card--red">
+            <a href="tel:193" className="em-quick-card em-quick-card--red">
               <Phone size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Call 112</span>
-              <span className="em-quick-card__sub">Tap to call now</span>
+              <span className="em-quick-card__title">Call 193</span>
+              <span className="em-quick-card__sub">National Ambulance</span>
             </a>
             <button className="em-quick-card em-quick-card--teal" onClick={shareLocation} type="button">
               <MapPin size={22} className="em-quick-card__icon" />
@@ -917,10 +1137,10 @@ const EmergencyPage: NextPage = () => {
                 {locationShared && location?.city ? location.city : 'Get & copy GPS link'}
               </span>
             </button>
-            <button className="em-quick-card em-quick-card--violet" onClick={() => router.push('/profile')} type="button">
-              <BookOpen size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Medical ID</span>
-              <span className="em-quick-card__sub">Blood type, allergies, meds</span>
+            <button className="em-quick-card em-quick-card--violet" onClick={() => setShowPersonalCard(true)} type="button">
+              <ClipboardList size={22} className="em-quick-card__icon" />
+              <span className="em-quick-card__title">My Emergency Card</span>
+              <span className="em-quick-card__sub">Share with first responders</span>
             </button>
             <button
               className="em-quick-card em-quick-card--amber"
@@ -940,8 +1160,124 @@ const EmergencyPage: NextPage = () => {
                   : 'Enable location first'}
               </span>
             </button>
+            <button className="em-quick-card em-quick-card--mint" onClick={startBreathing} type="button">
+              <HeartPulse size={22} className="em-quick-card__icon" />
+              <span className="em-quick-card__title">Calm Breathing</span>
+              <span className="em-quick-card__sub">4-7-8 guided pattern</span>
+            </button>
+            <button className="em-quick-card em-quick-card--blue" onClick={() => router.push('/facilities')} type="button">
+              <MapPin size={22} className="em-quick-card__icon" />
+              <span className="em-quick-card__title">Find Hospital</span>
+              <span className="em-quick-card__sub">Nearby facilities map</span>
+            </button>
           </div>
         </div>
+
+        {/* ── BREATHING GUIDE MODAL ────────────────────────────── */}
+        {showBreathing && (() => {
+          const current = BREATH_PHASES.find(p => p.phase === breathPhase)!;
+          return (
+            <div className="em-breathing-overlay" onClick={stopBreathing}>
+              <div className="em-breathing-modal" onClick={e => e.stopPropagation()}>
+                <button className="em-breathing-close" onClick={stopBreathing} type="button"><X size={18}/></button>
+                <p className="em-breathing-title">Calm Breathing</p>
+                <p className="em-breathing-cycle">Cycle {breathCount + 1}</p>
+                <div className="em-breathing-circle" style={{ '--breath-color': current.color } as React.CSSProperties}>
+                  <div className={`em-breathing-ring em-breathing-ring--${breathPhase}`} />
+                  <div className="em-breathing-core">
+                    <span className="em-breathing-phase">{current.label}</span>
+                    <span className="em-breathing-secs">{current.secs}s</span>
+                  </div>
+                </div>
+                <p className="em-breathing-hint">4-7-8 pattern · Tap anywhere to stop</p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── PERSONAL EMERGENCY CARD MODAL ───────────────────── */}
+        {showPersonalCard && (
+          <div className="em-card-overlay" onClick={() => setShowPersonalCard(false)}>
+            <div className="em-personal-card" onClick={e => e.stopPropagation()}>
+              <button className="em-card-close" onClick={() => setShowPersonalCard(false)} type="button"><X size={16}/></button>
+
+              <div className="em-personal-card__header">
+                <div className="em-personal-card__logo"><Heart size={18}/></div>
+                <div>
+                  <p className="em-personal-card__brand">HealthConnect</p>
+                  <p className="em-personal-card__label">Emergency Medical ID</p>
+                </div>
+              </div>
+
+              <h2 className="em-personal-card__name">{userName}</h2>
+
+              <div className="em-personal-card__rows">
+                <div className="em-personal-card__row em-personal-card__row--highlight">
+                  <Droplets size={14}/><span className="em-personal-card__key">Blood Type</span>
+                  <span className="em-personal-card__val">{medIdBloodType}</span>
+                </div>
+                {medIdAllergies !== 'None recorded' && (
+                  <div className="em-personal-card__row em-personal-card__row--warn">
+                    <AlertTriangle size={14}/><span className="em-personal-card__key">⚠️ Allergies</span>
+                    <span className="em-personal-card__val">{medIdAllergies}</span>
+                  </div>
+                )}
+                <div className="em-personal-card__row">
+                  <Pill size={14}/><span className="em-personal-card__key">Medications</span>
+                  <span className="em-personal-card__val">{medIdMedications}</span>
+                </div>
+                <div className="em-personal-card__row">
+                  <Activity size={14}/><span className="em-personal-card__key">Conditions</span>
+                  <span className="em-personal-card__val">{medIdConditions}</span>
+                </div>
+                <div className="em-personal-card__row">
+                  <Phone size={14}/><span className="em-personal-card__key">Contact</span>
+                  <span className="em-personal-card__val">{medIdContact}</span>
+                </div>
+                {location && (
+                  <div className="em-personal-card__row">
+                    <MapPin size={14}/><span className="em-personal-card__key">Location</span>
+                    <span className="em-personal-card__val">{location.city || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Blood type compatibility */}
+              {BLOOD_COMPATIBILITY[medIdBloodType] && (
+                <div className="em-personal-card__blood-compat">
+                  <p className="em-personal-card__compat-title">Blood Transfusion Compatibility</p>
+                  <div className="em-personal-card__compat-row">
+                    <span className="em-personal-card__compat-label">Can receive from:</span>
+                    <div className="em-personal-card__compat-tags">
+                      {BLOOD_COMPATIBILITY[medIdBloodType].canReceiveFrom.map(t => (
+                        <span key={t} className={`em-personal-card__blood-tag${t === medIdBloodType ? ' em-personal-card__blood-tag--self' : ''}`}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="em-personal-card__compat-row">
+                    <span className="em-personal-card__compat-label">Can donate to:</span>
+                    <div className="em-personal-card__compat-tags">
+                      {BLOOD_COMPATIBILITY[medIdBloodType].canDonateTo.map(t => (
+                        <span key={t} className={`em-personal-card__blood-tag${t === medIdBloodType ? ' em-personal-card__blood-tag--self' : ''}`}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="em-personal-card__actions">
+                <button className="em-personal-card__copy" onClick={copyPersonalCard} type="button">
+                  {copiedId === 'card' ? <><Check size={14}/>Copied!</> : <><Copy size={14}/>Copy Card</>}
+                </button>
+                <button className="em-personal-card__edit" onClick={() => { setShowPersonalCard(false); router.push('/profile'); }} type="button">
+                  <Edit2 size={14}/>Edit Profile
+                </button>
+              </div>
+
+              <p className="em-personal-card__ts">Generated {new Date().toLocaleTimeString()}</p>
+            </div>
+          </div>
+        )}
 
         {/* ── MOBILE TABS ──────────────────────────────────── */}
         <div className="em-mob-tabs">
