@@ -4,7 +4,7 @@
    Import after dashboard.css + dashboard-header.css + dashboard-mobile.css
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&display=swap');
+/* Syne font loaded via <link> in layout.tsx head — see emergency.css note */
 
 /* ── Utility ─────────────────────────────────────────────────── */
 @keyframes pr-spin  { to { transform: rotate(360deg); } }
@@ -813,6 +813,57 @@ html.dark-mode .pr-modal {
   overflow: hidden;
 }
 
+/* First-responder banner — sits between modal header and card */
+.pr-medid-responder-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px;
+  background: rgba(255,77,109,0.07);
+  border-bottom: 1px solid rgba(255,77,109,0.14);
+}
+.pr-medid-responder-banner__emoji {
+  font-size: 22px; line-height: 1; flex-shrink: 0;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+}
+.pr-medid-responder-banner__title {
+  font-size: 12px; font-weight: 800; color: #ff4d6d;
+  text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 2px;
+}
+.pr-medid-responder-banner__sub {
+  font-size: 11.5px; font-weight: 500;
+  color: var(--hc-text2); margin: 0; line-height: 1.4;
+}
+html:not(.dark-mode) .pr-medid-responder-banner__sub { color: #475569; }
+
+/* Action buttons row below the card */
+.pr-medid-actions {
+  display: flex; gap: 10px; margin-top: 14px;
+}
+.pr-medid-actions__copy,
+.pr-medid-actions__edit {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 11px; border-radius: 11px;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s;
+}
+.pr-medid-actions__copy {
+  background: rgba(255,77,109,0.10); color: #ff4d6d;
+  border: 1px solid rgba(255,77,109,0.25);
+}
+.pr-medid-actions__copy:hover { background: rgba(255,77,109,0.18); }
+.pr-medid-actions__copy--ok {
+  background: rgba(0,255,178,0.10); color: #00ffb2;
+  border-color: rgba(0,255,178,0.25);
+}
+.pr-medid-actions__edit {
+  background: var(--hc-surface2); color: var(--hc-text2);
+  border: 1px solid var(--hc-border);
+}
+.pr-medid-actions__edit:hover { color: var(--hc-teal); border-color: var(--hc-teal); }
+.pr-medid-actions__hint {
+  font-size: 11px; color: var(--hc-text3);
+  text-align: center; margin: 8px 0 0; line-height: 1.5;
+}
+
 .pr-medid-row {
   display: flex;
   justify-content: space-between;
@@ -1289,8 +1340,8 @@ html.dark-mode .pr-identity {
   .pr-medid-row__key { min-width: unset; }
 
   /* EC item — stack actions on very narrow screens */
-  .pr-ec-item { flex-wrap: wrap; }
-  .pr-ec-item__actions { width: 100%; justify-content: flex-end; }
+  .pr-ec-item { flex-wrap: wrap; align-items: flex-start; }
+  .pr-ec-item__actions { width: 100%; justify-content: flex-end; margin-top: 6px; }
 }
 
 /* ── EMERGENCY CONTACTS CARD ACCENT ─────────────────────────── */
@@ -1337,59 +1388,92 @@ html.dark-mode .pr-ec-item--primary {
 
 .pr-ec-item__body { flex: 1; min-width: 0; }
 
-.pr-ec-item__name {
+/* Name + Primary badge — same fix as emergency page (no truncation on badge) */
+.pr-ec-item__name-row {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; margin-bottom: 2px;
+}
+.pr-ec-item__name-text {
   font-size: 13px; font-weight: 700;
   color: var(--hc-text);
-  display: flex; align-items: center; gap: 7px;
-  margin-bottom: 3px;
+  word-break: break-word;
 }
 
 .pr-ec-item__badge {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
   background: rgba(255, 77, 109, 0.12);
-  border: 1px solid rgba(255, 77, 109, 0.25);
+  border: 1px solid rgba(255, 77, 109, 0.28);
   color: #ff4d6d;
   padding: 2px 7px; border-radius: 20px;
+  flex-shrink: 0; white-space: nowrap;
 }
 
 .pr-ec-item__meta {
   font-size: 11px; color: var(--hc-text2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-bottom: 2px;
 }
+
+/* Email line */
+.pr-ec-item__email {
+  font-size: 10.5px; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pr-ec-item__email--set     { color: var(--hc-teal); }
+.pr-ec-item__email--missing { color: rgba(245,158,11,0.85); }
 
 .pr-ec-item__actions {
-  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0; margin-top: 1px;
 }
 
-.pr-ec-item__copy {
-  width: 28px; height: 28px;
-  border-radius: 7px;
-  background: var(--hc-surface2);
-  border: 1px solid var(--hc-border);
-  color: var(--hc-text2);
+.pr-ec-item__copy,
+.pr-ec-item__edit-btn {
+  width: 28px; height: 28px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all 0.15s;
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
 }
-.pr-ec-item__copy:hover {
-  background: var(--hc-teal-dim);
-  border-color: var(--hc-teal);
-  color: var(--hc-teal);
+.pr-ec-item__copy {
+  background: var(--hc-surface2); border: 1px solid var(--hc-border); color: var(--hc-text2);
 }
+.pr-ec-item__copy:hover { background: var(--hc-teal-dim); border-color: var(--hc-teal); color: var(--hc-teal); }
+.pr-ec-item__edit-btn {
+  background: rgba(0,210,255,0.07); border: 1px solid rgba(0,210,255,0.18); color: var(--hc-teal);
+}
+.pr-ec-item__edit-btn:hover { background: var(--hc-teal-dim); border-color: rgba(0,210,255,0.38); }
 
 .pr-ec-item__call {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 12px;
-  border-radius: 7px;
-  background: rgba(255, 77, 109, 0.10);
-  border: 1px solid rgba(255, 77, 109, 0.22);
-  color: #ff4d6d;
-  font-size: 12px; font-weight: 700;
-  text-decoration: none;
-  transition: all 0.15s;
-  white-space: nowrap;
+  padding: 5px 11px; border-radius: 7px;
+  background: rgba(255, 77, 109, 0.10); border: 1px solid rgba(255, 77, 109, 0.22);
+  color: #ff4d6d; font-size: 12px; font-weight: 700;
+  text-decoration: none; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
 }
 .pr-ec-item__call:hover { background: rgba(255, 77, 109, 0.18); }
+
+/* Inline edit form inside the contact card */
+.pr-ec-edit-form {
+  width: 100%; display: flex; flex-direction: column; gap: 10px;
+  padding: 4px 0;
+}
+
+/* Email nudge banner */
+.pr-ec-email-nudge {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(245,158,11,0.07);
+  border: 1px solid rgba(245,158,11,0.22);
+  font-size: 12px; color: var(--hc-amber);
+  line-height: 1.55; margin-top: 8px;
+}
+.pr-ec-email-nudge svg { flex-shrink: 0; margin-top: 1px; }
+.pr-ec-email-nudge strong { font-weight: 700; }
+
+/* Form label hint (e.g. "for SOS alerts") */
+.pr-form-label__hint {
+  font-size: 10.5px; font-weight: 500;
+  color: var(--hc-text3); margin-left: 4px;
+}
 
 /* ── EMERGENCY CONTACTS ADD FORM ─────────────────────────────── */
 .pr-ec-add {

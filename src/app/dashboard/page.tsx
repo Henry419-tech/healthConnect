@@ -795,9 +795,6 @@ const Dashboard: NextPage = () => {
             <div className="db-card">
               <div className="db-card__header">
                 <h3 className="db-card__title"><Clock size={17} /> Recent Activity</h3>
-                <button className="db-card__action" onClick={() => router.push('/dashboard/activities')} type="button">
-                  View All <ChevronRight size={13} />
-                </button>
               </div>
               <div className="db-activity-list">
                 {isLoadingActivities ? (
@@ -885,12 +882,43 @@ const Dashboard: NextPage = () => {
             </div>
 
             <div className="db-card db-card--emergency">
-              <div className="db-card__emergency-icon"><Phone size={17} /></div>
-              <div className="db-card__emergency-body">
-                <h3 className="db-card__emergency-title">Emergency Hub</h3>
-                <p className="db-card__emergency-desc">Access emergency services and first aid guides anytime.</p>
+              <div className="db-card__emergency-top">
+                <div className="db-card__emergency-icon"><Phone size={17} /></div>
+                <div className="db-card__emergency-body">
+                  <h3 className="db-card__emergency-title">Emergency Hub</h3>
+                  <p className="db-card__emergency-desc">SOS alerts · First aid · Medical ID · Emergency services</p>
+                </div>
               </div>
-              <button className="db-emergency-open-btn" onClick={() => router.push('/emergency')} type="button">Open Emergency Hub</button>
+
+              {/* Medical ID completeness status */}
+              <div className="db-card__emergency-medid">
+                <div className="db-card__emergency-medid-bar">
+                  <div
+                    className="db-card__emergency-medid-fill"
+                    style={{ width: `${Math.round(((scoreBreakdown.profileCompleteness ?? 0) / 20) * 100)}%` }}
+                  />
+                </div>
+                <div className="db-card__emergency-medid-row">
+                  <span className="db-card__emergency-medid-label">
+                    {(scoreBreakdown.profileCompleteness ?? 0) >= 16
+                      ? '✓ Medical ID complete'
+                      : (scoreBreakdown.profileCompleteness ?? 0) >= 8
+                      ? 'Medical ID partially set up'
+                      : 'Medical ID not set up'}
+                  </span>
+                  <button
+                    className="db-card__emergency-medid-cta"
+                    onClick={() => router.push('/profile?modal=medicalId')}
+                    type="button"
+                  >
+                    {(scoreBreakdown.profileCompleteness ?? 0) >= 16 ? 'View' : 'Set up'}
+                  </button>
+                </div>
+              </div>
+
+              <button className="db-emergency-open-btn" onClick={() => router.push('/emergency')} type="button">
+                Open Emergency Hub
+              </button>
             </div>
 
             <div className="db-card">

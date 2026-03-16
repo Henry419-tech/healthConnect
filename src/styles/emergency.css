@@ -4,7 +4,18 @@
    Imports after dashboard.css + dashboard-header.css + dashboard-mobile.css
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&display=swap');
+/* ================================================================
+   src/styles/emergency.css
+   Emergency Hub — full page styling
+   Imports after dashboard.css + dashboard-header.css + dashboard-mobile.css
+
+   NOTE: Syne font is loaded via <link> in the root layout.tsx head
+   (with preconnect) instead of @import here to prevent FOUC on
+   production. If not yet added to layout.tsx, add:
+     <link rel="preconnect" href="https://fonts.googleapis.com" />
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&display=swap" rel="stylesheet" />
+   ================================================================ */
 
 /* ── Page shell ──────────────────────────────────────────────── */
 .em-page {
@@ -18,40 +29,46 @@
 /* Background image texture — same technique as facility-finder.
    ::before = tiled medical icon pattern
    ::after  = colour gradient overlay
-   All em-page children get position:relative z-index:1 below.  */
+   All em-page children get position:relative z-index:1 below.
+   Transition added so the pattern fades in after page paint,
+   preventing the grey flash seen on first load in production.  */
 .em-page::before {
   content: '';
   position: absolute; inset: 0; z-index: 0;
   background: url('/images/light_mode.png') top left / 520px auto repeat;
   background-attachment: local;
-  opacity: 0.18;
+  opacity: 0;
   mix-blend-mode: multiply;
   pointer-events: none;
+  animation: em-pattern-fadein 0.6s ease 0.1s forwards;
 }
 .em-page::after {
   content: '';
   position: absolute; inset: 0; z-index: 0;
-  background: linear-gradient(
-    160deg,
-    rgba(241,245,249,0.45) 0%,
-    rgba(224,242,254,0.28) 50%,
-    rgba(241,245,249,0.50) 100%
-  );
+  /* Flat uniform overlay — prevents pattern showing stronger in lower sections */
+  background: rgba(241,245,249,0.30);
   pointer-events: none;
+  opacity: 0;
+  animation: em-overlay-fadein 0.6s ease 0.1s forwards;
+}
+/* Pattern: fades to 0.18 — same as facilities page light mode */
+@keyframes em-pattern-fadein {
+  from { opacity: 0; }
+  to   { opacity: 0.18; }
+}
+/* Overlay: fades to 1 — rgba already controls the final strength */
+@keyframes em-overlay-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 html.dark-mode .em-page::before {
   background: url('/images/dark_mode.png') top left / 520px auto repeat;
   background-attachment: local;
-  opacity: 0.20;
   mix-blend-mode: screen;
+  animation: em-pattern-fadein 0.6s ease 0.1s forwards;
 }
 html.dark-mode .em-page::after {
-  background: linear-gradient(
-    160deg,
-    rgba(2,11,20,0.45) 0%,
-    rgba(7,24,40,0.30) 50%,
-    rgba(2,11,20,0.50) 100%
-  );
+  background: rgba(2,11,20,0.35);
 }
 
 /* All direct children above the background layers */
@@ -68,13 +85,25 @@ html.dark-mode .em-page::after {
   touch-action: pan-y; /* ensure page scroll works in hero section */
   position: relative;
   overflow: hidden;
-  background: radial-gradient(ellipse 80% 60% at 70% 50%,
-    rgba(255, 60, 80, 0.18) 0%,
-    rgba(180, 20, 40, 0.10) 40%,
-    transparent 70%
-  ), var(--hc-surface2);
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 50%,
+      rgba(255, 60, 80, 0.18) 0%,
+      rgba(180, 20, 40, 0.10) 40%,
+      transparent 70%
+    ), var(--hc-surface2);
   border-bottom: 1px solid var(--hc-border);
   padding: 40px 40px 0;
+}
+/* Light mode: semi-transparent so the background pattern shows through */
+html:not(.dark-mode) .em-hero {
+  background:
+    radial-gradient(ellipse 100% 80% at 50% 40%,
+      rgba(255, 30, 60, 0.12) 0%,
+      rgba(220, 20, 50, 0.06) 50%,
+      transparent 80%
+    ),
+    linear-gradient(180deg, rgba(255,240,242,0.60) 0%, rgba(255,245,247,0.50) 100%);
+  border-bottom-color: rgba(220,38,62,0.10);
 }
 
 html.dark-mode .em-hero {
@@ -174,6 +203,7 @@ html.dark-mode .em-hero__title {
   color: #ffffff;
   text-shadow: 0 0 60px rgba(255, 100, 120, 0.25);
 }
+html:not(.dark-mode) .em-hero__title { color: #111827; }
 
 .em-hero__sub {
   font-size: 14px;
@@ -354,6 +384,7 @@ html:not(.dark-mode) .em-hero__sub {
   line-height: 1.5;
 }
 html.dark-mode .em-sos-hint { color: rgba(255,100,120,0.7); }
+html:not(.dark-mode) .em-sos-hint { color: #6b7280; }
 
 /* SOS Sent State */
 .em-sos-sent {
@@ -403,6 +434,230 @@ html.dark-mode .em-sos-hint { color: rgba(255,100,120,0.7); }
   transition: all 0.2s;
 }
 .em-sos-sent__reset:hover { background: rgba(255,40,70,0.2); }
+
+/* ── SOS Sent — light mode overrides ─────────────────────────────
+   All neon colours (#00ffb2, rgba(0,255,178,...)) are invisible on
+   white/light-pink backgrounds. Override with solid, saturated values
+   that work on light surfaces.                                    */
+html:not(.dark-mode) .em-sos-sent__icon {
+  background: rgba(0,180,100,0.10);
+  border: 2px solid rgba(0,160,90,0.35);
+  color: #00875a;
+  box-shadow: 0 0 0 6px rgba(0,160,90,0.08), 0 4px 20px rgba(0,160,90,0.20);
+}
+html:not(.dark-mode) .em-sos-sent__icon svg { stroke: #00875a; }
+
+@keyframes em-pulse-green-light {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(0,160,90,0.08), 0 4px 20px rgba(0,160,90,0.18); }
+  50%       { box-shadow: 0 0 0 10px rgba(0,160,90,0.12), 0 4px 28px rgba(0,160,90,0.28); }
+}
+html:not(.dark-mode) .em-sos-sent__icon { animation: em-pulse-green-light 1.5s ease infinite; }
+
+html:not(.dark-mode) .em-sos-sent__label {
+  color: #b91c1c; /* strong red — readable on light bg */
+}
+html:not(.dark-mode) .em-sos-sent__sub {
+  color: #374151;
+}
+html:not(.dark-mode) .em-sos-sent__sub strong {
+  color: #111827;
+}
+
+/* Timer */
+html:not(.dark-mode) .em-sos-sent__timer {
+  background: rgba(185,28,28,0.08);
+  border-color: rgba(185,28,28,0.22);
+  color: #b91c1c;
+}
+html:not(.dark-mode) .em-sos-sent__timer-label { color: rgba(185,28,28,0.65); }
+
+/* Status badges */
+html:not(.dark-mode) .em-sos-sent__sms-status--sending {
+  background: rgba(6,182,212,0.10);
+  border-color: rgba(6,182,212,0.28);
+  color: #0e7490;
+}
+html:not(.dark-mode) .em-sos-sent__sms-status--ok {
+  background: rgba(5,150,105,0.10);
+  border-color: rgba(5,150,105,0.28);
+  color: #065f46;
+}
+html:not(.dark-mode) .em-sos-sent__sms-status--warn {
+  background: rgba(217,119,6,0.10);
+  border-color: rgba(217,119,6,0.28);
+  color: #92400e;
+}
+html:not(.dark-mode) .em-sos-sent__sms-status--err {
+  background: rgba(220,38,38,0.10);
+  border-color: rgba(220,38,38,0.28);
+  color: #991b1b;
+}
+html:not(.dark-mode) .em-sos-sent__contact-names { opacity: 0.7; }
+
+/* Contact call buttons */
+html:not(.dark-mode) .em-sos-sent__contact-call {
+  background: rgba(6,182,212,0.08);
+  border-color: rgba(6,182,212,0.28);
+  color: #0e7490;
+}
+html:not(.dark-mode) .em-sos-sent__contact-call:hover {
+  background: rgba(6,182,212,0.15);
+}
+html:not(.dark-mode) .em-sos-sent__contact-call--no-email {
+  background: rgba(217,119,6,0.08);
+  border-color: rgba(217,119,6,0.25);
+  color: #92400e;
+}
+html:not(.dark-mode) .em-sos-sent__contact-email-badge--ok {
+  background: rgba(5,150,105,0.12);
+  color: #065f46;
+  border-color: rgba(5,150,105,0.28);
+}
+html:not(.dark-mode) .em-sos-sent__contact-email-badge--none {
+  background: rgba(217,119,6,0.10);
+  color: #92400e;
+  border-color: rgba(217,119,6,0.25);
+}
+
+/* Add email nudge */
+html:not(.dark-mode) .em-sos-sent__add-email-nudge {
+  background: rgba(217,119,6,0.07);
+  border-color: rgba(217,119,6,0.22);
+  color: #92400e;
+}
+html:not(.dark-mode) .em-sos-sent__add-email-nudge a,
+html:not(.dark-mode) .em-sos-sent__add-email-nudge button {
+  color: #b45309;
+}
+
+/* Reset / cancel button */
+html:not(.dark-mode) .em-sos-sent__reset {
+  background: rgba(220,38,38,0.07);
+  border-color: rgba(220,38,38,0.22);
+  color: #b91c1c;
+}
+html:not(.dark-mode) .em-sos-sent__reset:hover {
+  background: rgba(220,38,38,0.14);
+}
+.em-sos-sent__sms-status {
+  width: 100%;
+  max-width: 300px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+}
+.em-sos-sent__sms-status--sending {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: var(--hc-teal);
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(0,210,255,0.08);
+  border: 1px solid rgba(0,210,255,0.20);
+}
+.em-sos-sent__sms-status--ok {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: #00ffb2;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(0,255,178,0.08);
+  border: 1px solid rgba(0,255,178,0.22);
+}
+.em-sos-sent__sms-status--warn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  color: var(--hc-amber);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.25);
+}
+.em-sos-sent__sms-status--err {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: #ff4d6d;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255,77,109,0.08);
+  border: 1px solid rgba(255,77,109,0.22);
+}
+.em-sos-sent__contact-names {
+  font-size: 11px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+
+/* "Add email" nudge banner */
+.em-sos-sent__add-email-nudge {
+  width: 100%; max-width: 300px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(245,158,11,0.07);
+  border: 1px solid rgba(245,158,11,0.22);
+  font-size: 11.5px; color: var(--hc-amber);
+  line-height: 1.55;
+  text-align: center;
+}
+.em-sos-sent__add-email-nudge a,
+.em-sos-sent__add-email-nudge button {
+  color: var(--hc-amber);
+  font-weight: 700;
+  text-decoration: underline;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: inherit; padding: 0;
+}
+
+/* Manual call buttons for each contact */
+.em-sos-sent__contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 300px;
+}
+.em-sos-sent__contact-call {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: rgba(0,210,255,0.08);
+  border: 1px solid rgba(0,210,255,0.22);
+  color: var(--hc-teal);
+  font-size: 13px; font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.em-sos-sent__contact-call:hover { background: rgba(0,210,255,0.16); }
+.em-sos-sent__contact-call--no-email {
+  border-color: rgba(245,158,11,0.22);
+  background: rgba(245,158,11,0.07);
+  color: var(--hc-amber);
+}
+/* Contact name fills available space, badge sits right */
+.em-sos-sent__contact-call-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.em-sos-sent__contact-email-badge {
+  font-size: 10.5px; font-weight: 700;
+  padding: 3px 9px; border-radius: 100px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.em-sos-sent__contact-email-badge--ok {
+  background: rgba(0,255,178,0.14);
+  color: #00ffb2;
+  border: 1px solid rgba(0,255,178,0.28);
+}
+.em-sos-sent__contact-email-badge--none {
+  background: rgba(245,158,11,0.12);
+  color: var(--hc-amber);
+  border: 1px solid rgba(245,158,11,0.25);
+}
 
 /* SOS sent call button */
 .em-sos-sent__call {
@@ -605,12 +860,13 @@ html.dark-mode .em-section {
 .em-service {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 14px 16px;
   border-radius: 12px;
   background: var(--hc-surface2);
   border: 1px solid var(--hc-border);
   transition: all 0.18s;
+  overflow: hidden; /* prevent any child overflowing card bounds */
 }
 .em-service:hover { border-color: color-mix(in srgb, currentColor 30%, transparent); transform: translateX(2px); }
 
@@ -627,9 +883,12 @@ html.dark-mode .em-section {
 .em-service--amber  .em-service__icon { background: rgba(255,183,0,0.12);  color: var(--hc-amber); border: 1px solid rgba(255,183,0,0.25); }
 .em-service--teal   .em-service__icon { background: var(--hc-teal-dim);    color: var(--hc-teal);  border: 1px solid rgba(0,210,255,0.25); }
 
-.em-service__body { flex: 1; min-width: 0; }
-.em-service__name { font-size: 13px; font-weight: 700; color: var(--hc-text); margin: 0 0 2px; }
-.em-service__desc { font-size: 11px; color: var(--hc-text2); margin: 0; }
+.em-service__body {
+  flex: 1;
+  min-width: 0; /* critical — allows text to truncate instead of pushing siblings */
+}
+.em-service__name { font-size: 13px; font-weight: 700; color: var(--hc-text); margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.em-service__desc { font-size: 11px; color: var(--hc-text2); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .em-service__actions {
   display: flex;
@@ -639,10 +898,14 @@ html.dark-mode .em-section {
 }
 
 .em-service__num {
-  font-family: 'Syne', monospace;
-  font-size: 15px; font-weight: 800;
+  /* Use system monospace for numbers — no external font dependency,
+     no overflow risk, tabular numerals for clean alignment         */
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 13px; font-weight: 700;
   color: var(--hc-text);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .em-service__copy,
@@ -656,6 +919,7 @@ html.dark-mode .em-section {
   text-decoration: none;
   color: var(--hc-text2);
   transition: all 0.18s;
+  flex-shrink: 0;
 }
 .em-service__copy:hover { background: var(--hc-teal-dim); color: var(--hc-teal); border-color: var(--hc-teal); }
 .em-service__call { background: rgba(255,77,109,0.10); border-color: rgba(255,77,109,0.25); color: #ff4d6d; }
@@ -866,19 +1130,19 @@ html.dark-mode .em-guide-steps {
 
 .em-contact {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--hc-surface2);
   border: 1px solid var(--hc-border);
-  transition: all 0.18s;
+  transition: border-color 0.18s;
+  position: relative;
 }
 .em-contact--primary {
-  border-color: rgba(0, 210, 255, 0.22);
+  border-color: rgba(0, 210, 255, 0.28);
   background: color-mix(in srgb, var(--hc-teal) 5%, var(--hc-surface2));
 }
-.em-contact:hover { transform: translateX(2px); }
 
 .em-contact__avatar {
   width: 38px; height: 38px;
@@ -890,68 +1154,90 @@ html.dark-mode .em-guide-steps {
   color: var(--hc-teal);
   flex-shrink: 0;
   overflow: hidden;
+  margin-top: 2px;
+}
+.em-contact--primary .em-contact__avatar {
+  background: rgba(0,210,255,0.15);
+  border-color: rgba(0,210,255,0.40);
 }
 .em-contact__avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .em-contact__body { flex: 1; min-width: 0; }
 
-.em-contact__name {
+/* Name row — name + Primary badge on same line, badge never truncates */
+.em-contact__name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.em-contact__name-text {
   font-size: 13px; font-weight: 700;
   color: var(--hc-text);
-  margin: 0 0 2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  display: flex; align-items: center; gap: 6px;
+  word-break: break-word;
 }
-
-/* Primary badge on the contact name line */
 .em-contact__primary-badge {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
   padding: 2px 7px;
   border-radius: 20px;
   background: rgba(0,210,255,0.12);
-  border: 1px solid rgba(0,210,255,0.25);
+  border: 1px solid rgba(0,210,255,0.30);
   color: var(--hc-teal);
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .em-contact__rel {
   font-size: 11px; color: var(--hc-text2);
-  margin: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin: 0 0 2px;
 }
 
 .em-contact__email {
-  font-size: 10.5px; margin: 2px 0 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 10.5px; margin: 0;
 }
 .em-contact__email--set     { color: var(--hc-teal); }
-.em-contact__email--missing { color: rgba(245,158,11,0.8); font-style: italic; }
+.em-contact__email--missing { color: rgba(245,158,11,0.85); }
 
+/* Actions — right-aligned column */
 .em-contact__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
-.em-contact__copy-btn {
+.em-contact__copy-btn,
+.em-contact__edit-btn,
+.em-contact__remove {
   width: 28px; height: 28px;
   border-radius: 7px;
-  background: var(--hc-surface2);
-  border: 1px solid var(--hc-border);
-  color: var(--hc-text2);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
-.em-contact__copy-btn:hover { border-color: var(--hc-teal); color: var(--hc-teal); }
+.em-contact__copy-btn {
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+}
+.em-contact__copy-btn:hover { border-color: var(--hc-teal); color: var(--hc-teal); background: var(--hc-teal-dim); }
+
+.em-contact__edit-btn {
+  background: rgba(0,210,255,0.07);
+  border: 1px solid rgba(0,210,255,0.18);
+  color: var(--hc-teal);
+}
+.em-contact__edit-btn:hover { background: var(--hc-teal-dim); border-color: rgba(0,210,255,0.38); }
 
 .em-contact__call {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 12px;
+  padding: 6px 11px;
   border-radius: 8px;
   background: rgba(0,255,100,0.10);
   border: 1px solid rgba(0,255,100,0.22);
@@ -959,21 +1245,45 @@ html.dark-mode .em-guide-steps {
   font-size: 12px; font-weight: 700;
   text-decoration: none;
   flex-shrink: 0;
-  transition: all 0.18s;
+  transition: all 0.15s;
 }
-.em-contact__call:hover { background: rgba(0,255,100,0.18); transform: translateY(-1px); }
+.em-contact__call:hover { background: rgba(0,255,100,0.18); }
 
 .em-contact__remove {
-  width: 26px; height: 26px;
-  border-radius: 6px;
   background: rgba(255,77,109,0.08);
   border: 1px solid rgba(255,77,109,0.18);
   color: #ff4d6d;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s;
 }
-.em-contact__remove:hover { background: rgba(255,77,109,0.2); }
+.em-contact__remove:hover { background: rgba(255,77,109,0.20); border-color: rgba(255,77,109,0.35); }
+
+/* Inline edit form inside the contact card */
+.em-contact__edit-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.em-contact__edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.em-contact__edit-cancel {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 9px;
+  background: var(--hc-surface2); border: 1px solid var(--hc-border);
+  color: var(--hc-text2); font-family: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; flex: 1; justify-content: center;
+}
+.em-contact__edit-cancel:hover { border-color: var(--hc-teal); color: var(--hc-teal); }
+
+/* Medical ID hidden on mobile contacts tab */
+.em-med-id--sidebar {
+  /* On desktop: visible in sidebar */
+}
+@media (max-width: 640px) {
+  .em-med-id--sidebar { display: none !important; }
+}
 
 /* ── Loading & empty states for contacts ────────────────────── */
 .em-contacts-loading {
@@ -1169,16 +1479,36 @@ html.dark-mode .em-guide-steps {
 .em-med-id__val--red   { color: #ff4d6d !important; font-weight: 700; }
 .em-med-id__val--amber { color: var(--hc-amber) !important; font-weight: 700; }
 
+/* Sidebar Medical ID — two action buttons */
+.em-med-id__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.em-med-id__show-btn {
+  flex: 2;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255,77,109,0.10);
+  border: 1px solid rgba(255,77,109,0.25);
+  color: #ff4d6d;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; font-family: inherit;
+  transition: all 0.18s;
+}
+.em-med-id__show-btn:hover { background: rgba(255,77,109,0.18); }
+
 .em-med-id__edit {
-  width: 100%;
+  flex: 1;
   padding: 10px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--hc-violet) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--hc-violet) 20%, transparent);
   color: var(--hc-violet);
-  font-size: 12px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  cursor: pointer; font-family: inherit;
   transition: all 0.18s;
 }
 .em-med-id__edit:hover { background: color-mix(in srgb, var(--hc-violet) 15%, transparent); }
@@ -1608,157 +1938,226 @@ html:not(.dark-mode) .em-breathing-core {
 ──────────────────────────────────────────────────────────────── */
 .em-card-overlay {
   position: fixed; inset: 0; z-index: 600;
-  background: rgba(2,11,20,0.82);
-  backdrop-filter: blur(12px);
+  background: rgba(2,11,20,0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   animation: em-fade-in 0.2s ease;
 }
+html.dark-mode .em-card-overlay {
+  background: rgba(2,11,20,0.85);
+}
+
+/* Mobile: constrain overlay to the space between topbar and nav */
+@media (max-width: 640px) {
+  .em-card-overlay {
+    top: 54px;        /* below fixed topbar */
+    bottom: 60px;     /* above fixed nav bar */
+    padding: 12px 14px;
+    align-items: center;
+  }
+}
+
 .em-personal-card {
   position: relative;
   width: 100%; max-width: 400px;
-  background: rgba(255,255,255,0.96);
-  border: 1px solid rgba(0,0,0,0.07);
-  border-radius: 22px;
-  box-shadow: 0 32px 80px rgba(0,0,0,0.16), 0 2px 0 rgba(255,255,255,0.9) inset;
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
-  overflow: hidden;
+  /* On mobile: fit within the constrained overlay, scroll if needed */
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border-radius: 20px;
+  background: #0d1f35;
+  border: 1px solid rgba(255,77,109,0.18);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.55),
+    0 0 0 1px rgba(255,77,109,0.06) inset;
   animation: em-slide-up 0.28s cubic-bezier(0.34,1.56,0.64,1);
 }
-html.dark-mode .em-personal-card {
-  background: rgba(7,24,40,0.92);
-  border-color: rgba(255,77,109,0.16);
-  box-shadow: 0 32px 80px rgba(0,0,0,0.55), 0 0 40px rgba(255,77,109,0.04);
+.em-personal-card::-webkit-scrollbar { display: none; }
+html:not(.dark-mode) .em-personal-card {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.14);
 }
+
 /* Light mode text overrides */
-html:not(.dark-mode) .em-personal-card__name { color: #0f172a !important; }
+html:not(.dark-mode) .em-personal-card__name  { color: #0f172a !important; }
 html:not(.dark-mode) .em-personal-card__brand { color: #0f172a !important; }
 html:not(.dark-mode) .em-personal-card__key   { color: #64748b !important; }
-html:not(.dark-mode) .em-personal-card__val   { color: #0f172a !important; }
-html:not(.dark-mode) .em-personal-card__compat-title { color: #64748b !important; }
-html:not(.dark-mode) .em-personal-card__compat-label { color: #94a3b8 !important; }
+html:not(.dark-mode) .em-personal-card__val   { color: #1e293b !important; }
+html:not(.dark-mode) .em-personal-card__compat-title  { color: #64748b !important; }
+html:not(.dark-mode) .em-personal-card__compat-label  { color: #94a3b8 !important; }
 html:not(.dark-mode) .em-personal-card__ts    { color: #94a3b8 !important; }
-html:not(.dark-mode) .em-personal-card__row {
-  background: rgba(0,0,0,0.03) !important;
-  border-color: rgba(0,0,0,0.07) !important;
-}
-html:not(.dark-mode) .em-personal-card__row--highlight {
-  background: rgba(255,77,109,0.07) !important;
-  border-color: rgba(255,77,109,0.18) !important;
-}
-html:not(.dark-mode) .em-personal-card__row--warn {
-  background: rgba(245,158,11,0.07) !important;
-  border-color: rgba(245,158,11,0.20) !important;
-}
-html:not(.dark-mode) .em-personal-card__blood-compat {
-  background: rgba(255,77,109,0.04) !important;
-  border-color: rgba(255,77,109,0.12) !important;
-}
-html:not(.dark-mode) .em-personal-card__actions {
-  border-top-color: rgba(0,0,0,0.07) !important;
-}
-html:not(.dark-mode) .em-personal-card__edit {
-  background: rgba(0,0,0,0.04) !important;
-  border-color: rgba(0,0,0,0.10) !important;
-  color: #475569 !important;
-}
-html:not(.dark-mode) .em-card-close {
-  background: rgba(0,0,0,0.04) !important;
-  border-color: rgba(0,0,0,0.10) !important;
-  color: #64748b !important;
-}
-.em-card-close {
-  position: absolute; top: 14px; right: 14px; z-index: 1;
-  width: 28px; height: 28px; border-radius: 8px;
-  background: var(--hc-surface2); border: 1px solid var(--hc-border);
-  color: var(--hc-text3); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: color 0.15s;
-}
-.em-card-close:hover { color: var(--hc-text); }
+html:not(.dark-mode) .em-personal-card__row   { background: #f8fafc !important; border-color: rgba(0,0,0,0.07) !important; }
+html:not(.dark-mode) .em-personal-card__row--highlight { background: rgba(255,77,109,0.06) !important; border-color: rgba(255,77,109,0.18) !important; }
+html:not(.dark-mode) .em-personal-card__row--warn      { background: rgba(245,158,11,0.06) !important; border-color: rgba(245,158,11,0.18) !important; }
+html:not(.dark-mode) .em-personal-card__blood-compat   { background: rgba(255,77,109,0.04) !important; border-color: rgba(255,77,109,0.12) !important; }
+html:not(.dark-mode) .em-personal-card__actions        { border-top-color: rgba(0,0,0,0.07) !important; }
+html:not(.dark-mode) .em-personal-card__edit  { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.10) !important; color: #475569 !important; }
+html:not(.dark-mode) .em-card-close           { background: rgba(0,0,0,0.06) !important; border: none !important; color: #64748b !important; }
 
+.em-card-close {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,0.09);
+  border: none;
+  color: rgba(255,255,255,0.45); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.em-card-close:hover { background: rgba(255,255,255,0.16); color: rgba(255,255,255,0.90); }
+
+/* ── Header ── */
 .em-personal-card__header {
   display: flex; align-items: center; gap: 10px;
-  padding: 16px 20px 12px;
-  background: linear-gradient(135deg, rgba(255,77,109,0.10), rgba(255,77,109,0.04));
-  border-bottom: 1px solid rgba(255,77,109,0.15);
+  padding: 14px 16px 11px;
+  background: linear-gradient(135deg, rgba(255,77,109,0.13), rgba(255,77,109,0.05));
+  border-bottom: 1px solid rgba(255,77,109,0.16);
 }
 .em-personal-card__logo {
-  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-  background: rgba(255,77,109,0.12); border: 1px solid rgba(255,77,109,0.25);
-  display: flex; align-items: center; justify-content: center; color: #ff4d6d;
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, #ff4d6d, #c8002a);
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: 0 3px 10px rgba(255,77,109,0.45);
 }
-.em-personal-card__brand { font-size: 12px; font-weight: 800; color: var(--hc-text); margin: 0; }
-.em-personal-card__label { font-size: 10px; color: #ff4d6d; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin: 0; }
+.em-personal-card__brand {
+  font-size: 12.5px; font-weight: 800;
+  color: rgba(255,255,255,0.95); margin: 0 0 1px; letter-spacing: -0.2px;
+}
+.em-personal-card__label {
+  font-size: 9px; color: #ff7090; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px; margin: 0;
+}
 
+/* ── Responder banner ── */
+.em-personal-card__responder-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  background: rgba(255,77,109,0.09);
+  border-bottom: 1px solid rgba(255,77,109,0.13);
+  border-left: 3px solid #ff4d6d;
+}
+.em-personal-card__responder-icon { font-size: 18px; flex-shrink: 0; line-height: 1; }
+.em-personal-card__responder-title {
+  font-size: 10.5px; font-weight: 800; color: #ff7090;
+  margin: 0 0 1px; text-transform: uppercase; letter-spacing: 0.6px;
+}
+.em-personal-card__responder-sub {
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.45);
+  margin: 0; line-height: 1.3;
+}
+html:not(.dark-mode) .em-personal-card__responder-sub { color: #64748b; }
+
+/* ── Patient name ── */
 .em-personal-card__name {
-  font-size: 20px; font-weight: 900; color: var(--hc-text);
-  margin: 0; padding: 14px 20px 10px;
-  border-bottom: 1px solid var(--hc-border2);
+  font-size: 20px; font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  margin: 0; padding: 13px 16px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  letter-spacing: -0.4px; line-height: 1.1;
+  padding-right: 44px; /* clear close btn */
 }
 
-.em-personal-card__rows { padding: 10px 20px; display: flex; flex-direction: column; gap: 6px; }
+/* ── Rows ── */
+.em-personal-card__rows {
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
 .em-personal-card__row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-radius: 10px;
-  background: var(--hc-surface2);
-  border: 1px solid var(--hc-border);
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
 }
-.em-personal-card__row--highlight { background: rgba(255,77,109,0.07); border-color: rgba(255,77,109,0.20); }
-.em-personal-card__row--warn      { background: rgba(251,191,36,0.07); border-color: rgba(251,191,36,0.22); }
-.em-personal-card__row svg         { flex-shrink: 0; color: var(--hc-text3); }
-.em-personal-card__row--highlight svg { color: #ff4d6d; }
+.em-personal-card__row--highlight {
+  background: rgba(255,77,109,0.09); border-color: rgba(255,77,109,0.22);
+}
+.em-personal-card__row--warn {
+  background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.22);
+}
+.em-personal-card__row svg { flex-shrink: 0; color: rgba(255,255,255,0.28); width: 14px; height: 14px; }
+.em-personal-card__row--highlight svg { color: #ff7090; }
 .em-personal-card__row--warn svg      { color: var(--hc-amber); }
-.em-personal-card__key { font-size: 11px; font-weight: 700; color: var(--hc-text3); flex-shrink: 0; width: 80px; }
-.em-personal-card__val { font-size: 12px; font-weight: 600; color: var(--hc-text); flex: 1; min-width: 0; word-break: break-word; }
+.em-personal-card__key {
+  font-size: 9.5px; font-weight: 700;
+  color: rgba(255,255,255,0.32);
+  flex-shrink: 0; width: 78px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.em-personal-card__val {
+  font-size: 12.5px; font-weight: 600;
+  color: rgba(255,255,255,0.88);
+  flex: 1; min-width: 0; word-break: break-word;
+}
+.em-personal-card__row--highlight .em-personal-card__val { color: #ff8fab; font-weight: 700; }
+.em-personal-card__row--warn .em-personal-card__val { color: #fcd34d; font-weight: 700; }
 
-/* Blood compatibility section */
+/* ── Blood compat ── */
 .em-personal-card__blood-compat {
-  margin: 4px 20px 10px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255,77,109,0.05);
+  margin: 0 12px 8px;
+  padding: 10px 12px; border-radius: 11px;
+  background: rgba(255,77,109,0.06);
   border: 1px solid rgba(255,77,109,0.14);
 }
-.em-personal-card__compat-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: var(--hc-text3); margin: 0 0 8px; }
-.em-personal-card__compat-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.em-personal-card__compat-title {
+  font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.9px; color: rgba(255,255,255,0.30); margin: 0 0 7px;
+}
+.em-personal-card__compat-row   { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; flex-wrap: wrap; }
 .em-personal-card__compat-row:last-child { margin-bottom: 0; }
-.em-personal-card__compat-label { font-size: 10px; font-weight: 600; color: var(--hc-text3); white-space: nowrap; flex-shrink: 0; }
-.em-personal-card__compat-tags  { display: flex; flex-wrap: wrap; gap: 4px; }
+.em-personal-card__compat-label { font-size: 9.5px; font-weight: 600; color: rgba(255,255,255,0.35); white-space: nowrap; flex-shrink: 0; }
+.em-personal-card__compat-tags  { display: flex; flex-wrap: wrap; gap: 3px; }
 .em-personal-card__blood-tag {
-  padding: 2px 8px; border-radius: 100px; font-size: 10.5px; font-weight: 700;
-  background: rgba(255,77,109,0.08); color: #ff4d6d;
-  border: 1px solid rgba(255,77,109,0.18);
+  padding: 2px 8px; border-radius: 100px; font-size: 10px; font-weight: 700;
+  background: rgba(255,77,109,0.10); color: #ff7090;
+  border: 1px solid rgba(255,77,109,0.20);
 }
 .em-personal-card__blood-tag--self {
-  background: #ff4d6d; color: #fff; border-color: #ff4d6d;
+  background: linear-gradient(135deg, #ff4d6d, #c8002a);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 2px 7px rgba(255,77,109,0.40);
 }
 
-/* Actions */
+/* ── Actions ── */
 .em-personal-card__actions {
-  display: flex; gap: 10px; padding: 12px 20px 10px;
-  border-top: 1px solid var(--hc-border2);
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 .em-personal-card__copy,
 .em-personal-card__edit {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 10px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 11px 8px; border-radius: 11px;
   font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.17s;
 }
 .em-personal-card__copy {
-  background: rgba(255,77,109,0.10); color: #ff4d6d;
-  border: 1px solid rgba(255,77,109,0.25);
+  background: linear-gradient(135deg, #ff4d6d, #c8002a);
+  color: #fff; border: none;
+  box-shadow: 0 3px 14px rgba(255,77,109,0.45);
 }
-.em-personal-card__copy:hover { background: rgba(255,77,109,0.18); }
+.em-personal-card__copy:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.em-personal-card__copy:active { transform: none; filter: brightness(0.95); }
 .em-personal-card__edit {
-  background: var(--hc-surface2); color: var(--hc-text2);
-  border: 1px solid var(--hc-border);
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.11);
 }
-.em-personal-card__edit:hover { color: var(--hc-teal); border-color: var(--hc-teal); }
+.em-personal-card__edit:hover {
+  background: rgba(0,210,255,0.10); color: var(--hc-teal);
+  border-color: rgba(0,210,255,0.28);
+}
 
-.em-personal-card__ts { font-size: 10px; color: var(--hc-text3); text-align: center; padding: 0 20px 14px; margin: 0; }
+/* ── Timestamp ── */
+.em-personal-card__ts {
+  font-size: 10px; color: rgba(255,255,255,0.20);
+  text-align: center; padding: 0 16px 12px; margin: 0;
+}
 
 /* ── Mobile adjustments ─────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -1766,5 +2165,5 @@ html:not(.dark-mode) .em-card-close {
   .em-breathing-modal { padding: 28px 20px; }
   .em-breathing-circle { width: 140px; height: 140px; }
   .em-breathing-core { width: 96px; height: 96px; }
-  .em-personal-card__key { width: 70px; }
+  .em-personal-card__key { width: 72px; }
 }

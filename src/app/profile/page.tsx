@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import DashboardLayout from '@/components/DashboardLayout';
 import { getRelativeTime } from '@/lib/activityTracker';
@@ -18,7 +18,7 @@ import {
   ChevronRight, Plus, Shield, Pill, Activity, Star,
   Users, BookOpen, Zap, AlertTriangle, Stethoscope,
   Phone, MapPin, Bot, Loader2, Lock, Eye, EyeOff, Navigation, BookmarkCheck,
-  Droplets, Weight, Calendar, ClipboardList, TrendingUp, CheckCircle,
+  Droplets, Weight, Calendar, ClipboardList, TrendingUp, CheckCircle, Copy,
 } from 'lucide-react';
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -55,6 +55,7 @@ interface SavedFacility {
 interface FamilyMember { id: string; name: string; relation: string; age: number; }
 interface EmergencyContact {
   id: string; name: string; relationship: string; number: string;
+  email?: string;
   isPrimary?: boolean; priority?: number;
 }
 
@@ -71,7 +72,19 @@ const STATUS_COLOR   = { managed: 'pr-tag--teal', active: 'pr-tag--red', resolve
 const ProfilePage = () => {
   const { data: session, update, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+
+  /* Open modal from URL query param — e.g. /profile?modal=medicalId
+     Triggered when navigating from the emergency page Medical ID button */
+  useEffect(() => {
+    const modalParam = searchParams.get('modal');
+    if (modalParam === 'medicalId') {
+      setModal('medicalId');
+      // Clean the URL without triggering a navigation/re-render
+      window.history.replaceState(null, '', '/profile');
+    }
+  }, [searchParams]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* Auth/basic */
@@ -107,11 +120,18 @@ const ProfilePage = () => {
   const [emergencyContacts,        setEmergencyContacts]        = useState<EmergencyContact[]>([]);
   const [isLoadingContacts,        setIsLoadingContacts]        = useState(true);
   const [showAddContact,           setShowAddContact]           = useState(false);
-  const [newContact,               setNewContact]               = useState({ name: '', relationship: '', number: '' });
+  const [newContact,               setNewContact]               = useState({ name: '', relationship: '', number: '', email: '' });
   const [addingContact,            setAddingContact]            = useState(false);
   const [contactAddError,          setContactAddError]          = useState('');
   const [contactSaveSuccess,       setContactSaveSuccess]       = useState(false);
   const [copiedContactId,          setCopiedContactId]          = useState<string | null>(null);
+  const [copiedMedId,              setCopiedMedId]              = useState(false);
+
+  /* Edit contact state */
+  const [editingEcId,  setEditingEcId]  = useState<string | null>(null);
+  const [editEcForm,   setEditEcForm]   = useState({ name: '', relationship: '', number: '', email: '' });
+  const [savingEc,     setSavingEc]     = useState(false);
+  const [editEcError,  setEditEcError]  = useState('');
 
   /* Modal state */
   const [modal, setModal] = useState<null | 'medicalId' | 'allergies' | 'meds' | 'conditions' | 'sessions' | 'facilities' | 'family' | 'editHealth' | 'emergencyContacts'>(null);
@@ -339,6 +359,7 @@ const ProfilePage = () => {
             name:         c.name,
             relationship: c.relationship,
             number:       c.number,
+            email:        c.email || undefined,
             isPrimary:    c.priority === 1,
             priority:     c.priority,
           })),
@@ -361,6 +382,7 @@ const ProfilePage = () => {
           name:         newContact.name.trim(),
           relationship: newContact.relationship.trim(),
           number:       newContact.number.trim(),
+          email:        newContact.email.trim() || undefined,
           priority:     emergencyContacts.length + 1,
         }),
       });
@@ -372,9 +394,10 @@ const ProfilePage = () => {
       setEmergencyContacts(prev => [
         ...prev,
         { id: contact.id, name: contact.name, relationship: contact.relationship,
-          number: contact.number, isPrimary: contact.priority === 1, priority: contact.priority },
+          number: contact.number, email: contact.email || undefined,
+          isPrimary: contact.priority === 1, priority: contact.priority },
       ]);
-      setNewContact({ name: '', relationship: '', number: '' });
+      setNewContact({ name: '', relationship: '', number: '', email: '' });
       setShowAddContact(false);
       setContactSaveSuccess(true);
       setTimeout(() => setContactSaveSuccess(false), 3000);
@@ -382,6 +405,52 @@ const ProfilePage = () => {
       setContactAddError(err.message || 'Failed to save contact. Please try again.');
     } finally {
       setAddingContact(false);
+    }
+  };
+
+  /* ── Start editing a contact ─────────────────────────────── */
+  const startEditEc = (c: EmergencyContact) => {
+    setEditingEcId(c.id);
+    setEditEcForm({ name: c.name, relationship: c.relationship, number: c.number, email: c.email || '' });
+    setEditEcError('');
+    setShowAddContact(false);
+  };
+
+  /* ── Save edited contact ─────────────────────────────────── */
+  const handleSaveEc = async () => {
+    setEditEcError('');
+    if (!editEcForm.name.trim())   { setEditEcError('Name is required');         return; }
+    if (!editEcForm.number.trim()) { setEditEcError('Phone number is required'); return; }
+    setSavingEc(true);
+    try {
+      const res = await fetch('/api/emergency-contacts', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id:           editingEcId,
+          name:         editEcForm.name.trim(),
+          relationship: editEcForm.relationship.trim(),
+          number:       editEcForm.number.trim(),
+          email:        editEcForm.email.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update contact');
+      }
+      const { contact } = await res.json();
+      setEmergencyContacts(prev => prev.map(c => c.id === editingEcId
+        ? { ...c, name: contact.name, relationship: contact.relationship,
+            number: contact.number, email: contact.email || undefined }
+        : c,
+      ));
+      setEditingEcId(null);
+      setContactSaveSuccess(true);
+      setTimeout(() => setContactSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setEditEcError(err.message || 'Failed to update contact.');
+    } finally {
+      setSavingEc(false);
     }
   };
 
@@ -402,7 +471,8 @@ const ProfilePage = () => {
           setEmergencyContacts(
             (data || []).map((c: any) => ({
               id: c.id, name: c.name, relationship: c.relationship,
-              number: c.number, isPrimary: c.priority === 1, priority: c.priority,
+              number: c.number, email: c.email || undefined,
+              isPrimary: c.priority === 1, priority: c.priority,
             })),
           );
         });
@@ -414,6 +484,29 @@ const ProfilePage = () => {
       await navigator.clipboard.writeText(number);
       setCopiedContactId(id);
       setTimeout(() => setCopiedContactId(null), 2000);
+    } catch { /* ignore */ }
+  };
+
+  /* ── Copy Medical ID as plain text ──────────────────────── */
+  const copyMedicalId = async () => {
+    const ec = emergencyContacts[0];
+    const lines = [
+      `=== MEDICAL ID — ${userName} ===`,
+      `Blood Type:  ${health.bloodType}`,
+      `Age:         ${health.age > 0 ? `${health.age} years` : '—'}`,
+      `Height:      ${health.height}`,
+      `Weight:      ${health.weight}`,
+      `BMI:         ${health.bmi ?? '—'}`,
+      `Allergies:   ${allergies.map(a => a.name).join(', ') || 'None'}`,
+      `Medications: ${activeMeds.map(m => m.name).join(', ') || 'None'}`,
+      `Conditions:  ${conditions.map(c => c.name).join(', ') || 'None'}`,
+      ec ? `Emergency Contact: ${ec.name} — ${ec.number}` : '',
+      `Generated: ${new Date().toLocaleString()}`,
+    ].filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(lines);
+      setCopiedMedId(true);
+      setTimeout(() => setCopiedMedId(false), 2500);
     } catch { /* ignore */ }
   };
 
@@ -1061,10 +1154,20 @@ const ProfilePage = () => {
                   <div className="pr-modal__header-icon pr-modal__header-icon--violet"><BookOpen size={18} /></div>
                   <div>
                     <h3 className="pr-modal__title">Medical ID</h3>
-                    <p className="pr-modal__sub">Available offline · For first responders</p>
+                    <p className="pr-modal__sub">Available offline · Tap copy to share</p>
                   </div>
                   <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
                 </div>
+
+                {/* First-responder instruction banner */}
+                <div className="pr-medid-responder-banner">
+                  <span className="pr-medid-responder-banner__emoji">🚑</span>
+                  <div>
+                    <p className="pr-medid-responder-banner__title">For First Responders</p>
+                    <p className="pr-medid-responder-banner__sub">Show this screen or tap Copy to share via message</p>
+                  </div>
+                </div>
+
                 <div className="pr-modal__body">
                   <div className="pr-medid-card">
                     {[
@@ -1077,6 +1180,7 @@ const ProfilePage = () => {
                       { label: 'Allergies',   val: allergies.map(a => a.name).join(', ') || 'None', highlight: 'amber' },
                       { label: 'Medications', val: activeMeds.map(m => m.name).join(', ') || 'None' },
                       { label: 'Conditions',  val: conditions.map(c => c.name).join(', ') || 'None' },
+                      { label: 'Contact',     val: emergencyContacts[0] ? `${emergencyContacts[0].name} · ${emergencyContacts[0].number}` : 'Not set' },
                     ].map(({ label, val, highlight }) => (
                       <div key={label} className="pr-medid-row">
                         <span className="pr-medid-row__key">{label}</span>
@@ -1084,9 +1188,25 @@ const ProfilePage = () => {
                       </div>
                     ))}
                   </div>
-                  <button className="pr-modal__action" type="button" onClick={() => setModal('editHealth')}>
-                    <Edit2 size={14} /> Edit Medical Info
-                  </button>
+
+                  {/* Action buttons */}
+                  <div className="pr-medid-actions">
+                    <button
+                      className={`pr-medid-actions__copy${copiedMedId ? ' pr-medid-actions__copy--ok' : ''}`}
+                      onClick={copyMedicalId} type="button"
+                    >
+                      {copiedMedId
+                        ? <><Check size={14} /> Copied!</>
+                        : <><Copy size={14} /> Copy Card</>
+                      }
+                    </button>
+                    <button className="pr-medid-actions__edit" type="button" onClick={() => setModal('editHealth')}>
+                      <Edit2 size={14} /> Edit Info
+                    </button>
+                  </div>
+                  <p className="pr-medid-actions__hint">
+                    Copy pastes a plain-text summary — paste into WhatsApp, SMS, or any message app
+                  </p>
                 </div>
               </>
             )}
@@ -1442,7 +1562,7 @@ const ProfilePage = () => {
                           <Phone size={28} className="pr-empty-state__icon" />
                           <p className="pr-empty-state__text">No emergency contacts yet</p>
                           <p style={{ fontSize: 12, color: 'var(--hc-text2)', margin: '0 0 14px', textAlign: 'center' }}>
-                            Add a contact so first responders can reach your family
+                            Add a contact so they receive SOS alerts when you need help
                           </p>
                           <button className="pr-modal__action" onClick={() => setShowAddContact(true)} type="button">
                             <Plus size={14} /> Add First Contact
@@ -1452,32 +1572,93 @@ const ProfilePage = () => {
                         <div className="pr-list">
                           {emergencyContacts.map(c => (
                             <div key={c.id} className={`pr-ec-item${c.isPrimary ? ' pr-ec-item--primary' : ''}`}>
-                              <div className="pr-ec-item__avatar">{c.name.slice(0, 2).toUpperCase()}</div>
-                              <div className="pr-ec-item__body">
-                                <div className="pr-ec-item__name">
-                                  {c.name}
-                                  {c.isPrimary && <span className="pr-ec-item__badge">Primary</span>}
+
+                              {/* Inline edit form */}
+                              {editingEcId === c.id ? (
+                                <div className="pr-ec-edit-form">
+                                  {editEcError && (
+                                    <p className="pr-ec-add__error"><AlertCircle size={12} /> {editEcError}</p>
+                                  )}
+                                  <div className="pr-form-row">
+                                    <label className="pr-form-label">Full Name *</label>
+                                    <input className="pr-form-input" placeholder="e.g. Ama Mensah"
+                                      value={editEcForm.name} onChange={e => setEditEcForm(p => ({ ...p, name: e.target.value }))} />
+                                  </div>
+                                  <div className="pr-form-row">
+                                    <label className="pr-form-label">Relationship</label>
+                                    <input className="pr-form-input" placeholder="e.g. Sister, Mother"
+                                      value={editEcForm.relationship} onChange={e => setEditEcForm(p => ({ ...p, relationship: e.target.value }))} />
+                                  </div>
+                                  <div className="pr-form-row">
+                                    <label className="pr-form-label">Phone Number *</label>
+                                    <input className="pr-form-input" placeholder="+233XXXXXXXXX" type="tel"
+                                      value={editEcForm.number} onChange={e => setEditEcForm(p => ({ ...p, number: e.target.value }))} />
+                                  </div>
+                                  <div className="pr-form-row">
+                                    <label className="pr-form-label">Email <span className="pr-form-label__hint">for SOS alerts</span></label>
+                                    <input className="pr-form-input" placeholder="e.g. ama@gmail.com" type="email"
+                                      value={editEcForm.email} onChange={e => setEditEcForm(p => ({ ...p, email: e.target.value }))} />
+                                  </div>
+                                  <div className="pr-ec-add__btns">
+                                    <button className="pr-btn pr-btn--ghost pr-btn--sm"
+                                      onClick={() => { setEditingEcId(null); setEditEcError(''); }} type="button">
+                                      <X size={13} /> Cancel
+                                    </button>
+                                    <button className="pr-modal__save" style={{ marginTop: 0, flex: 1 }}
+                                      onClick={handleSaveEc} disabled={savingEc} type="button">
+                                      {savingEc ? <Loader2 size={14} className="pr-spin" /> : <Check size={14} />}
+                                      {savingEc ? 'Saving…' : 'Save Changes'}
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="pr-ec-item__meta">{c.relationship} · {c.number}</div>
-                              </div>
-                              <div className="pr-ec-item__actions">
-                                <button
-                                  className="pr-ec-item__copy" title="Copy number"
-                                  onClick={() => copyContactNumber(c.id, c.number)} type="button"
-                                >
-                                  {copiedContactId === c.id ? <Check size={13} /> : <Shield size={13} />}
-                                </button>
-                                <a href={`tel:${c.number}`} className="pr-ec-item__call">
-                                  <Phone size={13} /> Call
-                                </a>
-                                {!c.isPrimary && (
-                                  <button className="pr-list-item__remove" onClick={() => removeEmergencyContact(c.id)} type="button" title="Remove">
-                                    <X size={13} />
-                                  </button>
-                                )}
-                              </div>
+                              ) : (
+                                <>
+                                  <div className="pr-ec-item__avatar">{c.name.slice(0, 2).toUpperCase()}</div>
+                                  <div className="pr-ec-item__body">
+                                    <div className="pr-ec-item__name-row">
+                                      <span className="pr-ec-item__name-text">{c.name}</span>
+                                      {c.isPrimary && <span className="pr-ec-item__badge">Primary</span>}
+                                    </div>
+                                    <div className="pr-ec-item__meta">{c.relationship} · {c.number}</div>
+                                    {c.email
+                                      ? <div className="pr-ec-item__email pr-ec-item__email--set">✉ {c.email}</div>
+                                      : <div className="pr-ec-item__email pr-ec-item__email--missing">⚠ No email — won't receive SOS alerts</div>
+                                    }
+                                  </div>
+                                  <div className="pr-ec-item__actions">
+                                    <button className="pr-ec-item__copy" title="Copy number"
+                                      onClick={() => copyContactNumber(c.id, c.number)} type="button">
+                                      {copiedContactId === c.id ? <Check size={13} /> : <Copy size={13} />}
+                                    </button>
+                                    <a href={`tel:${c.number}`} className="pr-ec-item__call">
+                                      <Phone size={13} /> Call
+                                    </a>
+                                    <button className="pr-ec-item__edit-btn" onClick={() => startEditEc(c)}
+                                      type="button" title="Edit contact">
+                                      <Edit2 size={12} />
+                                    </button>
+                                    <button className="pr-list-item__remove" onClick={() => removeEmergencyContact(c.id)}
+                                      type="button" title="Remove">
+                                      <X size={13} />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           ))}
+
+                          {/* Nudge when any contact is missing email */}
+                          {emergencyContacts.some(c => !c.email) && !editingEcId && (
+                            <div className="pr-ec-email-nudge">
+                              <AlertCircle size={13} />
+                              <span>
+                                {emergencyContacts.filter(c => !c.email).length === 1
+                                  ? '1 contact is missing an email'
+                                  : `${emergencyContacts.filter(c => !c.email).length} contacts are missing an email`
+                                } — tap <strong>Edit</strong> to add it so they receive SOS alerts automatically.
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1504,6 +1685,12 @@ const ProfilePage = () => {
                             <input className="pr-form-input" placeholder="+233XXXXXXXXX or 0XXXXXXXXX" type="tel"
                               value={newContact.number}
                               onChange={e => setNewContact(p => ({ ...p, number: e.target.value }))} />
+                          </div>
+                          <div className="pr-form-row">
+                            <label className="pr-form-label">Email <span className="pr-form-label__hint">for SOS alerts</span></label>
+                            <input className="pr-form-input" placeholder="e.g. ama@gmail.com" type="email"
+                              value={newContact.email}
+                              onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} />
                           </div>
                           <div className="pr-ec-add__btns">
                             <button className="pr-btn pr-btn--ghost pr-btn--sm"

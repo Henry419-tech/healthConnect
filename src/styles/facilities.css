@@ -548,8 +548,12 @@ html.dark-mode .loc-confirmation {
   background: var(--hc-surface2); color: var(--hc-text);
 }
 .facility-finder-view-btn.active {
-  background: var(--hc-teal); color: #fff;
-  box-shadow: 0 2px 10px var(--hc-teal-glow);
+  background: var(--hc-teal-dim); color: var(--hc-teal);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 50%, transparent);
+  box-shadow: none;
+}
+.facility-finder-view-btn.active:hover:not(:disabled) {
+  background: var(--hc-teal-dim); color: var(--hc-teal);
 }
 .facility-finder-view-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -1194,6 +1198,11 @@ html.dark-mode .dashboard-footer { background: rgba(7,24,40,0.85); }
   color: var(--hc-red);
   border: 1px solid color-mix(in srgb, var(--hc-red) 22%, transparent);
 }
+.facility-status-badge.unknown {
+  background: color-mix(in srgb, var(--hc-text3) 10%, transparent);
+  color: var(--hc-text3);
+  border: 1px solid color-mix(in srgb, var(--hc-text3) 22%, transparent);
+}
 
 /* Status dot — used inline in list cards and detail modal */
 .status-dot {
@@ -1201,16 +1210,18 @@ html.dark-mode .dashboard-footer { background: rgba(7,24,40,0.85); }
   border-radius: 50%;
   flex-shrink: 0;
 }
-.status-dot.open  { background: var(--hc-mint); box-shadow: 0 0 5px color-mix(in srgb, var(--hc-mint) 50%, transparent); }
-.status-dot.closed { background: var(--hc-red); }
+.status-dot.open    { background: var(--hc-mint); box-shadow: 0 0 5px color-mix(in srgb, var(--hc-mint) 50%, transparent); }
+.status-dot.closed  { background: var(--hc-red); }
+.status-dot.unknown { background: var(--hc-text3); }
 
 /* Status row in quick-info */
 .quick-info-item.status-item {
   display: flex; align-items: center; gap: 7px;
   font-size: 13px; font-weight: 600;
 }
-.quick-info-item.status-item.open  { color: var(--hc-mint); }
-.quick-info-item.status-item.closed { color: var(--hc-red); }
+.quick-info-item.status-item.open    { color: var(--hc-mint); }
+.quick-info-item.status-item.closed  { color: var(--hc-red); }
+.quick-info-item.status-item.unknown { color: var(--hc-text3); }
 .hours-detail { color: var(--hc-text3) !important; font-weight: 400; font-size: 12px; }
 
 /* ════════════════════════════════════════════════════════════════

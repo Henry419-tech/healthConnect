@@ -212,10 +212,11 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s !important;
   }
   .type-pill.active {
-    background: var(--hc-teal) !important;
-    color: #fff !important;
-    border-color: var(--hc-teal) !important;
-    box-shadow: 0 2px 8px var(--hc-teal-glow) !important;
+    background: var(--hc-teal-dim) !important;
+    color: var(--hc-teal) !important;
+    border-color: color-mix(in srgb, var(--hc-teal) 50%, transparent) !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
   }
 
   /* Extended filters panel */
@@ -271,9 +272,9 @@
   .facility-finder-map-container > div:first-child,
   .facility-finder-map {
     width: 100% !important;
-    height: 62vw !important;
-    min-height: 300px !important;
-    max-height: 420px !important;
+    height: 55vh !important;
+    min-height: 380px !important;
+    max-height: 560px !important;
     border-radius: 18px !important;
     overflow: hidden !important;
     border: 1px solid var(--hc-border) !important;
@@ -299,7 +300,7 @@
     font-size: 14px !important; font-weight: 800 !important;
   }
   .facility-finder-results-list {
-    max-height: 420px !important;
+    max-height: 340px !important;
     overflow-y: auto !important;
     padding: 8px !important;
     gap: 6px !important;
@@ -323,6 +324,7 @@
   .facility-result-rating   { font-size: 12px !important; }
   .facility-badges { gap: 5px !important; }
   .emergency-badge, .insurance-badge { font-size: 10px !important; padding: 2px 7px !important; }
+  .facility-status-badge { font-size: 11px !important; padding: 3px 9px !important; }
   .facility-result-services  { font-size: 11px !important; }
   .facility-result-actions   { gap: 6px !important; padding-top: 2px !important; }
   .facility-action-btn {
@@ -606,12 +608,13 @@
 @media (max-width: 390px) {
   .facility-card-name  { font-size: 13.5px !important; }
   .facility-finder-results-list {
-    max-height: 360px !important;
+    max-height: 300px !important;
   }
   .facility-finder-map-container > div:first-child,
   .facility-finder-map {
-    height: 58vw !important;
-    min-height: 260px !important;
+    height: 50vh !important;
+    min-height: 320px !important;
+    max-height: 460px !important;
   }
   .fac-mob-gps-btn {
     padding: 0 9px !important;

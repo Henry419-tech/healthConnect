@@ -664,16 +664,66 @@ html.dark-mode .db-advisory {
   background: color-mix(in srgb, var(--hc-red) 5%, var(--hc-surface));
   border-color: color-mix(in srgb, var(--hc-red) 22%, transparent);
   padding: 20px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
 }
+
+/* Top row: icon + title/desc side by side */
+.db-card__emergency-top {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+}
+.db-card__emergency-body { flex: 1; min-width: 0; }
+
 .db-card__emergency-icon {
   width: 38px; height: 38px; border-radius: 11px;
   background: rgba(239,68,68,0.12);
   display: flex; align-items: center; justify-content: center;
-  color: var(--hc-red);
+  color: var(--hc-red); flex-shrink: 0;
 }
-.db-card__emergency-title  { font-size: 15px; font-weight: 700; color: var(--hc-text); margin: 0; }
-.db-card__emergency-desc   { font-size: 12px; color: var(--hc-text2); line-height: 1.5; margin: 0; }
+.db-card__emergency-title  { font-size: 15px; font-weight: 700; color: var(--hc-text); margin: 0 0 2px; }
+.db-card__emergency-desc   { font-size: 11.5px; color: var(--hc-text2); line-height: 1.5; margin: 0; }
+
+/* Medical ID completeness section */
+.db-card__emergency-medid {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+}
+html.dark-mode .db-card__emergency-medid {
+  background: rgba(255,255,255,0.04);
+}
+
+/* Progress bar */
+.db-card__emergency-medid-bar {
+  height: 4px; border-radius: 100px;
+  background: var(--hc-border);
+  overflow: hidden; margin-bottom: 8px;
+}
+.db-card__emergency-medid-fill {
+  height: 100%; border-radius: 100px;
+  background: var(--hc-red);
+  transition: width 0.6s ease;
+  min-width: 4px;
+}
+
+/* Label + CTA row */
+.db-card__emergency-medid-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.db-card__emergency-medid-label {
+  font-size: 11.5px; font-weight: 600;
+  color: var(--hc-text2); flex: 1; min-width: 0;
+}
+.db-card__emergency-medid-cta {
+  font-size: 11px; font-weight: 700;
+  color: var(--hc-red);
+  background: none; border: none; cursor: pointer;
+  padding: 0; font-family: inherit;
+  white-space: nowrap; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.db-card__emergency-medid-cta:hover { opacity: 0.7; }
 .db-emergency-open-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; padding: 11px; border-radius: 11px;

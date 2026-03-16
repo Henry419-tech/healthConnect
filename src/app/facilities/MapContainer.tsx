@@ -309,16 +309,22 @@ const MapContainer: React.FC<MapContainerProps> = ({ facilities, userLocation, o
       markersRef.current.push(marker);
     });
 
-    // Fit bounds to show all facilities and user location
-    if (facilities.length > 0 && userLocation) {
-      const bounds = L.latLngBounds([
-        userLocation,
-        ...facilities.map(f => f.coordinates)
-      ]);
-      mapRef.current.fitBounds(bounds, { 
-        padding: [50, 50],
-        maxZoom: 15
-      });
+    // Always snap to user at street level. fitBounds is intentionally removed —
+    // it zooms out to show all markers at once, which makes them look crowded
+    // in dense areas like Accra. Users can pan/zoom to find farther facilities.
+    if (userLocation) {
+      const current = mapRef.current.getCenter();
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const distKm =
+        6371 * 2 * Math.asin(Math.sqrt(
+          Math.sin(toRad((current.lat - userLocation[0]) / 2)) ** 2 +
+          Math.cos(toRad(userLocation[0])) * Math.cos(toRad(current.lat)) *
+          Math.sin(toRad((current.lng - userLocation[1]) / 2)) ** 2
+        ));
+      // Only re-centre if drifted >500 m so filter changes don't hijack the user's pan
+      if (distKm > 0.5) {
+        mapRef.current.setView(userLocation, 13, { animate: true, duration: 0.8 });
+      }
     }
 
     // Invalidate map size after adding markers

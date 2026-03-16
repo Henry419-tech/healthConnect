@@ -64,9 +64,9 @@ const DAY_IDX: Record<string,number> = {
   mo:0, tu:1, we:2, th:3, fr:4, sa:5, su:6,
   mon:0,tue:1,wed:2,thu:3,fri:4,sat:5,sun:6,
 };
-function parseOsmHours(raw: string): { label: string; isOpen: boolean } {
+function parseOsmHours(raw: string): { label: string; isOpen: boolean; isUnknown?: boolean } {
   if (!raw || raw.trim() === '' || raw.toLowerCase() === 'call for hours') {
-    return { label: 'Hours unknown', isOpen: false };
+    return { label: 'Hours unknown', isOpen: false, isUnknown: true };
   }
   const norm = raw.trim().toLowerCase();
   if (norm === '24/7' || norm === 'always') return { label: 'Open 24/7', isOpen: true };
@@ -128,10 +128,10 @@ function parseOsmHours(raw: string): { label: string; isOpen: boolean } {
       return { label: 'Closed', isOpen: false };
     }
   }
-  return { label: 'Hours unknown', isOpen: false };
+  return { label: 'Hours unknown', isOpen: false, isUnknown: true };
 }
 
-function getOpenStatus(hours: string, emergencyServices: boolean): { label: string; isOpen: boolean } {
+function getOpenStatus(hours: string, emergencyServices: boolean): { label: string; isOpen: boolean; isUnknown?: boolean } {
   if (emergencyServices) return { label: 'Open 24/7', isOpen: true };
   if (hours === '24/7') return { label: 'Open 24/7', isOpen: true };
   return parseOsmHours(hours);
@@ -1777,7 +1777,7 @@ function DynamicFacilityFinderInner() {
                     </div>
                   ) : (
                     filteredFacilities.map(facility => {
-                      const { label: statusLabel, isOpen } = getOpenStatus(facility.hours, facility.emergencyServices);
+                      const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(facility.hours, facility.emergencyServices);
                       const hasPhone = !!facility.phone;
                       return (
                       <div 
@@ -1802,7 +1802,7 @@ function DynamicFacilityFinderInner() {
                         
                         <div className="facility-result-details">
                           <div className="facility-badges">
-                            <span className={`facility-status-badge ${isOpen ? 'open' : 'closed'}`}>
+                            <span className={`facility-status-badge ${isOpen ? 'open' : isUnknown ? 'unknown' : 'closed'}`}>
                               {statusLabel}
                             </span>
                             {facility.emergencyServices && (
@@ -1911,7 +1911,7 @@ function DynamicFacilityFinderInner() {
               ) : (
                 <div className="facility-finder-list-grid">
                   {filteredFacilities.map(facility => {
-                    const { label: statusLabel, isOpen } = getOpenStatus(facility.hours, facility.emergencyServices);
+                    const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(facility.hours, facility.emergencyServices);
                     const hasPhone = !!facility.phone;
                     return (
                     <div key={facility.id} className="facility-finder-list-card">
@@ -1937,8 +1937,8 @@ function DynamicFacilityFinderInner() {
                       </div>
                       
                       <div className="facility-card-quick-info">
-                        <div className={`quick-info-item status-item ${isOpen ? 'open' : 'closed'}`}>
-                          <span className={`status-dot ${isOpen ? 'open' : 'closed'}`} />
+                        <div className={`quick-info-item status-item ${isOpen ? 'open' : isUnknown ? 'unknown' : 'closed'}`}>
+                          <span className={`status-dot ${isOpen ? 'open' : isUnknown ? 'unknown' : 'closed'}`} />
                           <span>{statusLabel}</span>
                           {facility.hours && facility.hours !== 'Call for hours' && facility.hours !== '24/7' && (
                             <span className="hours-detail">· {facility.hours}</span>
@@ -2054,7 +2054,7 @@ function DynamicFacilityFinderInner() {
       </div>
 
       {selectedFacility && (() => {
-        const { label: statusLabel, isOpen } = getOpenStatus(selectedFacility.hours, selectedFacility.emergencyServices);
+        const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(selectedFacility.hours, selectedFacility.emergencyServices);
         const hasPhone = !!selectedFacility.phone;
         return (
         <div className="facility-detail-modal" onClick={() => setSelectedFacility(null)}>
@@ -2090,8 +2090,8 @@ function DynamicFacilityFinderInner() {
                 <p><MapPin size={16} /> {[selectedFacility.address, selectedFacility.city, selectedFacility.region].filter(Boolean).join(', ') || 'Address not available'}</p>
                 {hasPhone && <p><Phone size={16} /> {selectedFacility.phone}</p>}
                 <p>
-                  <span className={`status-dot ${isOpen ? 'open' : 'closed'}`} style={{ display: 'inline-block', marginRight: 6 }} />
-                  <strong style={{ color: isOpen ? 'var(--hc-mint)' : 'var(--hc-red)' }}>{statusLabel}</strong>
+                  <span className={`status-dot ${isOpen ? 'open' : isUnknown ? 'unknown' : 'closed'}`} style={{ display: 'inline-block', marginRight: 6 }} />
+                  <strong style={{ color: isOpen ? 'var(--hc-mint)' : isUnknown ? 'var(--hc-text2)' : 'var(--hc-red)' }}>{statusLabel}</strong>
                   {selectedFacility.hours && selectedFacility.hours !== '24/7' && selectedFacility.hours !== 'Call for hours' && (
                     <span style={{ color: 'var(--hc-text2)', marginLeft: 6 }}>· {selectedFacility.hours}</span>
                   )}

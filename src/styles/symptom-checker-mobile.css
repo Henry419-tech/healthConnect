@@ -94,7 +94,7 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    padding-bottom: var(--sc-tab-bar-h) !important; /* space for fixed tab bar */
+    /* No padding-bottom here — clearance is handled by sc-input-bar below */
   }
 
   /* Grid: single flex column */
@@ -148,13 +148,14 @@
     display: none !important; /* replaced by sc-mob-quick-pills */
   }
 
-  /* sc-input-bar: undo absolute, pinned at bottom of sc-page flex */
+  /* sc-input-bar: undo absolute, pinned at bottom of sc-page flex.
+     Bottom padding clears the fixed sc-mob-tab-bar (60px) + safe area. */
   .sc-input-bar {
     position: relative !important;
     bottom: auto !important;
     flex-shrink: 0 !important;
     padding: 7px 14px !important;
-    padding-bottom: calc(7px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(var(--sc-tab-bar-h) + env(safe-area-inset-bottom, 0px)) !important;
   }
   .sc-input-inner {
     padding: 7px 8px 7px 13px !important;

@@ -350,6 +350,12 @@ const EmergencyPage: NextPage = () => {
   const [addError,       setAddError]       = useState('');
   const [contactSaveSuccess, setContactSaveSuccess] = useState(false);
 
+  /* Edit contact state */
+  const [editingContactId,  setEditingContactId]  = useState<string | null>(null);
+  const [editContact,       setEditContact]       = useState({ name: '', relationship: '', number: '', email: '' });
+  const [savingEdit,        setSavingEdit]        = useState(false);
+  const [editError,         setEditError]         = useState('');
+
   /* Health profile — loaded from DB for Medical ID */
   const [healthProfile,       setHealthProfile]       = useState<HealthProfileData | null>(null);
   const [isLoadingProfile,    setIsLoadingProfile]    = useState(true);
@@ -734,10 +740,57 @@ const EmergencyPage: NextPage = () => {
         body:    JSON.stringify({ id }),
       });
     } catch {
-      // Re-fetch on failure to restore correct state
       fetch('/api/emergency-contacts')
         .then(r => r.json())
         .then(({ contacts: data }) => setContacts(data || []));
+    }
+  };
+
+  /* ── Start editing a contact ──────────────────────────────── */
+  const startEditContact = (c: EmergencyContact) => {
+    setEditingContactId(c.id);
+    setEditContact({ name: c.name, relationship: c.relationship, number: c.number, email: c.email || '' });
+    setEditError('');
+    setShowAddContact(false);
+  };
+
+  /* ── Save edited contact to DB ────────────────────────────── */
+  const handleSaveEdit = async () => {
+    setEditError('');
+    if (!editContact.name.trim())   { setEditError('Name is required');         return; }
+    if (!editContact.number.trim()) { setEditError('Phone number is required'); return; }
+    setSavingEdit(true);
+    try {
+      const res = await fetch('/api/emergency-contacts', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id:           editingContactId,
+          name:         editContact.name.trim(),
+          relationship: editContact.relationship.trim(),
+          number:       editContact.number.trim(),
+          email:        editContact.email.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update contact');
+      }
+      const { contact } = await res.json();
+      setContacts(prev => prev.map(c => c.id === editingContactId ? {
+        ...c,
+        name:         contact.name,
+        relationship: contact.relationship,
+        number:       contact.number,
+        email:        contact.email || undefined,
+      } : c));
+      setEditingContactId(null);
+      setContactSaveSuccess(true);
+      setTimeout(() => setContactSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update contact.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -785,7 +838,7 @@ const EmergencyPage: NextPage = () => {
     else
       list.push({ id:'no-contacts', icon:Plus, color:'amber', title:'No emergency contacts added', body:'Add contacts so they can be notified in emergencies.', action:()=>setShowAddContact(true) });
     if (medIdBloodType === 'Not set')
-      list.push({ id:'medid', icon:BookOpen, color:'amber', title:'Medical ID incomplete', body:'Add your blood type and allergies for first responders.', action:()=>router.push('/profile') });
+      list.push({ id:'medid', icon:BookOpen, color:'amber', title:'Medical ID incomplete', body:'Add your blood type and allergies for first responders.', action:()=>router.push('/profile?modal=medicalId') });
     return list;
   }, [sosSent, location, nearestER, locationShared, contacts, medIdBloodType, router]);
 
@@ -992,8 +1045,8 @@ const EmergencyPage: NextPage = () => {
                     <ExternalLink size={13} /> Open in Maps
                   </a>
                 )}
-                <button className="em-hero__medid-btn" onClick={() => router.push('/profile')} type="button">
-                  <BookOpen size={15} /> Medical ID
+                <button className="em-hero__medid-btn" onClick={() => setShowPersonalCard(true)} type="button">
+                  <ClipboardList size={15} /> Show Medical ID
                 </button>
               </div>
 
@@ -1020,7 +1073,7 @@ const EmergencyPage: NextPage = () => {
                     <span className="em-sos-sent__timer-label">elapsed since activation</span>
                   </div>
 
-                  {/* Location line */}
+                  {/* Location + nearest ER */}
                   <p className="em-sos-sent__sub">
                     {location?.city
                       ? <><strong>{location.city}</strong><br />Nearest ER: <strong>{nearestER?.name || '…'}{nearestER?.distance ? ` · ${nearestER.distance}` : ''}</strong></>
@@ -1031,26 +1084,31 @@ const EmergencyPage: NextPage = () => {
                   <div className="em-sos-sent__sms-status">
                     {sosSending ? (
                       <span className="em-sos-sent__sms-status--sending">
-                        <Loader2 size={13} className="em-spin" /> Emailing your emergency contacts…
+                        <Loader2 size={13} className="em-spin" />
+                        Alerting {contacts.length} emergency contact{contacts.length !== 1 ? 's' : ''}…
                       </span>
                     ) : sosSendResult ? (
                       sosSendResult.noContacts ? (
                         <span className="em-sos-sent__sms-status--warn">
-                          ⚠️ No emergency contacts saved — add them in the Contacts tab
+                          <AlertCircle size={14} />
+                          No emergency contacts saved.<br />
+                          Add contacts in the Contacts tab so they can be notified.
                         </span>
                       ) : sosSendResult.smtpMissing ? (
                         <span className="em-sos-sent__sms-status--warn">
-                          ⚠️ Email service not configured — contacts were not notified.<br />
-                          Please call them manually below.
+                          <AlertCircle size={14} />
+                          Email service not configured.<br />
+                          Call your contacts manually using the buttons below.
                         </span>
                       ) : sosSendResult.noEmails ? (
                         <span className="em-sos-sent__sms-status--warn">
-                          ⚠️ No email addresses saved for your contacts.<br />
-                          Add emails in the Contacts tab, then call manually below.
+                          <AlertCircle size={14} />
+                          Your contacts have no email addresses — they weren't notified automatically.
                         </span>
                       ) : sosSendResult.success ? (
                         <span className="em-sos-sent__sms-status--ok">
-                          ✓ Alert emailed to {sosSendResult.sent} of {sosSendResult.emailedCount} contact{sosSendResult.emailedCount !== 1 ? 's' : ''}
+                          <Check size={14} />
+                          Alert sent to {sosSendResult.sent}/{sosSendResult.emailedCount} contact{sosSendResult.emailedCount !== 1 ? 's' : ''}
                           {sosSendResult.withoutEmail && sosSendResult.withoutEmail.length > 0 && (
                             <span className="em-sos-sent__contact-names">
                               {sosSendResult.withoutEmail.length} contact{sosSendResult.withoutEmail.length !== 1 ? 's have' : ' has'} no email — call manually
@@ -1059,20 +1117,40 @@ const EmergencyPage: NextPage = () => {
                         </span>
                       ) : (
                         <span className="em-sos-sent__sms-status--err">
-                          ✗ Email failed — please call contacts manually
+                          <AlertCircle size={14} />
+                          Email failed — call contacts manually below
                         </span>
                       )
                     ) : null}
                   </div>
 
-                  {/* Manual call buttons for each contact */}
+                  {/* Per-contact call buttons with email status badge */}
                   {contacts.length > 0 && (
                     <div className="em-sos-sent__contacts">
                       {contacts.map(c => (
-                        <a key={c.id} href={`tel:${c.number}`} className="em-sos-sent__contact-call">
-                          <Phone size={12} /> Call {c.name}
+                        <a
+                          key={c.id}
+                          href={`tel:${c.number}`}
+                          className={`em-sos-sent__contact-call${!c.email ? ' em-sos-sent__contact-call--no-email' : ''}`}
+                        >
+                          <Phone size={13} />
+                          <span className="em-sos-sent__contact-call-name">Call {c.name}</span>
+                          <span className={`em-sos-sent__contact-email-badge ${c.email ? 'em-sos-sent__contact-email-badge--ok' : 'em-sos-sent__contact-email-badge--none'}`}>
+                            {c.email ? '✉ alerted' : '⚠ no email'}
+                          </span>
                         </a>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Add email nudge — shown when any contact is missing email */}
+                  {contacts.some(c => !c.email) && (
+                    <div className="em-sos-sent__add-email-nudge">
+                      <AlertCircle size={13} style={{ display: 'inline', marginRight: 5 }} />
+                      {contacts.filter(c => !c.email).length} contact{contacts.filter(c => !c.email).length !== 1 ? 's are' : ' is'} missing an email address — they can only be called, not auto-alerted.{' '}
+                      <button onClick={() => router.push('/emergency#contacts')} type="button">
+                        Add emails →
+                      </button>
                     </div>
                   )}
 
@@ -1139,8 +1217,8 @@ const EmergencyPage: NextPage = () => {
             </button>
             <button className="em-quick-card em-quick-card--violet" onClick={() => setShowPersonalCard(true)} type="button">
               <ClipboardList size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">My Emergency Card</span>
-              <span className="em-quick-card__sub">Share with first responders</span>
+              <span className="em-quick-card__title">My Medical ID</span>
+              <span className="em-quick-card__sub">Show to paramedics</span>
             </button>
             <button
               className="em-quick-card em-quick-card--amber"
@@ -1209,6 +1287,15 @@ const EmergencyPage: NextPage = () => {
                 </div>
               </div>
 
+              {/* First responder instruction — the core purpose of this card */}
+              <div className="em-personal-card__responder-banner">
+                <span className="em-personal-card__responder-icon">🚑</span>
+                <div>
+                  <p className="em-personal-card__responder-title">For First Responders</p>
+                  <p className="em-personal-card__responder-sub">Show this screen to paramedics or emergency personnel</p>
+                </div>
+              </div>
+
               <h2 className="em-personal-card__name">{userName}</h2>
 
               <div className="em-personal-card__rows">
@@ -1269,7 +1356,7 @@ const EmergencyPage: NextPage = () => {
                 <button className="em-personal-card__copy" onClick={copyPersonalCard} type="button">
                   {copiedId === 'card' ? <><Check size={14}/>Copied!</> : <><Copy size={14}/>Copy Card</>}
                 </button>
-                <button className="em-personal-card__edit" onClick={() => { setShowPersonalCard(false); router.push('/profile'); }} type="button">
+                <button className="em-personal-card__edit" onClick={() => { setShowPersonalCard(false); router.push('/profile?modal=medicalId'); }} type="button">
                   <Edit2 size={14}/>Edit Profile
                 </button>
               </div>
@@ -1461,12 +1548,8 @@ const EmergencyPage: NextPage = () => {
                 <div className="em-contacts-empty">
                   <User size={24} />
                   <p>No emergency contacts yet</p>
-                  <span>Add a contact so first responders can reach your family</span>
-                  <button
-                    className="em-contacts-empty__btn"
-                    onClick={() => setShowAddContact(true)}
-                    type="button"
-                  >
+                  <span>Add a contact so they can be notified when you activate SOS</span>
+                  <button className="em-contacts-empty__btn" onClick={() => setShowAddContact(true)} type="button">
                     <Plus size={13} /> Add First Contact
                   </button>
                 </div>
@@ -1474,49 +1557,83 @@ const EmergencyPage: NextPage = () => {
                 <div className="em-contacts-list">
                   {contacts.map(c => (
                     <div key={c.id} className={`em-contact${c.isPrimary ? ' em-contact--primary' : ''}`}>
-                      <div className="em-contact__avatar">
-                        {c.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="em-contact__body">
-                        <p className="em-contact__name">
-                          {c.name}
-                          {c.isPrimary && <span className="em-contact__primary-badge">Primary</span>}
-                        </p>
-                        <p className="em-contact__rel">{c.relationship} · {c.number}</p>
-                        {c.email
-                          ? <p className="em-contact__email em-contact__email--set">{c.email}</p>
-                          : <p className="em-contact__email em-contact__email--missing">No email — won't receive SOS alerts</p>
-                        }
-                      </div>
-                      <div className="em-contact__actions">
-                        <button className="em-contact__copy-btn" title="Copy number"
-                          onClick={() => copyPhone(c.id, c.number)} type="button">
-                          {copiedId === c.id ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
-                        <a href={`tel:${c.number}`} className="em-contact__call">
-                          <Phone size={14} /> Call
-                        </a>
-                        {!c.isPrimary && (
-                          <button className="em-contact__remove" onClick={() => removeContact(c.id)}
-                            type="button" title="Remove contact">
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
+
+                      {/* Inline edit form */}
+                      {editingContactId === c.id ? (
+                        <div className="em-contact__edit-form">
+                          {editError && <p className="em-add-contact__error"><AlertCircle size={12} /> {editError}</p>}
+                          <input className="em-add-contact__input" placeholder="Full name *"
+                            value={editContact.name} onChange={e => setEditContact(p => ({ ...p, name: e.target.value }))} />
+                          <input className="em-add-contact__input" placeholder="Relationship"
+                            value={editContact.relationship} onChange={e => setEditContact(p => ({ ...p, relationship: e.target.value }))} />
+                          <input className="em-add-contact__input" placeholder="Phone number *" type="tel"
+                            value={editContact.number} onChange={e => setEditContact(p => ({ ...p, number: e.target.value }))} />
+                          <input className="em-add-contact__input" placeholder="Email (for SOS alerts)" type="email"
+                            value={editContact.email} onChange={e => setEditContact(p => ({ ...p, email: e.target.value }))} />
+                          <div className="em-contact__edit-actions">
+                            <button className="em-contact__edit-cancel" onClick={() => setEditingContactId(null)} type="button">
+                              <X size={13} /> Cancel
+                            </button>
+                            <button className="em-add-contact__save" onClick={handleSaveEdit} disabled={savingEdit} type="button">
+                              {savingEdit ? <Loader2 size={13} className="em-spin" /> : <Check size={13} />}
+                              {savingEdit ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Avatar */}
+                          <div className="em-contact__avatar">
+                            {c.name.slice(0, 2).toUpperCase()}
+                          </div>
+
+                          {/* Info */}
+                          <div className="em-contact__body">
+                            <div className="em-contact__name-row">
+                              <span className="em-contact__name-text">{c.name}</span>
+                              {c.isPrimary && <span className="em-contact__primary-badge">Primary</span>}
+                            </div>
+                            <p className="em-contact__rel">{c.relationship} · {c.number}</p>
+                            {c.email
+                              ? <p className="em-contact__email em-contact__email--set">✉ {c.email}</p>
+                              : <p className="em-contact__email em-contact__email--missing">⚠ No email — won't receive SOS alerts</p>
+                            }
+                          </div>
+
+                          {/* Actions */}
+                          <div className="em-contact__actions">
+                            <button className="em-contact__copy-btn" title="Copy number"
+                              onClick={() => copyPhone(c.id, c.number)} type="button">
+                              {copiedId === c.id ? <Check size={12} /> : <Copy size={12} />}
+                            </button>
+                            <a href={`tel:${c.number}`} className="em-contact__call">
+                              <Phone size={13} /> Call
+                            </a>
+                            <button className="em-contact__edit-btn" onClick={() => startEditContact(c)}
+                              type="button" title="Edit contact">
+                              <Edit2 size={12} />
+                            </button>
+                            <button className="em-contact__remove" onClick={() => removeContact(c.id)}
+                              type="button" title="Remove contact">
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </section>
 
-            {/* Medical ID — pulls from real health profile */}
-            <section className="em-section em-med-id">
+            {/* Medical ID — desktop sidebar only, collapsed on mobile contacts tab */}
+            <section className="em-section em-med-id em-med-id--sidebar">
               <div className="em-med-id__header">
                 <BookOpen size={16} />
                 <h3>Medical ID</h3>
                 <span className="em-badge-offline"><Zap size={11} />Offline</span>
               </div>
-              <p className="em-med-id__note">Shown to first responders — keep this up to date</p>
+              <p className="em-med-id__note">Hand your phone to a first responder — they can read this instantly</p>
 
               {isLoadingProfile ? (
                 <div className="em-med-id__loading">
@@ -1542,9 +1659,14 @@ const EmergencyPage: NextPage = () => {
                 </div>
               )}
 
-              <button className="em-med-id__edit" onClick={() => router.push('/profile')} type="button">
-                {isLoadingProfile ? 'Loading profile…' : 'Edit in Health Profile'} <ChevronRight size={14} />
-              </button>
+              <div className="em-med-id__actions">
+                <button className="em-med-id__show-btn" onClick={() => setShowPersonalCard(true)} type="button">
+                  <BookOpen size={14} /> Show Card
+                </button>
+                <button className="em-med-id__edit" onClick={() => router.push('/profile?modal=medicalId')} type="button">
+                  <Edit2 size={13} /> Edit
+                </button>
+              </div>
             </section>
 
             {/* Live Location Card */}
