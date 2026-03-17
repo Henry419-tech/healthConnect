@@ -1,6 +1,9 @@
 // app/api/chat/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -50,17 +53,24 @@ function extractRisk(text: string): { message: string; riskLevel: string } {
 export async function POST(request: NextRequest) {
   let messages: any[] = [];
   let temperature = 0.3;
-  let max_tokens = 500;
+  let max_tokens = 1024;
 
   try {
     const requestData = await request.json();
     messages = requestData.messages;
     temperature = requestData.temperature || 0.3;
-    max_tokens = requestData.max_tokens || 500;
+    max_tokens = requestData.max_tokens || 1024;
+    const sessionId: string | null = requestData.sessionId || null;
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
     }
+
+    // Resolve the logged-in user (optional — gracefully skip DB save if not authed)
+    const authSession = await getServerSession(authOptions);
+    const dbUser = authSession?.user?.email
+      ? await prisma.user.findUnique({ where: { email: authSession.user.email } })
+      : null;
 
     const userMessage = messages[messages.length - 1];
     if (userMessage?.role === 'user' && containsEmergencySymptoms(userMessage.content)) {
@@ -117,8 +127,19 @@ Choose the level based on what the user has described so far:
 
 This tag is stripped before the user sees it. It must always be present.`;
 
+    // Keep only the last 10 messages (5 turns) to avoid context overflow.
+    // Always preserve the system prompt — only trim the conversation history.
+    const MAX_HISTORY = 10;
+    const trimmedMessages = messages.length > MAX_HISTORY
+      ? [
+          // Always keep the first message (welcome/system context) if it's assistant
+          ...(messages[0]?.role === 'assistant' ? [messages[0]] : []),
+          ...messages.slice(-(MAX_HISTORY))
+        ]
+      : messages;
+
     let conversationText = systemPrompt + '\n\nConversation:\n';
-    for (const msg of messages) {
+    for (const msg of trimmedMessages) {
       if (msg.role === 'user') {
         conversationText += `User: ${msg.content}\n`;
       } else if (msg.role === 'assistant') {
@@ -131,7 +152,7 @@ This tag is stripped before the user sees it. It must always be present.`;
       model: 'models/gemini-2.5-flash',
       generationConfig: {
         temperature: Math.max(0.1, Math.min(temperature, 0.5)),
-        maxOutputTokens: Math.min(max_tokens, 800),
+        maxOutputTokens: Math.min(max_tokens, 1024),
         topP: 0.8,
         topK: 40,
       },
@@ -171,7 +192,68 @@ This tag is stripped before the user sees it. It must always be present.`;
 
     console.log(`AI Symptom Checker — Gemini response at ${new Date().toISOString()} | risk: ${riskLevel}`);
 
-    return NextResponse.json({ message: finalMessage, riskLevel, model: 'gemini-2.5-flash' });
+    // ── Persist to DB if user is logged in ──────────────────────
+    let activeSessionId = sessionId;
+    if (dbUser) {
+      try {
+        const userMessage = messages[messages.length - 1];
+        const userContent = userMessage?.content || '';
+
+        // Create a new session if none provided
+        if (!activeSessionId) {
+          // Auto-title: first 60 chars of the user's opening message
+          const title = userContent.length > 60
+            ? userContent.slice(0, 57) + '…'
+            : userContent || 'New Conversation';
+
+          const newSession = await prisma.chatSession.create({
+            data: { userId: dbUser.id, title, riskLevel },
+          });
+          activeSessionId = newSession.id;
+
+          // Save the full history into the new session
+          await prisma.chatMessage.createMany({
+            data: messages.map((m: any) => ({
+              sessionId: activeSessionId!,
+              role: m.role,
+              content: m.content,
+              riskLevel: m.role === 'assistant' ? (m.riskLevel || null) : null,
+            })),
+          });
+        }
+
+        // Always save the latest assistant reply
+        await prisma.chatMessage.create({
+          data: {
+            sessionId: activeSessionId,
+            role: 'assistant',
+            content: finalMessage,
+            riskLevel,
+          },
+        });
+
+        // Update session metadata
+        await prisma.chatSession.update({
+          where: { id: activeSessionId },
+          data: {
+            riskLevel,
+            messageCount: { increment: 2 }, // user + assistant
+            updatedAt: new Date(),
+          },
+        });
+      } catch (dbErr) {
+        // Never let a DB error break the chat response
+        console.error('Chat DB save error:', dbErr);
+      }
+    }
+    // ────────────────────────────────────────────────────────────
+
+    return NextResponse.json({
+      message: finalMessage,
+      riskLevel,
+      model: 'gemini-2.5-flash',
+      sessionId: activeSessionId,
+    });
 
   } catch (error: any) {
     console.error('Gemini API Error:', error);
