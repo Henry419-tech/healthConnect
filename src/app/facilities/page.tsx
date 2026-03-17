@@ -413,6 +413,7 @@ function DynamicFacilityFinderInner() {
   const [locationPermission, setLocationPermission] = useState<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  const [isFromCache, setIsFromCache] = useState(false); // true while showing cached data during bg refresh
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLocationBanner, setShowLocationBanner] = useState(true);
@@ -431,9 +432,38 @@ function DynamicFacilityFinderInner() {
   // Ref for smooth scrolling
   const mapViewRef    = useRef<HTMLDivElement>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef(false); // prevents double-fetch from radius effect + location
 
   // Cancel any in-flight Overpass fetch on unmount
   useEffect(() => { return () => { fetchAbortRef.current?.abort(); }; }, []);
+
+  // ── localStorage cache helpers ────────────────────────────────
+  const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+  const getCacheKey = useCallback((lat: number, lng: number, radius: number) => {
+    // Round to ~500m grid so nearby positions reuse the same cache entry
+    const rLat = Math.round(lat * 200) / 200;
+    const rLng = Math.round(lng * 200) / 200;
+    return `hc_fac_${rLat}_${rLng}_${radius}`;
+  }, []);
+
+  const readCache = useCallback((lat: number, lng: number, radius: number): Facility[] | null => {
+    try {
+      const key = getCacheKey(lat, lng, radius);
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const { facilities, ts } = JSON.parse(raw);
+      if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(key); return null; }
+      return facilities as Facility[];
+    } catch { return null; }
+  }, [getCacheKey]);
+
+  const writeCache = useCallback((lat: number, lng: number, radius: number, facilities: Facility[]) => {
+    try {
+      const key = getCacheKey(lat, lng, radius);
+      localStorage.setItem(key, JSON.stringify({ facilities, ts: Date.now() }));
+    } catch { /* storage full — silently ignore */ }
+  }, [getCacheKey]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -672,11 +702,25 @@ function DynamicFacilityFinderInner() {
 
   // Fetch facilities
   const fetchNearbyFacilities = useCallback(async (lat: number, lng: number, radius: number = 10000, resolvedLocation?: LocationInfo) => {
+    // Abort any in-flight request before starting a new one
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
+    // Guard against concurrent fetches (e.g. radius effect + location effect firing together)
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    // ── Show cached results instantly while fresh data loads ──────
+    const cached = readCache(lat, lng, radius);
+    if (cached && cached.length > 0) {
+      setFacilities(cached);
+      setIsFromCache(true);
+    }
+
     setIsLoadingFacilities(true);
     setError(null);
-    
 
-    
     try {
       let allFacilities: Facility[] = [];
       
@@ -699,12 +743,7 @@ function DynamicFacilityFinderInner() {
           );
           out center body;
         `;
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort('timeout'), 55000);
 
-        // Strategy: try our own server-side proxy first (bypasses CORS + browser rate-limits),
-        // then fall back to direct mirror calls in case the proxy itself is unreachable.
         const DIRECT_MIRRORS = [
           'https://overpass-api.de/api/interpreter',
           'https://overpass.kumi.systems/api/interpreter',
@@ -714,8 +753,6 @@ function DynamicFacilityFinderInner() {
 
         const fetchWithRetry = async (): Promise<any> => {
           // ── 1. Always try the server-side proxy first ──────────────
-          // The proxy uses the server's IP (no CORS, no browser rate-limit)
-          // and shuffles across 5 mirrors with GET fallback automatically.
           try {
             const proxyResp = await fetch('/api/overpass', {
               method: 'POST',
@@ -725,16 +762,21 @@ function DynamicFacilityFinderInner() {
             });
             if (proxyResp.ok) {
               const data = await proxyResp.json();
-              if (data?.elements) return data;
-              // Proxy returned 200 but no elements — try direct as fallback
+              // Only treat as success if we actually got elements array
+              // (could be empty array [] which is valid — just no facilities nearby)
+              if (data && Array.isArray(data.elements)) return data;
+              // data.error means the proxy itself reported all mirrors failed
+              if (data?.error) {
+                console.warn('[facilities] proxy returned error:', data.error);
+                // fall through to direct mirrors
+              }
             }
-            // Non-ok (502 all mirrors failed) — try direct mirrors from browser
           } catch (e: any) {
             if (e?.name === 'AbortError') throw e;
-            // Proxy unreachable (e.g. dev without the API route) — try direct
+            // Proxy unreachable — try direct mirrors
           }
 
-          // ── 2. Browser direct fallback (best-effort, may hit CORS/rate-limits) ──
+          // ── 2. Browser direct fallback ──────────────────────────────
           for (const mirror of DIRECT_MIRRORS) {
             for (let attempt = 0; attempt < 2; attempt++) {
               try {
@@ -752,54 +794,42 @@ function DynamicFacilityFinderInner() {
                     await new Promise(r => setTimeout(r, 3000));
                     continue;
                   }
-                  break; // try next mirror
+                  break;
                 }
                 if (resp.ok) {
                   const data = await resp.json();
-                  if (data?.elements) return data;
+                  if (data && Array.isArray(data.elements)) return data;
                 }
                 break;
               } catch (e: any) {
                 if (e?.name === 'AbortError') throw e;
-                break; // network/CORS error — try next mirror
+                break;
               }
             }
           }
 
-          // All sources exhausted — return null so the caller shows a friendly error
+          // All sources exhausted
           return null;
         };
 
         let overpassData: any;
         try {
           overpassData = await fetchWithRetry();
-          clearTimeout(timeoutId);
         } catch (overpassError: any) {
-          clearTimeout(timeoutId);
-          const isAbort   = overpassError?.name === 'AbortError';
-          const isTimeout = isAbort && overpassError?.message === 'timeout';
-
-          if (isAbort && !isTimeout) {
-            // Silent abort (component unmount / navigation)
-            setIsLoadingFacilities(false);
+          const isAbort = overpassError?.name === 'AbortError';
+          if (isAbort) {
+            // Silent abort — navigated away or a newer fetch started
             return;
           }
-          if (isTimeout) {
-            setError('Request timed out. Try a smaller radius or check your connection.');
-          } else {
-            setError('Unable to load facilities. Check your internet connection and try again.');
-          }
+          setError('Unable to load facilities. Check your internet connection and try again.');
           setFacilities([]);
-          setIsLoadingFacilities(false);
           return;
         }
 
-        // fetchWithRetry returns null when all sources are exhausted (no throw)
+        // fetchWithRetry returns null when all sources are exhausted
         if (overpassData === null) {
-          clearTimeout(timeoutId);
           setError('Map data service is temporarily unavailable. Please wait a moment and tap "Try Again".');
           setFacilities([]);
-          setIsLoadingFacilities(false);
           return;
         }
 
@@ -989,17 +1019,30 @@ function DynamicFacilityFinderInner() {
         // Don't use error state — use a soft empty state so filters/radius UI stays visible
         setError(null);
       }
-      
-      setFacilities(facilitiesInRadius.slice(0, 100));
+
+      const limited = facilitiesInRadius.slice(0, 100);
+      setFacilities(limited);
+      setIsFromCache(false);
+
+      // Write fresh results to cache for instant display on next visit
+      if (limited.length > 0) writeCache(lat, lng, radius, limited);
       
     } catch (error) {
       console.error('Error fetching facilities:', error);
-      setError('Failed to load healthcare facilities. Please try again.');
-      setFacilities([]);
+      // Only clear facilities if we have no cached data showing
+      if (!isFromCache) {
+        setError('Failed to load healthcare facilities. Please try again.');
+        setFacilities([]);
+      } else {
+        // Keep showing cached results, just show a soft warning
+        setError('Could not refresh facilities. Showing cached results.');
+      }
     } finally {
+      isFetchingRef.current = false;
+      setIsFromCache(false);
       setIsLoadingFacilities(false);
     }
-  }, [calculateDistance]);
+  }, [calculateDistance, readCache, writeCache]);
 
   // Get current location with high accuracy
   const getCurrentLocation = useCallback(() => {
@@ -1012,14 +1055,12 @@ function DynamicFacilityFinderInner() {
       return;
     }
 
-
-
     let bestAccuracy = Infinity;
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        if (accuracy >= bestAccuracy) return; // already have a better fix
+        if (accuracy >= bestAccuracy) { setIsLoadingLocation(false); return; }
         bestAccuracy = accuracy;
         const location: [number, number] = [latitude, longitude];
 
@@ -1028,7 +1069,8 @@ function DynamicFacilityFinderInner() {
         const info = await reverseGeocode(latitude, longitude);
         setLocationInfo({ ...info, accuracy });
 
-        // Fetch nearby facilities
+        // Fetch nearby facilities — reset guard first since this is a fresh user action
+        isFetchingRef.current = false;
         await fetchNearbyFacilities(latitude, longitude, parseInt(selectedRadius), info);
         setIsLoadingLocation(false);
 
@@ -1037,10 +1079,7 @@ function DynamicFacilityFinderInner() {
 
         // Scroll to map view smoothly
         setTimeout(() => {
-          mapViewRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-          });
+          mapViewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 300);
 
         // If accuracy > 500m, try a watch for a better GPS fix (silent background update)
@@ -1052,8 +1091,9 @@ function DynamicFacilityFinderInner() {
                 const loc2: [number, number] = [pos2.coords.latitude, pos2.coords.longitude];
                 setUserLocation(loc2);
                 setLocationInfo(prev => ({ ...prev, accuracy: pos2.coords.accuracy }));
-                // Silent background re-fetch
-                await fetchNearbyFacilities(pos2.coords.latitude, pos2.coords.longitude, parseInt(selectedRadius));
+                // Silent background re-fetch — reset guard before calling
+                isFetchingRef.current = false;
+                fetchNearbyFacilities(pos2.coords.latitude, pos2.coords.longitude, parseInt(selectedRadius));
               }
               navigator.geolocation.clearWatch(watchId);
             },
@@ -1064,9 +1104,7 @@ function DynamicFacilityFinderInner() {
       },
       (error) => {
         console.error('Location error:', error.message);
-        
         setIsLoadingLocation(false);
-        
         let errorMessage = 'Unable to get your location. ';
         switch(error.code) {
           case error.PERMISSION_DENIED:
@@ -1083,25 +1121,21 @@ function DynamicFacilityFinderInner() {
         }
         setError(errorMessage);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 0   // always get fresh fix when user taps GPS button
-      }
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
     );
   }, [selectedRadius, fetchNearbyFacilities, reverseGeocode]);
 
-  // Refetch when radius changes
+  // Refetch when radius changes — skip on initial mount (location already fetches on mount)
+  const isFirstRadiusRender = useRef(true);
   useEffect(() => {
-    if (userLocation && status === 'authenticated') {
-      const timeoutId = setTimeout(() => {
-
-       fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
-      }, 500);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [selectedRadius, userLocation, status, fetchNearbyFacilities]);
+    if (isFirstRadiusRender.current) { isFirstRadiusRender.current = false; return; }
+    if (!userLocation || status !== 'authenticated') return;
+    const timeoutId = setTimeout(() => {
+      isFetchingRef.current = false; // radius change is an explicit re-fetch intent
+      fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [selectedRadius]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Smart search: normalization + token-based relevance scoring
   const normaliseStr = (s: string) =>
@@ -1519,6 +1553,13 @@ function DynamicFacilityFinderInner() {
               isRefreshing={isLoadingLocation}
             />
           )}
+          {/* Shown while fresh data loads in background over cached results */}
+          {isFromCache && isLoadingFacilities && (
+            <div className="cache-refresh-badge">
+              <Loader2 size={12} className="spin" />
+              <span>Updating results…</span>
+            </div>
+          )}
         </div>
 
         {/* Search and Filters */}
@@ -1631,7 +1672,7 @@ function DynamicFacilityFinderInner() {
                   {userLocation && (
                     <button
                       className="refresh-btn"
-                      onClick={() => fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius))}
+                      onClick={() => { isFetchingRef.current = false; fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius)); }}
                       disabled={isLoadingFacilities}
                       type="button"
                     >
@@ -1695,6 +1736,7 @@ function DynamicFacilityFinderInner() {
                   type="button"
                   onClick={() => {
                     setError(null);
+                    isFetchingRef.current = false;
                     fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
                   }}
                 >
