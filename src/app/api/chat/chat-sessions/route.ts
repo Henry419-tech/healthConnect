@@ -23,6 +23,8 @@ export async function GET() {
       title: true,
       riskLevel: true,
       messageCount: true,
+      status: true,
+      completedAt: true,
       createdAt: true,
       updatedAt: true,
     },

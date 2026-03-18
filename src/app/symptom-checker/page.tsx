@@ -81,6 +81,7 @@ export default function SymptomChecker() {
 
   const [step,         setStep]         = useState<'chat'|'assessment'>('chat');
   const [messages,     setMessages]     = useState<ChatMessage[]>([]);
+  const [chatSessionId,setChatSessionId]= useState<string|null>(null);
   const [inputVal,     setInputVal]     = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [assessment,   setAssessment]   = useState<AssessmentResult|null>(null);
@@ -90,6 +91,7 @@ export default function SymptomChecker() {
   const [canAssess,    setCanAssess]    = useState(false);
   const [rightOpen,    setRightOpen]    = useState(false);
   const [mobPanelOpen, setMobPanelOpen] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false); // hides nav bar while keyboard is open
 
   const { searchQuery: facQ, setSearchQuery: setFacQ, searchInputRef: facRef, handleSearchSubmit, handleSearchKeyDown } = useFacilitySearch();
 
@@ -99,7 +101,7 @@ export default function SymptomChecker() {
   const [userLoc,         setUserLoc]         = useState<[number,number]|null>(null);
   const [loadingLoc,      setLoadingLoc]      = useState(false);
   const [locationPermission, setLocationPermission] = useState<'granted'|'prompt'|'denied'|'unknown'>('unknown');
-  const [sessionHistory,  setSessionHistory]  = useState<{date:string;title:string;badge:string;sub:string;id?:string}[]>([]);
+  const [sessionHistory,  setSessionHistory]  = useState<{date:string;title:string;badge:string;sub:string;id?:string;status?:string}[]>([]);
 
   /* ── Notification panel ─────────────────────────────────── */
   const [showNotifPanel, setShowNotifPanel] = useState(false);
@@ -200,13 +202,40 @@ export default function SymptomChecker() {
     );
   }, []);
 
-  // Load session history
+  // Load session history from ChatSession DB + restore most recent conversation
   useEffect(() => {
     if (status!=='authenticated') return;
-    fetch('/api/activities?type=symptom_checked&limit=10').then(r=>r.json()).then(({activities})=>{
-      setSessionHistory((activities||[]).map((a:any)=>({date:new Date(a.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),title:(a.title?.slice(0,40)||(a.title?.length>40?'…':''))||'Symptom check',badge:a.metadata?.urgencyLevel||'low',sub:a.description?.slice(0,60)||'Assessment completed',id:a.id})));
+    fetch('/api/chat-sessions').then(r=>r.json()).then(({sessions})=>{
+      if (!sessions?.length) return;
+      // Populate sidebar history list
+      setSessionHistory((sessions||[]).map((s:any)=>({
+        date: new Date(s.updatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+        title: s.title?.slice(0,40)||(s.title?.length>40?'…':'')||'Symptom check',
+        badge: s.riskLevel||'low',
+        sub: `${s.messageCount||0} messages`,
+        id: s.id,
+        status: s.status||'active',
+      })));
+      // Restore the most recent session's messages if the chat is still empty
+      const latest = sessions[0];
+      if (latest && messages.length === 0) {
+        fetch(`/api/chat-sessions/${latest.id}`).then(r=>r.json()).then(({session:cs})=>{
+          if (!cs?.messages?.length) return;
+          const restored: ChatMessage[] = cs.messages.map((m:any)=>({
+            id: m.id,
+            role: m.role as 'user'|'assistant',
+            content: m.content,
+            timestamp: new Date(m.createdAt),
+          }));
+          setMessages(restored);
+          setChatSessionId(latest.id);
+          setShowWelcome(false);
+          // Restore risk level
+          if (latest.riskLevel) setLiveRisk(latest.riskLevel as UrgencyLevel);
+        }).catch(()=>{});
+      }
     }).catch(()=>{});
-  }, [status]);
+  }, [status]); // eslint-disable-line
 
   // Welcome message
   useEffect(() => {
@@ -220,14 +249,34 @@ export default function SymptomChecker() {
   const sendToAI = useCallback(async (history:ChatMessage[],userText:string): Promise<string> => {
     setIsProcessing(true);
     try {
-      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'system',content:'You are a warm, knowledgeable medical information assistant for HealthConnect Navigator in Ghana. Your goal is to gather thorough symptom information through focused conversation. FORMATTING: NEVER use ** bold or # headers. Use • for bullet lists. Ask ONE question at a time. Keep responses under 180 words. For emergencies (chest pain, difficulty breathing, severe bleeding): advise calling 193 immediately. Always end with one follow-up question. Never diagnose. IMPORTANT: append <risk>low|moderate|high|emergency</risk> on the last line of every response.'},...history.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content})),{role:'user',content:userText}],temperature:0.35,max_tokens:500})});
-      if (!res.ok) throw new Error('API error');
-      const data=await res.json();
-      if (data.riskLevel&&['low','moderate','high','emergency'].includes(data.riskLevel)) setLiveRisk(data.riskLevel);
-      return data.message||"I'm sorry, I couldn't process that. Please try again.";
-    } catch { return "I'm having trouble connecting. For urgent concerns, visit your nearest clinic or call 193."; }
-    finally { setIsProcessing(false); }
-  }, []);
+      const payload = {
+        messages: history.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.content})),
+        temperature:0.35,
+        max_tokens:2048,
+        sessionId: chatSessionId,
+      };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+          const data=await res.json().catch(()=>({}));
+          // Route always returns a friendly message even on errors — use it
+          if (data.message) {
+            if (data.sessionId && !chatSessionId) setChatSessionId(data.sessionId);
+            if (data.riskLevel&&['low','moderate','high','emergency'].includes(data.riskLevel)) setLiveRisk(data.riskLevel);
+            return data.message;
+          }
+          if (res.status >= 500 && attempt === 0) { await new Promise(r=>setTimeout(r,1500)); continue; }
+          return "I'm sorry, I couldn't process that. Please try again.";
+        } catch(e:any) {
+          console.error(`sendToAI attempt ${attempt+1} failed:`, e?.message||e);
+          if (attempt === 0) { await new Promise(r=>setTimeout(r,1500)); continue; }
+        }
+      }
+      return "I'm having trouble connecting. Please check your internet connection and try again.";
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [chatSessionId]);
 
   // Handle send
   const handleSend = useCallback(async () => {
@@ -242,28 +291,93 @@ export default function SymptomChecker() {
     if (withReply.filter(m=>m.role==='user').length>=5&&!assessedRef.current) setTimeout(()=>genAssessment(withReply),800);
   }, [inputVal,isProcessing,messages,sendToAI]);
 
+  // Complete a session in the DB and update sidebar
+  const completeSession = useCallback(async (id: string, riskLevel: string) => {
+    try {
+      await fetch(`/api/chat-sessions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed', riskLevel }),
+      });
+      setSessionHistory(prev => prev.map(h =>
+        h.id === id ? { ...h, status: 'completed', badge: riskLevel } : h
+      ));
+    } catch(e) { console.error('Failed to complete session:', e); }
+  }, []);
+
   // Generate assessment
   const genAssessment = useCallback(async (history:ChatMessage[]) => {
     if (assessedRef.current) return; assessedRef.current=true;
     try {
       const summary=history.filter(m=>m.role==='user').map(m=>m.content).join('. ');
-      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'system',content:'You are a medical assessment assistant. Respond ONLY with valid JSON. No markdown, no prose, no code fences.'},{role:'user',content:`Based on this health consultation from a patient in Ghana: "${summary}"\n\nReturn ONLY valid JSON:\n{"urgencyLevel":"low","summary":"2-3 sentence summary","recommendations":["rec1","rec2","rec3"],"redFlags":["flag1","flag2"],"nextSteps":["step1","step2","step3"],"facilityRecommendation":false}\nurgencyLevel: low|moderate|high|emergency`}],temperature:0.1,max_tokens:600})});
+      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        messages:[
+          {role:'user',content:`You are a medical assessment assistant. Respond ONLY with a single valid JSON object — no markdown, no code fences, no prose before or after.\n\nBased on this health consultation from a patient in Ghana: "${summary}"\n\nRespond with ONLY this JSON structure:\n{"urgencyLevel":"low","summary":"2-3 sentence summary","recommendations":["rec1","rec2","rec3"],"redFlags":["flag1","flag2"],"nextSteps":["step1","step2","step3"],"facilityRecommendation":false}\nurgencyLevel must be one of: low, moderate, high, emergency`}
+        ],
+        temperature:0.1,
+        max_tokens:800,
+        // Flag to skip disclaimer injection in route.ts
+        isAssessment:true,
+      })});
       if (!res.ok) return;
       const data=await res.json();
-      const result:AssessmentResult=JSON.parse((data.message||'').replace(/```json\n?|```\n?/g,'').trim());
+      const raw=(data.message||'').trim();
+      // Robustly extract the JSON object — find first { and last }
+      const start=raw.indexOf('{');
+      const end=raw.lastIndexOf('}');
+      if (start===-1||end===-1||end<=start) { console.error('No JSON found in assessment response:', raw); assessedRef.current=false; return; }
+      const jsonStr=raw.slice(start,end+1);
+      const result:AssessmentResult=JSON.parse(jsonStr);
       setAssessment(result); setStep('assessment');
-      setSessionHistory(prev=>[{date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),title:summary.split(' ').slice(0,6).join(' ')+'…',badge:result.urgencyLevel==='emergency'?'high':result.urgencyLevel,sub:result.recommendations[0]||'Assessment completed'},...prev].slice(0,5));
+      setSessionHistory(prev=>[{date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),title:summary.split(' ').slice(0,6).join(' ')+'…',badge:result.urgencyLevel==='emergency'?'high':result.urgencyLevel,sub:result.recommendations[0]||'Assessment completed', status:'completed'},...prev].slice(0,5));
       trackActivity(activityTypes.SYMPTOM_CHECKED,'Assessment completed',summary.slice(0,200),{urgencyLevel:result.urgencyLevel}).catch(()=>{});
-    } catch(e){ console.error('Assessment error:',e); }
-  }, []);
+      // Mark the DB session as completed
+      if (chatSessionId) completeSession(chatSessionId, result.urgencyLevel==='emergency'?'high':result.urgencyLevel);
+    } catch(e){ console.error('Assessment error:',e); assessedRef.current=false; }
+  }, [chatSessionId, completeSession]);
 
   const startNewChat = useCallback(() => {
-    assessedRef.current=false; setStep('chat'); setMessages([]); setAssessment(null); setInputVal(''); setLiveRisk('low'); setCanAssess(false);
-  }, []);
+    // If there's an active session with messages, mark it completed before clearing
+    if (chatSessionId && messages.length > 1) {
+      completeSession(chatSessionId, liveRisk);
+    }
+    assessedRef.current=false;
+    setStep('chat');
+    setMessages([]);
+    setAssessment(null);
+    setInputVal('');
+    setLiveRisk('low');
+    setCanAssess(false);
+    setChatSessionId(null);
+  }, [chatSessionId, messages.length, liveRisk, completeSession]);
 
   const deleteHistory = useCallback(async (id:string) => {
-    await fetch('/api/activities',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});
+    await fetch(`/api/chat-sessions/${id}`,{method:'DELETE'}).catch(()=>{});
     setSessionHistory(prev=>prev.filter(h=>h.id!==id));
+    // If the deleted session is the active one, start fresh
+    if (id===chatSessionId) startNewChat();
+  }, [chatSessionId, startNewChat]);
+
+  const loadSession = useCallback(async (id:string) => {
+    try {
+      const res = await fetch(`/api/chat-sessions/${id}`);
+      const { session: cs } = await res.json();
+      if (!cs?.messages?.length) return;
+      const restored: ChatMessage[] = cs.messages.map((m:any)=>({
+        id: m.id,
+        role: m.role as 'user'|'assistant',
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }));
+      assessedRef.current = false;
+      setStep('chat');
+      setAssessment(null);
+      setMessages(restored);
+      setChatSessionId(id);
+      setLiveRisk((cs.riskLevel as UrgencyLevel)||'low');
+      setCanAssess(restored.filter(m=>m.role==='user').length>=3);
+      setShowWelcome(false);
+    } catch(e){ console.error('Failed to load session:',e); }
   }, []);
 
   const handleKeyDown=(e:React.KeyboardEvent<HTMLTextAreaElement>)=>{ if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();void handleSend();} };
@@ -576,6 +690,11 @@ export default function SymptomChecker() {
                 <span className="sc-mob-risk-bar__dot"/>
                 {riskLevel==='low'?'Low Risk':riskLevel==='moderate'?'Moderate':riskLevel==='high'?'High Risk':'Emergency'}
               </span>
+              {userCount>0&&(
+                <button className="sc-mob-new-chat-btn" type="button" onClick={startNewChat} aria-label="New chat">
+                  <Plus size={11}/> New
+                </button>
+              )}
               <button className="sc-mob-risk-bar__panel-btn" type="button" onClick={()=>setMobPanelOpen(o=>!o)}>
                 <TrendingUp size={11}/> Details
               </button>
@@ -620,9 +739,13 @@ export default function SymptomChecker() {
               {sessionHistory.length===0
                 ? <div className="sc-empty-state"><Clock size={20}/><p>No sessions yet</p><span>Complete a chat to build history</span></div>
                 : <div className="sc-hist-list">{sessionHistory.map((h,i)=>(
-                    <div key={i} className="sc-hist-item">
-                      {h.id&&<button type="button" onClick={()=>deleteHistory(h.id!)} className="sc-hist-delete" aria-label="Delete"><X size={11}/></button>}
-                      <p className="sc-hist-date">{h.date}</p>
+                    <div key={i} className={`sc-hist-item${h.id===chatSessionId?' sc-hist-item--active':''}${h.status==='completed'?' sc-hist-item--completed':''}`}
+                      onClick={()=>h.id&&loadSession(h.id)} style={{cursor:h.id?'pointer':'default'}}>
+                      {h.id&&<button type="button" onClick={e=>{e.stopPropagation();deleteHistory(h.id!);}} className="sc-hist-delete" aria-label="Delete"><X size={11}/></button>}
+                      <div className="sc-hist-item__top">
+                        <p className="sc-hist-date">{h.date}</p>
+                        {h.status==='completed'&&<span className="sc-hist-done">✓ Done</span>}
+                      </div>
                       <p className="sc-hist-title">{h.title}</p>
                       <span className={`sc-hist-badge sc-hist-badge--${h.badge}`}>{h.badge==='low'?'Low risk':h.badge==='moderate'?'Moderate':'High risk'} · {h.sub}</span>
                     </div>
@@ -677,14 +800,24 @@ export default function SymptomChecker() {
                 )}
 
                 {/* Input bar */}
-                <div className="sc-input-bar">
+                <div className={`sc-input-bar${inputFocused?' sc-input-bar--focused':''}`}>
                   <div className="sc-input-inner">
-                    <textarea ref={textareaRef} value={inputVal} onChange={handleTextarea} onKeyDown={handleKeyDown} placeholder="Describe your symptom or ask a health question…" className="sc-textarea" rows={1} disabled={isProcessing}/>
+                    <textarea
+                      ref={textareaRef}
+                      value={inputVal}
+                      onChange={handleTextarea}
+                      onKeyDown={handleKeyDown}
+                      onFocus={()=>setInputFocused(true)}
+                      onBlur={()=>setInputFocused(false)}
+                      placeholder="Describe your symptom or ask a health question…"
+                      className="sc-textarea"
+                      rows={1}
+                      disabled={isProcessing}
+                    />
                     <button className="sc-send" onClick={handleSend} disabled={!inputVal.trim()||isProcessing} type="button" aria-label="Send">
                       {isProcessing?<Loader2 size={16} className="sc-spin"/>:<Send size={16}/>}
                     </button>
                   </div>
-                  <p className="sc-input-hint"><Shield size={10}/> AI information only — not a substitute for professional medical advice. Emergency: call 193.</p>
                 </div>
               </>
             ) : (
@@ -744,9 +877,13 @@ export default function SymptomChecker() {
                 {sessionHistory.length===0
                   ? <p className="sc-right-empty">Complete a chat session to see history here</p>
                   : <div className="sc-sess-list">{sessionHistory.map((h,i)=>(
-                      <div key={i} className="sc-sess-item">
-                        {h.id&&<button type="button" onClick={()=>deleteHistory(h.id!)} className="sc-hist-delete" aria-label="Delete"><X size={12}/></button>}
-                        <p className="sc-sess-date">{h.date}</p>
+                      <div key={i} className={`sc-sess-item${h.id===chatSessionId?' sc-sess-item--active':''}${h.status==='completed'?' sc-sess-item--completed':''}`}
+                        onClick={()=>{if(h.id){loadSession(h.id);setMobPanelOpen(false);}}} style={{cursor:h.id?'pointer':'default'}}>
+                        {h.id&&<button type="button" onClick={e=>{e.stopPropagation();deleteHistory(h.id!);}} className="sc-hist-delete" aria-label="Delete"><X size={12}/></button>}
+                        <div className="sc-hist-item__top">
+                          <p className="sc-sess-date">{h.date}</p>
+                          {h.status==='completed'&&<span className="sc-hist-done">✓ Done</span>}
+                        </div>
                         <p className="sc-sess-title-text">{h.title}</p>
                         <p className="sc-sess-sub"><span className={`sc-sess-dot sc-sess-dot--${h.badge}`}/>{h.badge==='low'?'Low risk':h.badge==='moderate'?'Moderate risk':'High risk'} · {h.sub}</p>
                       </div>
@@ -822,8 +959,12 @@ export default function SymptomChecker() {
                   {sessionHistory.length===0
                     ? <p className="sc-right-empty">Complete a chat session to see history here</p>
                     : <div className="sc-sess-list">{sessionHistory.map((h,i)=>(
-                        <div key={i} className="sc-sess-item">
-                          <p className="sc-sess-date">{h.date}</p>
+                        <div key={i} className={`sc-sess-item${h.id===chatSessionId?' sc-sess-item--active':''}${h.status==='completed'?' sc-sess-item--completed':''}`}
+                          onClick={()=>{if(h.id){loadSession(h.id);setMobPanelOpen(false);}}} style={{cursor:h.id?'pointer':'default'}}>
+                          <div className="sc-hist-item__top">
+                            <p className="sc-sess-date">{h.date}</p>
+                            {h.status==='completed'&&<span className="sc-hist-done">✓ Done</span>}
+                          </div>
                           <p className="sc-sess-title-text">{h.title}</p>
                           <p className="sc-sess-sub"><span className={`sc-sess-dot sc-sess-dot--${h.badge}`}/>{h.badge==='low'?'Low risk':h.badge==='moderate'?'Moderate risk':'High risk'} · {h.sub}</p>
                         </div>
@@ -870,7 +1011,7 @@ export default function SymptomChecker() {
         )}
 
         {/* Mobile bottom tab bar — hidden on desktop via CSS */}
-        <nav className="sc-mob-tab-bar" aria-label="Main navigation">
+        <nav className={`sc-mob-tab-bar${inputFocused?' sc-mob-tab-bar--hidden':''}`} aria-label="Main navigation">
           <div className="sc-mob-tab-bar__inner">
             <button className="sc-mob-tab-btn" type="button" onClick={()=>router.push('/dashboard')} aria-label="Home">
               <Heart size={22}/><span>Home</span>

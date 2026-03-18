@@ -148,30 +148,37 @@
     display: none !important; /* replaced by sc-mob-quick-pills */
   }
 
-  /* sc-input-bar: undo absolute, pinned at bottom of sc-page flex.
-     Bottom padding clears the fixed sc-mob-tab-bar (60px) + safe area. */
+  /* sc-input-bar: sits directly above the fixed tab bar, flush with no content below */
   .sc-input-bar {
     position: relative !important;
     bottom: auto !important;
     flex-shrink: 0 !important;
     padding: 6px 12px !important;
     padding-bottom: calc(var(--sc-tab-bar-h) + env(safe-area-inset-bottom, 0px) + 6px) !important;
+    background: var(--hc-surface) !important;
+    border-top: 1px solid var(--hc-border) !important;
+  }
+  /* Keyboard open — tab bar hidden so remove its clearance */
+  .sc-input-bar--focused {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6px) !important;
   }
   .sc-input-inner {
     padding: 6px 6px 6px 12px !important;
-    border-radius: 22px !important; /* pill shape — feels more native on mobile */
+    border-radius: 22px !important;
     min-height: 40px !important;
     align-items: center !important;
   }
   .sc-textarea {
     font-size: 14px !important;
     min-height: 20px !important;
-    max-height: 80px !important;  /* limit growth while typing */
+    max-height: 80px !important;
     line-height: 1.45 !important;
   }
   .sc-send { width: 34px !important; height: 34px !important; border-radius: 50% !important; }
-  /* Hide the hint / disclaimer text — takes too much space on mobile */
+  /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
+  /* Hide tab bar when keyboard is open */
+  .sc-mob-tab-bar--hidden { display: none !important; }
 
   /* ══════════════════════════════════════════════════════════
      MOBILE STICKY TOP BAR
@@ -308,6 +315,23 @@
     background: rgba(0,210,255,0.16);
     border-color: rgba(0,210,255,0.45);
     box-shadow: 0 0 10px rgba(0,210,255,0.18);
+  }
+
+  /* New Chat button — sits between risk badge and Details in risk bar */
+  .sc-mob-new-chat-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--hc-border, rgba(255,255,255,0.12));
+    color: var(--hc-text2, rgba(255,255,255,0.65));
+    font-family: inherit; font-size: 10.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.16s, border-color 0.16s, color 0.16s;
+  }
+  .sc-mob-new-chat-btn:hover {
+    background: rgba(0,210,255,0.08);
+    border-color: rgba(0,210,255,0.28);
+    color: var(--hc-teal, #00D2FF);
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -551,6 +575,59 @@
   }
   .sc-overlay:has(.sc-modal--emergency) { align-items: flex-end !important; padding: 0 !important; }
 
+  /* ══════════════════════════════════════════════════════════
+     SESSION HISTORY — mobile (bottom sheet + right panel)
+     These classes are used inside .sc-mob-panel-sheet and
+     .sc-mob-panel-body — ensure proper sizing & completed state
+  ══════════════════════════════════════════════════════════ */
+
+  /* Top row: date left, ✓ Done badge right */
+  .sc-hist-item__top {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* ✓ Done badge — ensure visible on mobile */
+  .sc-hist-done {
+    display: inline-flex !important;
+    align-items: center !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    color: var(--hc-teal, #00D2FF) !important;
+    background: rgba(0,210,255,.1) !important;
+    border: 1px solid rgba(0,210,255,.22) !important;
+    padding: 1px 6px !important;
+    border-radius: 100px !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Completed session items in bottom sheet */
+  .sc-sess-item--completed {
+    border-color: rgba(0,210,255,.12) !important;
+    opacity: 0.88 !important;
+  }
+  .sc-sess-item--completed:active { opacity: 1 !important; }
+
+  /* Active session item — currently loaded */
+  .sc-sess-item--active {
+    background: rgba(0,210,255,.07) !important;
+    border-color: rgba(0,210,255,.35) !important;
+  }
+
+  /* Larger tap targets for session items */
+  .sc-sess-item {
+    padding: 12px 13px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Slightly larger text for readability on mobile */
+  .sc-sess-title-text { font-size: 12.5px !important; }
+  .sc-sess-date       { font-size: 10px !important; }
+  .sc-sess-sub        { font-size: 11px !important; }
+
 } /* end @media (max-width: 640px) */
 
 /* ════════════════════════════════════════════════════════════════
@@ -587,6 +664,8 @@ html:not(.dark-mode) .sc-mob-risk-bar__ticks { color: #94a3b8; }
 html:not(.dark-mode) .sc-mob-risk-bar__track { background: rgba(0,0,0,0.08); }
 html:not(.dark-mode) .sc-mob-risk-bar__fill::after { border-color: #f1f5f9; }
 html:not(.dark-mode) .sc-mob-risk-bar__panel-btn { background: rgba(8,145,178,0.08); border-color: rgba(8,145,178,0.28); color: #0891b2; }
+html:not(.dark-mode) .sc-mob-new-chat-btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #475569; }
+html:not(.dark-mode) .sc-mob-new-chat-btn:hover { background: rgba(8,145,178,0.07); border-color: rgba(8,145,178,0.25); color: #0891b2; }
 
 html:not(.dark-mode) .sc-mob-tab-bar {
   background: rgba(255,255,255,0.97);
@@ -606,6 +685,18 @@ html:not(.dark-mode) .sc-mob-panel-sheet__title { color: #0f172a; }
 html:not(.dark-mode) .sc-mob-panel-sheet__close { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: #64748b; }
 html:not(.dark-mode) .sc-mob-quick-pills { border-bottom-color: rgba(0,0,0,0.06); }
 html:not(.dark-mode) .sc-mob-pill { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: #475569; }
-html:not(.dark-mode) .sc-mob-pill:hover { background: rgba(8,145,178,0.07); border-color: rgba(8,145,178,0.22); color: #0891b2; }html:not(.dark-mode) .sc-input-bar { background: rgba(255,255,255,0.97); border-top-color: rgba(0,0,0,0.08); }
-html:not(.dark-mode) .sc-input-inner { background: #f1f5f9; border-color: rgba(0,0,0,0.10); }
-html:not(.dark-mode) .sc-textarea { color: #0f172a; }
+html:not(.dark-mode) .sc-mob-pill:hover { background: rgba(8,145,178,0.07); border-color: rgba(8,145,178,0.22); color: #0891b2; }
+/* Session history — light mode mobile overrides */
+html:not(.dark-mode) .sc-sess-item { background: rgba(255,255,255,0.7); border-color: rgba(0,0,0,0.08); }
+html:not(.dark-mode) .sc-sess-item:hover { background: rgba(0,0,0,0.03); border-color: rgba(14,165,233,0.25); }
+html:not(.dark-mode) .sc-sess-item--active { background: rgba(14,165,233,0.08) !important; border-color: rgba(14,165,233,0.38) !important; }
+html:not(.dark-mode) .sc-sess-item--completed { border-color: rgba(14,165,233,0.15) !important; }
+html:not(.dark-mode) .sc-hist-done { color: #0ea5e9 !important; background: rgba(14,165,233,0.08) !important; border-color: rgba(14,165,233,0.22) !important; }
+html:not(.dark-mode) .sc-sess-date { color: #94a3b8; }
+html:not(.dark-mode) .sc-sess-title-text { color: #0f172a; }
+html:not(.dark-mode) .sc-sess-sub { color: #94a3b8; }
+
+/* Input bar — light mode */
+html:not(.dark-mode) .sc-input-bar { background: rgba(255,255,255,0.97) !important; border-top-color: rgba(0,0,0,0.08) !important; }
+html:not(.dark-mode) .sc-input-inner { background: #f1f5f9 !important; border-color: rgba(0,0,0,0.10) !important; }
+html:not(.dark-mode) .sc-textarea { color: #0f172a !important; }
