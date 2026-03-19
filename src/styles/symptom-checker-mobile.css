@@ -148,15 +148,16 @@
     display: none !important; /* replaced by sc-mob-quick-pills */
   }
 
-  /* sc-input-bar: sits directly above the fixed tab bar, flush with no content below */
+  /* sc-input-bar: sticky to bottom of flex column, sits flush above tab bar */
   .sc-input-bar {
-    position: relative !important;
-    bottom: auto !important;
+    position: sticky !important;
+    bottom: 0 !important;
     flex-shrink: 0 !important;
     padding: 6px 12px !important;
     padding-bottom: calc(var(--sc-tab-bar-h) + env(safe-area-inset-bottom, 0px) + 6px) !important;
     background: var(--hc-surface) !important;
     border-top: 1px solid var(--hc-border) !important;
+    z-index: 10 !important;
   }
   /* Keyboard open — tab bar hidden so remove its clearance */
   .sc-input-bar--focused {

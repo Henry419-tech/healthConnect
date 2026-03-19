@@ -141,60 +141,38 @@ const Dashboard: NextPage = () => {
   }, [status, reverseGeocode]);
 
   /* ── Facilities ───────────────────────────────────────── */
-  const calcDist = useCallback((la1: number, lo1: number, la2: number, lo2: number) => {
-    const R = 6371, dLat = (la2-la1)*Math.PI/180, dLng = (lo2-lo1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }, []);
-
   const fetchNearbyFacilities = useCallback(async () => {
     if (!userLocation || status !== 'authenticated') return;
     setIsLoadingFacilities(true); setFacilitiesError(null);
     const [lat, lng] = userLocation;
-    const q = `[out:json][timeout:30];(
-      node["amenity"="hospital"](around:5000,${lat},${lng});way["amenity"="hospital"](around:5000,${lat},${lng});
-      node["amenity"="clinic"](around:5000,${lat},${lng});
-      node["amenity"="pharmacy"](around:5000,${lat},${lng});
-      node["healthcare"](around:5000,${lat},${lng});
-    );out center body;`;
     try {
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 25000);
-      const res = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(q)}`, signal: ctrl.signal,
-      });
-      if (!res.ok) throw new Error('fetch failed');
+      const res = await fetch(
+        `/api/facilities/nearby?lat=${lat}&lng=${lng}&radius=5000&limit=3`,
+        { method: 'GET' }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Request failed (${res.status})`);
+      }
       const data = await res.json();
-      const list: Facility[] = [];
-      (data.elements || []).forEach((el: any) => {
-        try {
-          const coords = el.lat && el.lon ? [el.lat, el.lon] : el.center ? [el.center.lat, el.center.lon] : null;
-          if (!coords || !el.tags) return;
-          const name = el.tags.name || el.tags['name:en'] || 'Healthcare Facility';
-          if (name.length < 3) return;
-          const dist = calcDist(lat, lng, coords[0], coords[1]);
-          if (dist > 5) return;
-          const amenity = el.tags.amenity || el.tags.healthcare || 'clinic';
-          list.push({
-            id: `osm_${el.type}_${el.id}`, name,
-            type: amenity === 'hospital' ? 'hospital' : amenity === 'pharmacy' ? 'pharmacy' : 'clinic',
-            distance: dist, rating: 3.5 + Math.random() * 1.5,
-            phone: el.tags.phone || 'Not available',
-            hours: el.tags.opening_hours || (amenity === 'hospital' ? '24/7' : 'Call for hours'),
-            city: el.tags['addr:city'] || 'Unknown',
-            coordinates: coords as [number, number],
-            emergencyServices: el.tags.emergency === 'yes' || amenity === 'hospital',
-          });
-        } catch { /* skip */ }
-      });
-      list.sort((a, b) => a.distance - b.distance);
-      setNearbyFacilities(list.slice(0, 3));
+      const list: Facility[] = (data.facilities || []).map((f: any) => ({
+        id:                f.id,
+        name:              f.name,
+        type:              f.type,
+        distance:          f.distance,
+        rating:            f.rating,
+        phone:             f.phone,
+        hours:             f.hours,
+        city:              f.city,
+        coordinates:       f.coordinates,
+        emergencyServices: f.emergencyServices,
+      }));
+      setNearbyFacilities(list);
       if (!list.length) setFacilitiesError('No facilities found within 5km.');
     } catch (e: any) {
-      setFacilitiesError(e.name === 'AbortError' ? 'Request timed out.' : 'Unable to load facilities.');
+      setFacilitiesError(e.message || 'Unable to load facilities.');
     } finally { setIsLoadingFacilities(false); }
-  }, [userLocation, status, calcDist]);
+  }, [userLocation, status]);
 
   useEffect(() => { if (userLocation) fetchNearbyFacilities(); }, [userLocation, fetchNearbyFacilities]);
 
@@ -304,10 +282,38 @@ const Dashboard: NextPage = () => {
   const getFacilityIcon = (type: string) => {
     switch (type) { case 'hospital': return Hospital; case 'pharmacy': return Pill; default: return Stethoscope; }
   };
-  const getFacilityStatus = (f: Facility) => {
-    const h = currentTime.getHours();
+  const getFacilityStatus = (f: Facility): { label: string; isOpen: boolean } => {
     if (f.emergencyServices) return { label: 'Open 24/7', isOpen: true };
-    return h >= 8 && h < 18 ? { label: 'Open Now', isOpen: true } : { label: 'Closed', isOpen: false };
+    const raw = f.hours?.toLowerCase() ?? '';
+    if (raw === '24/7' || raw === 'always') return { label: 'Open 24/7', isOpen: true };
+    if (!raw || raw === 'call for hours' || raw === 'not available') return { label: 'Hours unknown', isOpen: false };
+    // Parse OSM opening_hours using Ghana time (UTC+0)
+    const dayIdx = currentTime.getUTCDay() === 0 ? 6 : currentTime.getUTCDay() - 1; // Mon=0..Sun=6
+    const mins   = currentTime.getUTCHours() * 60 + currentTime.getUTCMinutes();
+    const DAY: Record<string, number> = { mo: 0, tu: 1, we: 2, th: 3, fr: 4, sa: 5, su: 6 };
+    const toMin  = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + (mm || 0); };
+    for (const rule of raw.split(';').map(r => r.trim())) {
+      const dayTime = /^([a-z,\-\s]+)\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(rule);
+      if (dayTime) {
+        const seg = dayTime[1].trim(); const dash = seg.indexOf('-');
+        let days: number[] = [];
+        if (dash > 0) {
+          const s = DAY[seg.slice(0, dash).trim()], e = DAY[seg.slice(dash + 1).trim()];
+          if (s != null && e != null) for (let d = s; ; d = (d + 1) % 7) { days.push(d); if (d === e) break; }
+        } else { const d = DAY[seg]; if (d != null) days = [d]; }
+        if (!days.includes(dayIdx)) continue;
+        return mins >= toMin(dayTime[2]) && mins < toMin(dayTime[3])
+          ? { label: 'Open Now',  isOpen: true  }
+          : { label: 'Closed',    isOpen: false };
+      }
+      const timeOnly = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(rule);
+      if (timeOnly) {
+        return mins >= toMin(timeOnly[1]) && mins < toMin(timeOnly[2])
+          ? { label: 'Open Now',      isOpen: true  }
+          : { label: 'Closed',        isOpen: false };
+      }
+    }
+    return { label: 'Hours unknown', isOpen: false };
   };
 
   const scoreCircumference = 2 * Math.PI * 36;

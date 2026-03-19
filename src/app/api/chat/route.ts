@@ -149,28 +149,74 @@ This tag is stripped before the user sees it. It must always be present.`;
     }
     conversationText += 'Assistant:';
 
-    const model = genAI.getGenerativeModel({
-      model: 'models/gemini-2.5-flash',
-      generationConfig: {
-        temperature: Math.max(0.1, Math.min(temperature, 0.5)),
-        maxOutputTokens: 2048, // raised — 1024 was cutting responses mid-sentence
-        topP: 0.8,
-        topK: 40,
-      },
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,  threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      ],
-    });
+    // Fallback chain — only current non-retired models (1.5 series is retired)
+    const MODELS = [
+      'models/gemini-2.5-flash',      // primary — best quality
+      'models/gemini-2.0-flash',      // fallback — current stable
+      'models/gemini-2.0-flash-lite', // lighter fallback — higher quota
+    ];
+    const generationConfig = {
+      temperature: Math.max(0.1, Math.min(temperature, 0.5)),
+      maxOutputTokens: 2048,
+      topP: 0.8,
+      topK: 40,
+    };
+    const safetySettings = [
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,  threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    ];
 
-    const result = await model.generateContent(conversationText);
-    const response = await result.response;
-    const rawText = response.text();
+    let rawText = '';
+    let usedModel = MODELS[0];
+    let lastErr: any = null;
+
+    for (const modelName of MODELS) {
+      // Each model gets up to 2 attempts (handles transient network blips)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName, generationConfig, safetySettings });
+          const result = await model.generateContent(conversationText);
+          rawText = result.response.text();
+          usedModel = modelName;
+          lastErr = null;
+          break; // success
+        } catch (modelErr: any) {
+          lastErr = modelErr;
+          const msg = modelErr?.message || '';
+          const isQuota    = modelErr?.status === 429 || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED');
+          const isNetwork  = msg.includes('fetch failed') || msg.includes('ENOTFOUND') || msg.includes('network') || msg.includes('ETIMEDOUT');
+          const isNotFound = modelErr?.status === 404 || msg.includes('not found') || msg.includes('is not found');
+          const shouldTryNext = isQuota || isNetwork || isNotFound;
+
+          if (isNetwork && attempt === 0) {
+            // Brief pause then retry same model once
+            await new Promise(r => setTimeout(r, 1500));
+            continue;
+          }
+          if (shouldTryNext && modelName !== MODELS[MODELS.length - 1]) {
+            console.warn(`[chat] ${modelName} failed (${isQuota ? 'quota' : isNotFound ? 'not found' : 'network'}), trying next model`);
+            break; // move to next model
+          }
+          if (attempt === 0 && !shouldTryNext) {
+            // Unknown error — retry once
+            await new Promise(r => setTimeout(r, 500));
+            continue;
+          }
+          break; // give up on this model
+        }
+      }
+      if (!lastErr) break; // success — exit model loop
+    }
+
+    // All models failed
+    if (lastErr) throw lastErr;
 
     // Strip <risk> tag from message, extract level
     const { message: aiMessage, riskLevel } = extractRisk(rawText);
+
+    console.log(`[chat] ${usedModel} | risk: ${riskLevel} | ${new Date().toISOString()}`);
 
     // For assessment calls return raw JSON immediately — no disclaimers, no DB save
     if (isAssessment) {
@@ -196,24 +242,29 @@ This tag is stripped before the user sees it. It must always be present.`;
       finalMessage += '\n\n🏥 Find Healthcare Facilities: Use our facility finder to locate hospitals, clinics, and pharmacies near you.';
     }
 
-    console.log(`AI Symptom Checker — Gemini response at ${new Date().toISOString()} | risk: ${riskLevel}`);
-
     // ── Persist to DB if user is logged in ──────────────────────
     let activeSessionId = sessionId;
     if (dbUser) {
       try {
-        const userMessage = messages[messages.length - 1];
-        const userContent = userMessage?.content || '';
+        const latestUserMessage = messages[messages.length - 1];
+        const userContent = latestUserMessage?.content || '';
 
-        // Create a new session if none provided
         if (!activeSessionId) {
+          // ── NEW SESSION ───────────────────────────────────────
           // Auto-title: first 60 chars of the user's opening message
           const title = userContent.length > 60
             ? userContent.slice(0, 57) + '…'
             : userContent || 'New Conversation';
 
+          // FIX: seed messageCount with the full history length so the
+          // count shown in the sidebar matches reality from the start.
           const newSession = await prisma.chatSession.create({
-            data: { userId: dbUser.id, title, riskLevel },
+            data: {
+              userId:       dbUser.id,
+              title,
+              riskLevel,
+              messageCount: messages.length, // ← seed with actual history count
+            },
           });
           activeSessionId = newSession.id;
 
@@ -221,10 +272,23 @@ This tag is stripped before the user sees it. It must always be present.`;
           await prisma.chatMessage.createMany({
             data: messages.map((m: any) => ({
               sessionId: activeSessionId!,
-              role: m.role,
-              content: m.content,
+              role:      m.role,
+              content:   m.content,
               riskLevel: m.role === 'assistant' ? (m.riskLevel || null) : null,
             })),
+          });
+        } else {
+          // ── EXISTING SESSION ──────────────────────────────────
+          // FIX: save the user's current message — previously this was
+          // skipped, so only the first session creation ever wrote user
+          // messages. All turns after that were lost from the DB.
+          await prisma.chatMessage.create({
+            data: {
+              sessionId: activeSessionId,
+              role:      'user',
+              content:   userContent,
+              riskLevel: null,
+            },
           });
         }
 
@@ -232,19 +296,19 @@ This tag is stripped before the user sees it. It must always be present.`;
         await prisma.chatMessage.create({
           data: {
             sessionId: activeSessionId,
-            role: 'assistant',
-            content: finalMessage,
+            role:      'assistant',
+            content:   finalMessage,
             riskLevel,
           },
         });
 
-        // Update session metadata
+        // Update session metadata — increment by 2 (user + assistant)
         await prisma.chatSession.update({
           where: { id: activeSessionId },
           data: {
             riskLevel,
-            messageCount: { increment: 2 }, // user + assistant
-            updatedAt: new Date(),
+            messageCount: { increment: 2 },
+            updatedAt:    new Date(),
           },
         });
       } catch (dbErr) {
@@ -255,21 +319,33 @@ This tag is stripped before the user sees it. It must always be present.`;
     // ────────────────────────────────────────────────────────────
 
     return NextResponse.json({
-      message: finalMessage,
+      message:   finalMessage,
       riskLevel,
-      model: 'gemini-2.5-flash',
+      model:     usedModel,
       sessionId: activeSessionId,
     });
 
   } catch (error: any) {
-    console.error('Gemini API Error:', error);
+    console.error('Gemini API Error:', error?.message || error);
 
-    if (error?.status === 429 || error?.message?.includes('quota')) {
+    const msg = error?.message || '';
+    const isNetwork = msg.includes('fetch failed') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT') || msg.includes('network');
+
+    if (isNetwork) {
       return NextResponse.json({
-        message: `I apologize, but the AI service is temporarily unavailable due to usage limits.\n\nFor your health and safety, please:\n\n🏥 Immediate Care Needed?\n• Call emergency services (193) for severe symptoms\n• Visit your nearest hospital or clinic\n• Contact your healthcare provider directly\n\nThis AI service will be restored once usage limits are renewed.`,
+        message: `I'm having trouble connecting to the AI service right now. Please try again in a moment.\n\nIf symptoms are urgent:\n• Call emergency services (193)\n• Visit your nearest clinic or hospital`,
         riskLevel: 'low',
-        error: 'quota_exceeded',
-        fallback: true
+        error:     'network_error',
+        fallback:  true
+      }, { status: 503 });
+    }
+
+    if (error?.status === 429 || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+      return NextResponse.json({
+        message: `The AI service is temporarily busy. Please try again in a few minutes.\n\nIf symptoms are urgent:\n• Call emergency services (193)\n• Visit your nearest clinic or hospital`,
+        riskLevel: 'low',
+        error:     'quota_exceeded',
+        fallback:  true
       }, { status: 503 });
     }
 
@@ -277,8 +353,8 @@ This tag is stripped before the user sees it. It must always be present.`;
       return NextResponse.json({
         message: `For your safety, I cannot provide specific guidance on the symptoms you've described.\n\nPlease seek immediate medical attention:\n• Contact your healthcare provider\n• Visit your nearest clinic or hospital\n• Call emergency services if symptoms are severe`,
         riskLevel: 'high',
-        error: 'safety_filter',
-        fallback: true
+        error:     'safety_filter',
+        fallback:  true
       }, { status: 400 });
     }
 
@@ -286,16 +362,16 @@ This tag is stripped before the user sees it. It must always be present.`;
       return NextResponse.json({
         message: `I apologize, but the AI service is temporarily unavailable.\n\nFor your health and safety, please visit your nearest hospital or clinic, or call emergency services (193) if symptoms are severe.`,
         riskLevel: 'low',
-        error: 'model_not_found',
-        fallback: true
+        error:     'model_not_found',
+        fallback:  true
       }, { status: 503 });
     }
 
     return NextResponse.json({
-      message: getBasicSymptomGuidance(messages.length > 0 ? messages[messages.length - 1]?.content || '' : ''),
+      message:   getBasicSymptomGuidance(messages.length > 0 ? messages[messages.length - 1]?.content || '' : ''),
       riskLevel: 'low',
-      error: 'service_unavailable',
-      fallback: true
+      error:     'service_unavailable',
+      fallback:  true
     }, { status: 500 });
   }
 }
@@ -311,7 +387,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin':  '*',
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
