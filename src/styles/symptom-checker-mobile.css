@@ -189,15 +189,11 @@
   .sc-send { width: 34px !important; height: 34px !important; border-radius: 50% !important; }
   /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
-  /* Hide tab bar when keyboard is open — use visibility so layout isn't disturbed */
+  /* Hide tab bar when keyboard is open.
+     No transition on hide — instant removal prevents the bar
+     getting stuck in the hidden state after blur on Android Chrome. */
   .sc-mob-tab-bar--hidden {
-    opacity: 0 !important;
-    pointer-events: none !important;
-    transform: translateY(100%) !important;
-    transition: transform 0.15s ease, opacity 0.15s ease !important;
-  }
-  .sc-mob-tab-bar {
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    display: none !important;
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -232,7 +228,8 @@
   .sc-mob-topbar__logo-icon {
     color: var(--hc-teal);
     filter: drop-shadow(0 0 6px rgba(0,210,255,0.45));
-    width: 18px !important; height: 18px !important;
+    width: 18px; height: 18px;
+    flex-shrink: 0;
   }
   .sc-mob-topbar__logo-text {
     font-family: 'Outfit', 'Inter', sans-serif;
@@ -265,10 +262,10 @@
   html.dark-mode .sc-mob-topbar__bell-dot { border-color: #071828; }
 
   .sc-mob-topbar__sos {
-    display: flex; align-items: center; gap: 5px;
-    padding: 6px 12px; border-radius: 9px;
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 10px; border-radius: 9px;
     background: rgba(239,68,68,0.09); border: 1px solid rgba(239,68,68,0.28); color: #ef4444;
-    font-family: 'Outfit', 'Inter', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+    font-family: 'Outfit', 'Inter', sans-serif; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
     cursor: pointer; transition: background 0.18s, border-color 0.18s;
   }
   .sc-mob-topbar__sos:hover { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.50); }

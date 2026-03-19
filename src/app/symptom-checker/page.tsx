@@ -189,6 +189,7 @@ export default function SymptomChecker() {
 
   // ── UI state ─────────────────────────────────────────────────
   const [step,          setStep]          = useState<'chat' | 'assessment'>('chat');
+  const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [messages,      setMessages]      = useState<ChatMessage[]>([]);
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [inputVal,      setInputVal]      = useState('');
@@ -364,7 +365,9 @@ export default function SymptomChecker() {
     );
   }, []);
 
-  // ── Load session history + restore latest conversation ────────
+  // ── Load session history only — always start fresh on sign-in ──
+  // Past sessions are accessible via the sidebar; we never auto-restore
+  // because stale medical context from a prior session can mislead the AI.
   useEffect(() => {
     if (status !== 'authenticated') return;
     fetch('/api/chat-sessions').then(r => r.json()).then(({ sessions }) => {
@@ -377,22 +380,8 @@ export default function SymptomChecker() {
         id:     s.id,
         status: s.status || 'active',
       })));
-      const latest = sessions[0];
-      if (latest && messages.length === 0) {
-        fetch(`/api/chat-sessions/${latest.id}`).then(r => r.json()).then(({ session: cs }) => {
-          if (!cs?.messages?.length) return;
-          const restored: ChatMessage[] = cs.messages.map((m: any) => ({
-            id:        m.id,
-            role:      m.role as 'user' | 'assistant',
-            content:   m.content,
-            timestamp: new Date(m.createdAt),
-          }));
-          setMessages(restored);
-          setChatSessionId(latest.id);
-          setShowWelcome(false);
-          if (latest.riskLevel) setLiveRisk(latest.riskLevel as UrgencyLevel);
-        }).catch(() => {});
-      }
+      // No auto-restore — user always lands on a fresh chat.
+      // History is accessible via the left sidebar / mobile bottom sheet.
     }).catch(() => {});
   }, [status]); // eslint-disable-line
 
@@ -527,6 +516,7 @@ export default function SymptomChecker() {
     setLiveRisk('low');
     setCanAssess(false);
     setChatSessionId(null);
+    setIsViewingHistory(false);
   }, [chatSessionId, messages.length, liveRisk, completeSession]);
 
   // ── Delete history item ───────────────────────────────────────
@@ -556,6 +546,7 @@ export default function SymptomChecker() {
       setLiveRisk((cs.riskLevel as UrgencyLevel) || 'low');
       setCanAssess(restored.filter(m => m.role === 'user').length >= 3);
       setShowWelcome(false);
+      setIsViewingHistory(true);
     } catch (e) { console.error('Failed to load session:', e); }
   }, []);
 
@@ -897,15 +888,15 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
         {/* Mobile top bar */}
         <div className="sc-mob-topbar">
           <div className="sc-mob-topbar__left">
-            <Heart size={20} className="sc-mob-topbar__logo-icon" />
+            <Heart size={18} className="sc-mob-topbar__logo-icon" />
             <span className="sc-mob-topbar__logo-text">HealthConnect</span>
           </div>
           <div className="sc-mob-topbar__right">
             <button className="sc-mob-topbar__btn" type="button" onClick={toggleDarkMode}>
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button ref={notifMobRef} className="sc-mob-topbar__btn" type="button" style={{ position: 'relative' }} aria-label="Notifications" onClick={toggleNotifPanel}>
-              <Bell size={16} />{hasUnread && <span className="sc-mob-topbar__bell-dot" />}
+              <Bell size={18} />{hasUnread && <span className="sc-mob-topbar__bell-dot" />}
             </button>
             <button className="sc-mob-topbar__sos" type="button" onClick={() => setShowEmergency(true)}>
               <Phone size={13} /> SOS
@@ -1051,6 +1042,17 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
                   </div>
                 </div>
 
+                {/* History banner — shown when viewing a past session */}
+                {isViewingHistory && (
+                  <div className="sc-history-banner">
+                    <Clock size={12} />
+                    <span>You're viewing a past session</span>
+                    <button type="button" onClick={startNewChat} className="sc-history-banner__btn">
+                      <Plus size={11} /> New chat
+                    </button>
+                  </div>
+                )}
+
                 {/* Messages */}
                 <div className="sc-messages">
                   {messages.map(msg => (
@@ -1098,7 +1100,7 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
                       onChange={handleTextarea}
                       onKeyDown={handleKeyDown}
                       onFocus={() => setInputFocused(true)}
-                      onBlur={() => setInputFocused(false)}
+                      onBlur={() => { setTimeout(() => setInputFocused(false), 150); }}
                       placeholder="Describe your symptom or ask a health question…"
                       className="sc-textarea"
                       rows={1}
