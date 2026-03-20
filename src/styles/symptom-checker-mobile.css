@@ -61,13 +61,17 @@
   ══════════════════════════════════════════════════════════ */
   .hc-layout:has(.sc-page),
   .hc-layout--locked:has(.sc-page) {
-    height: 100dvh !important;
+    /* svh = small viewport height — always excludes the virtual keyboard.
+       dvh shrinks when keyboard opens causing jarring layout reflows.
+       svh is fixed, so the layout never jumps and no gap appears below
+       the input bar when the keyboard opens on Android Chrome. */
+    height: 100svh !important;
     overflow: hidden !important;
   }
 
   .hc-layout:has(.sc-page) .hc-layout__main,
   .hc-layout--locked:has(.sc-page) .hc-layout__main {
-    height: 100dvh !important;
+    height: 100svh !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
@@ -84,7 +88,9 @@
   }
 
   /* sc-page: flex column filling the viewport.
-     overflow:clip (not hidden) so position:sticky works inside it. */
+     overflow:clip (not hidden) so position:sticky works inside it.
+     padding-top: 56px clears the fixed sc-mob-topbar which is now
+     out of normal flow and would otherwise overlap the content. */
   .sc-page {
     position: relative !important;
     inset: auto !important;
@@ -95,6 +101,7 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: clip !important;
+    padding-top: 56px !important;
   }
 
   /* Grid: single flex column — fills remaining space after topbar/riskbar/pills */
@@ -201,11 +208,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    position: sticky;
-    top: 0; z-index: 200;
+    /* Fixed positioning — NOT sticky.
+       position:sticky inside overflow:clip loses its anchor when Android
+       Chrome resizes the visual viewport for the keyboard, causing the
+       topbar to scroll out of view while the user is typing.
+       position:fixed is viewport-relative so the keyboard cannot affect it. */
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
     padding: 0 16px;
     height: 56px;
-    /* matches db-topbar height on Home/Profile/Find pages */
     flex-shrink: 0;
     background: var(--hc-surface);
     border-bottom: 1px solid var(--hc-border);
