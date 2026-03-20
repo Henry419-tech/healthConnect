@@ -100,25 +100,29 @@ html.dark-mode {
 /* ── Viewport-locked layout variant (symptom-checker chat page) ─────
    Applied when page adds hc-layout--locked class.
    Gives the flex chain a defined height so flex:1 children resolve
-   their heights correctly. Without an explicit height on the root,
-   all flex:1 descendants collapse to content height.
+   their heights correctly. Without height:100vh on the root, all
+   flex:1 descendants collapse to content height — causing the empty
+   space below the chat input bar.
    This class is ONLY on the symptom-checker page, so it cannot affect
    emergency, profile, facilities or any other body-scroll page.
-
-   IMPORTANT: use svh (small viewport height) not vh/dvh.
-   - vh   = full screen height, ignores the virtual keyboard → gap appears
-   - dvh  = dynamic, shrinks WITH keyboard — triggers constant layout
-             reflows/jumps as the keyboard animates in/out on Android
-   - svh  = smallest possible viewport (keyboard fully open, browser
-             UI fully shown) — fixed, no reflows, no keyboard gap.
    ──────────────────────────────────────────────────────────────────── */
 .hc-layout--locked {
+  /* svh = small viewport height — always excludes the virtual keyboard.
+     vh stays at full screen size when keyboard opens → gap appears below input.
+     dvh shrinks dynamically → jarring layout reflow on every keyframe.
+     svh is fixed at the keyboard-open minimum → no gap, no reflow. */
   height: 100svh;
   overflow: hidden;
 }
 .hc-layout--locked .hc-layout__main {
   overflow: hidden;
   height: 100%;
+  /* The @media(≤1024px) block above injects padding-top and padding-bottom
+     onto hc-layout__main for the generic hc-topbar / hc-bottom-nav.
+     On locked pages (symptom-checker) those generic bars are hidden and
+     the page manages its own spacing — zero both out here. */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 .hc-layout--locked .hc-layout__content {
   display: flex;
@@ -679,15 +683,9 @@ html:not(.dark-mode) .hc-sidebar__nav-item--active {
 
 /* ════════════════════════════════════════════════════════════════
    HAS-MOB-TOPBAR LAYOUT VARIANT
-   Dashboard + Symptom Checker pages pass className="hc-layout--has-mob-topbar".
+   Dashboard page passes className="hc-layout--has-mob-topbar".
    On mobile: hide the generic hc-topbar/hc-bottom-nav, show the
-   page's own custom mob-topbar / sc-mob-topbar and tab bar instead.
-
-   IMPORTANT: suppression must cover the full ≤1024px range, not
-   just ≤640px. Between 641–1024px the generic hc-topbar and
-   hc-bottom-nav are made visible by the base @media(≤1024px) block
-   above. Without !important overrides here both the generic bars AND
-   the custom ones would show simultaneously on tablets / large phones.
+   dashboard's custom mob-topbar and mob-tab-bar instead.
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) {
   .hc-layout--has-mob-topbar .hc-topbar     { display: none !important; }
