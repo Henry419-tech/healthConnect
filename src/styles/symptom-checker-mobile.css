@@ -54,25 +54,23 @@
 
   /* ══════════════════════════════════════════════════════════
      ROOT LAYOUT CHAIN — full height flex column
-     KEY INSIGHT: We use 100dvh (dynamic) NOT 100svh here.
-     dvh shrinks when the keyboard opens on Android Chrome,
-     which means the entire flex chain shrinks and the input bar
-     — kept IN FLOW as a flex child — naturally rises above the
-     keyboard without any JS or fixed positioning needed.
-     The chain must have NO overflow:hidden so the resize propagates.
+     CRITICAL: These rules are scoped to pages that contain
+     .sc-page so they ONLY apply to the symptom checker.
+     Without this scoping, overflow:hidden leaks to emergency
+     and profile pages on client-side navigation (no full reload).
   ══════════════════════════════════════════════════════════ */
   .hc-layout:has(.sc-page),
   .hc-layout--locked:has(.sc-page) {
-    height: 100dvh !important;
-    overflow: visible !important;
+    height: 100svh !important;
+    overflow: hidden !important;
   }
 
   .hc-layout:has(.sc-page) .hc-layout__main,
   .hc-layout--locked:has(.sc-page) .hc-layout__main {
-    height: 100dvh !important;
+    height: 100svh !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     margin-left: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -82,12 +80,11 @@
   .hc-layout--locked:has(.sc-page) .hc-layout__content {
     flex: 1 1 0% !important;
     min-height: 0 !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
   }
 
-  /* sc-page: flex column filling the shrinking dvh container */
   .sc-page {
     position: relative !important;
     inset: auto !important;
@@ -97,8 +94,7 @@
     width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow: hidden !important;
-    /* top bar is position:fixed so compensate with padding */
+    overflow: clip !important;
     padding-top: 56px !important;
   }
 
@@ -133,8 +129,9 @@
   /* sc-chat-header: hidden on mobile (sc-mob-topbar replaces it) */
   .sc-chat-header { display: none !important; }
 
-  /* sc-messages: scrollable flex:1 — padding-bottom clears the
-     sticky input bar + fixed tab bar */
+  /* sc-messages: padding-bottom must clear both fixed layers —
+     the input bar (~56px) and the tab bar (61px) — since both are
+     position:fixed and invisible to the scroll container. */
   .sc-messages {
     position: relative !important;
     top: auto !important; left: auto !important;
@@ -146,51 +143,38 @@
     padding: 14px 14px calc(var(--sc-tab-bar-h) + 72px) !important;
     gap: 14px !important;
   }
-  /* Keyboard open — tab bar gone, only clear the input bar (~56px) */
+  /* Keyboard open — tab bar hidden, only clear the input bar */
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
     padding-bottom: 72px !important;
   }
 
-  /* sc-chips: hidden on mobile */
+  /* sc-chips: hidden on mobile (replaced by sc-mob-quick-pills) */
   .sc-chips {
     position: relative !important;
     bottom: auto !important;
     display: none !important;
   }
 
-  /* sc-input-bar: sticky IN FLOW at the bottom of the flex column.
-     Because the layout uses dvh which shrinks when the keyboard opens,
-     this bar naturally rises with the shrinking container — no JS,
-     no fixed positioning, no visualViewport needed.
-     It must NOT be position:fixed because fixed elements don't move
-     when overflow:hidden is on a parent, making them hide behind
-     the keyboard. Sticky within a shrinking dvh flex column is the
-     correct cross-browser approach. */
+  /* sc-input-bar: FIXED to the viewport — not sticky.
+     sticky rides up with scroll because it anchors to the scroll
+     container's bottom edge, not the screen. fixed is the only
+     way to guarantee it never moves when the user scrolls.
+     Sits above the fixed tab bar via bottom: var(--sc-tab-bar-h). */
   .sc-input-bar {
-    position: sticky !important;
-    bottom: 0 !important;
+    position: fixed !important;
+    bottom: var(--sc-tab-bar-h) !important;
+    left: 0 !important;
+    right: 0 !important;
     flex-shrink: 0 !important;
     padding: 6px 12px 8px !important;
     background: var(--hc-surface) !important;
     border-top: 1px solid var(--hc-border) !important;
     z-index: 50 !important;
   }
-  /* Not focused: add padding for the fixed tab bar sitting below */
-  .sc-input-bar:not(.sc-input-bar--focused) {
-    padding-bottom: calc(var(--sc-tab-bar-h) + 8px) !important;
-  }
-  /* Keyboard open: tab bar hidden, safe-area only */
+  /* Keyboard open — tab bar hidden, drop to screen bottom */
   .sc-input-bar--focused {
+    bottom: 0 !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
-  }
-
-  /* Hide BOTH tab bars when keyboard is open —
-     sc-mob-tab-bar is the checker's own bar,
-     mob-tab-bar is DashboardHeader's generic bar which can
-     show through if the layout suppression fails */
-  .sc-mob-tab-bar--hidden,
-  .sc-page:has(.sc-input-bar--focused) ~ .mob-tab-bar {
-    display: none !important;
   }
   .sc-input-inner {
     padding: 6px 6px 6px 12px !important;
@@ -207,13 +191,15 @@
   .sc-send { width: 34px !important; height: 34px !important; border-radius: 50% !important; }
   /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
-  /* Hide tab bar when keyboard is open — instant, no transition */
+  /* Hide tab bar when keyboard is open.
+     No transition on hide — instant removal prevents the bar
+     getting stuck in the hidden state after blur on Android Chrome. */
   .sc-mob-tab-bar--hidden {
     display: none !important;
   }
 
   /* ══════════════════════════════════════════════════════════
-     MOBILE TOP BAR — fixed so keyboard can't scroll it away
+     MOBILE STICKY TOP BAR
   ══════════════════════════════════════════════════════════ */
   .sc-mob-topbar {
     display: flex;
