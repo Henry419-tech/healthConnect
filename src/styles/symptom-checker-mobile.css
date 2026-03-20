@@ -28,7 +28,7 @@
 @media (max-width: 640px) {
 
   /* Tab bar height token — canonical 60px across all pages */
-  :root { --sc-tab-bar-h: 61px; } /* 60px inner + 1px top border */
+  :root { --sc-tab-bar-h: calc(56px + 12px + env(safe-area-inset-bottom, 0px)); } /* pill height + gap above bottom */
 
   /* ── Utility ──────────────────────────────────────────────── */
   .sc-mob-only { display: flex; }
@@ -41,8 +41,18 @@
      We only need to hide remaining desktop-only elements here.
   ══════════════════════════════════════════════════════════ */
   .db-topbar       { display: none !important; }
-  .mob-tab-bar     { display: none !important; }
   .sc-panel-toggle { display: none !important; }
+
+  /* Show shared dashboard bars — sc-mob-* equivalents are retired */
+  .mob-topbar  { display: flex !important; }
+  .mob-tab-bar { display: flex !important; }
+
+  /* Hide the old sc-specific bars — JSX now uses mob-* classes */
+  .sc-mob-topbar  { display: none !important; }
+  .sc-mob-tab-bar { display: none !important; }
+
+  /* Keyboard open — hide the tab bar so input bar has full room */
+  .mob-tab-bar--hidden { display: none !important; pointer-events: none !important; }
 
   /* Remove padding injected by dashboard-header.css at ≤1024px
      (.hc-layout--has-mob-topbar handles padding-top already)   */
@@ -95,7 +105,7 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: clip !important;
-    padding-top: 56px !important;
+    padding-top: 72px !important;
   }
 
   /* Grid: single flex column — fills remaining space after topbar/riskbar/pills */
@@ -129,9 +139,9 @@
   /* sc-chat-header: hidden on mobile (sc-mob-topbar replaces it) */
   .sc-chat-header { display: none !important; }
 
-  /* sc-messages: padding-bottom must clear both fixed layers —
-     the input bar (~56px) and the tab bar (61px) — since both are
-     position:fixed and invisible to the scroll container. */
+  /* sc-messages: padding-bottom must clear the floating input pill
+     (~56px) + its 8px gap above the tab bar + the tab bar itself (~80px)
+     + breathing room. Total: roughly 160px */
   .sc-messages {
     position: relative !important;
     top: auto !important; left: auto !important;
@@ -140,17 +150,13 @@
     min-height: 0 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
-    /* Clear tab bar (61px) + input bar (~56px) + extra breathing room */
-    padding: 14px 14px calc(var(--sc-tab-bar-h) + 80px) !important;
+    padding: 14px 14px calc(var(--sc-tab-bar-h) + 110px) !important;
     gap: 14px !important;
-    /* Prevent scroll chaining — keeps scroll inside this container */
     overscroll-behavior: contain;
   }
-  /* Keyboard open — tab bar is hidden, only need to clear input bar.
-     Use a generous value (100px) since exact input height varies with
-     textarea growth. JS handles the actual input bar positioning. */
+  /* Keyboard open — tab bar hidden, only clear the floating input pill */
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
-    padding-bottom: 100px !important;
+    padding-bottom: 110px !important;
   }
 
   /* sc-chips: hidden on mobile (replaced by sc-mob-quick-pills) */
@@ -175,132 +181,79 @@
      the actual repositioning. */
   .sc-input-bar {
     position: fixed !important;
-    bottom: var(--sc-tab-bar-h) !important;
-    left: 0 !important;
-    right: 0 !important;
+    bottom: calc(var(--sc-tab-bar-h) + 8px) !important;
+    left: 16px !important;
+    right: 16px !important;
     flex-shrink: 0 !important;
-    padding: 6px 12px 8px !important;
-    background: var(--hc-surface) !important;
-    border-top: 1px solid var(--hc-border) !important;
+    padding: 6px 6px 6px 14px !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    border: 1px solid rgba(255, 255, 255, 0.60) !important;
+    border-radius: 28px !important;
+    backdrop-filter: blur(24px) saturate(1.6) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(1.6) !important;
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.12),
+      0 1px 6px  rgba(0, 0, 0, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.80) !important;
     z-index: 100 !important;
-    /* Ensure input bar is always on top of keyboard overlay */
     will-change: bottom;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    align-items: center !important;
   }
-  /* Keyboard open — JS repositions .style.bottom directly.
-     This class only adjusts padding for safe-area insets. */
+  html.dark-mode .sc-input-bar {
+    background: rgba(7, 24, 40, 0.88) !important;
+    border-color: rgba(0, 210, 255, 0.14) !important;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.50),
+      0 1px 6px  rgba(0, 0, 0, 0.30),
+      inset 0 1px 0 rgba(0, 210, 255, 0.10) !important;
+  }
+  /* Keyboard open — JS repositions .style.bottom directly. */
   .sc-input-bar--focused {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+    padding-bottom: 6px !important;
   }
   .sc-input-inner {
-    padding: 6px 6px 6px 12px !important;
-    border-radius: 22px !important;
-    min-height: 40px !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    min-height: 36px !important;
     align-items: center !important;
+    flex: 1 !important;
+  }
+  /* Remove any inner border/background that clashes with the pill */
+  html.dark-mode .sc-input-inner {
+    background: transparent !important;
   }
   .sc-textarea {
     font-size: 14px !important;
     min-height: 20px !important;
     max-height: 80px !important;
     line-height: 1.45 !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    padding: 8px 0 !important;
   }
-  .sc-send { width: 34px !important; height: 34px !important; border-radius: 50% !important; }
+  .sc-send {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+  }
   /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
-  /* Hide tab bar when keyboard is open.
-     display:none instantly removes layout space so the input bar
-     isn't fighting for z-index with the tab bar during transition. */
-  .sc-mob-tab-bar--hidden {
+  /* Hide shared tab bar when keyboard is open */
+  .mob-tab-bar--hidden {
     display: none !important;
     visibility: hidden !important;
     pointer-events: none !important;
   }
+  /* Keep old sc-specific class hidden too (dead JSX safety) */
+  .sc-mob-tab-bar--hidden { display: none !important; }
 
-  /* ══════════════════════════════════════════════════════════
-     MOBILE STICKY TOP BAR
-  ══════════════════════════════════════════════════════════ */
-  .sc-mob-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 200;
-    padding: 0 16px;
-    height: 56px;
-    flex-shrink: 0;
-    background: var(--hc-surface);
-    border-bottom: 1px solid var(--hc-border);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-  }
-  html.dark-mode .sc-mob-topbar {
-    background: rgba(7,24,40,0.94);
-    border-bottom-color: rgba(0,210,255,0.1);
-  }
-  html.dark-mode .sc-mob-topbar::after {
-    content: '';
-    position: absolute; bottom: -1px; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(0,210,255,0.22) 30%, rgba(0,210,255,0.22) 70%, transparent 100%);
-  }
-
-  .sc-mob-topbar__left { display: flex; align-items: center; gap: 8px; }
-  .sc-mob-topbar__logo-icon {
-    color: var(--hc-teal);
-    filter: drop-shadow(0 0 6px rgba(0,210,255,0.45));
-    width: 18px; height: 18px;
-    flex-shrink: 0;
-  }
-  .sc-mob-topbar__logo-text {
-    font-family: 'Outfit', 'Inter', sans-serif;
-    font-size: 16px; font-weight: 900; letter-spacing: -0.5px;
-    background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 48%, var(--hc-text) 48%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
-  html.dark-mode .sc-mob-topbar__logo-text {
-    background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 48%, #e2f0ff 48%);
-    -webkit-background-clip: text; background-clip: text;
-    filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
-  }
-
-  .sc-mob-topbar__right { display: flex; align-items: center; gap: 6px; }
-  .sc-mob-topbar__btn {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: none; border: 1px solid var(--hc-border);
-    color: var(--hc-text2);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: background 0.18s, color 0.18s; position: relative;
-  }
-  .sc-mob-topbar__btn:hover { background: var(--hc-teal-dim); color: var(--hc-teal); }
-  html.dark-mode .sc-mob-topbar__btn { border-color: rgba(0,210,255,0.12); }
-
-  .sc-mob-topbar__bell-dot {
-    position: absolute; top: 6px; right: 6px;
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--hc-red); border: 1.5px solid var(--hc-surface);
-  }
-  html.dark-mode .sc-mob-topbar__bell-dot { border-color: #071828; }
-
-  .sc-mob-topbar__sos {
-    display: flex; align-items: center; gap: 4px;
-    padding: 5px 10px; border-radius: 9px;
-    background: rgba(239,68,68,0.09); border: 1px solid rgba(239,68,68,0.28); color: #ef4444;
-    font-family: 'Outfit', 'Inter', sans-serif; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
-    cursor: pointer; transition: background 0.18s, border-color 0.18s;
-  }
-  .sc-mob-topbar__sos:hover { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.50); }
-
-  .sc-mob-topbar__avatar-btn { background: none; border: none; cursor: pointer; padding: 0; margin-left: 2px; }
-  .sc-mob-topbar__avatar {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: var(--hc-teal-dim);
-    border: 2px solid color-mix(in srgb, var(--hc-teal) 35%, transparent);
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Outfit', 'Inter', sans-serif; font-size: 11px; font-weight: 800; color: var(--hc-teal); overflow: hidden;
-  }
-  html.dark-mode .sc-mob-topbar__avatar { box-shadow: 0 0 10px rgba(0,210,255,0.20); }
-  .sc-mob-topbar__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* sc-mob-topbar retired — page now uses shared .mob-topbar from dashboard-header.css */
 
   /* ══════════════════════════════════════════════════════════
      MOBILE RISK BAR
@@ -309,10 +262,10 @@
     display: flex !important;
     flex-direction: column;
     gap: 6px;
-    padding: 5px 14px 4px;
+    padding: 6px 16px 4px;
     flex-shrink: 0;
-    background: rgba(7,24,40,0.55);
-    border-bottom: 1px solid var(--hc-border);
+    background: transparent;
+    border-bottom: none;
   }
   /* Top row: label on left, badge + button on right */
   .sc-mob-risk-bar__row1 {
@@ -378,9 +331,9 @@
 
   .sc-mob-quick-pills {
     display: flex !important;
-    gap: 6px; padding: 5px 14px 4px;
+    gap: 6px; padding: 4px 16px 6px;
     overflow-x: auto; flex-shrink: 0;
-    border-bottom: 1px solid var(--hc-border, rgba(255,255,255,0.06));
+    border-bottom: none;
   }
   .sc-mob-quick-pills::-webkit-scrollbar { display: none; }
   /* Both class names: sc-mob-pill (CSS) and sc-mob-quick-pill (JSX) */
@@ -467,107 +420,7 @@
      MOBILE BOTTOM TAB BAR — exact match to mob-tab-bar spec
      dashboard-mobile.css is the canonical reference.
      Only difference: sc- prefix on class names.
-  ══════════════════════════════════════════════════════════ */
-  .sc-mob-tab-bar {
-    display: flex !important;
-    position: fixed;
-    bottom: 0; left: 0; right: 0; z-index: 90;
-    background: var(--hc-surface);
-    border-top: 1px solid var(--hc-border);
-    backdrop-filter: blur(20px) saturate(1.4);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
-    /* Prevent tab bar from interfering with scroll */
-    touch-action: none;
-  }
-  html.dark-mode .sc-mob-tab-bar {
-    background: rgba(5,18,32,0.97);
-    border-top-color: rgba(0,210,255,0.08);
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
-  }
-
-  .sc-mob-tab-bar__inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    height: 60px;
-    width: 100%;
-  }
-
-  .sc-mob-tab-btn {
-    flex: 1;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 3px;
-    padding: 6px 4px;
-    border: none; background: none;
-    color: var(--hc-text3);
-    font-family: 'Outfit', 'Inter', sans-serif;
-    font-size: 10px; font-weight: 600;
-    letter-spacing: 0.2px;
-    cursor: pointer; transition: color 0.2s;
-    position: relative;
-    min-width: 0;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .sc-mob-tab-btn:active { opacity: 0.75; }
-  .sc-mob-tab-btn svg    { transition: transform 0.2s; }
-  .sc-mob-tab-btn.active { color: var(--hc-teal); }
-  .sc-mob-tab-btn.active svg { transform: scale(1.08); }
-
-  /* Active indicator — top edge line, identical to mob-tab-btn.active::after */
-  .sc-mob-tab-btn.active::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 50%;
-    transform: translateX(-50%);
-    width: 28px; height: 2px;
-    border-radius: 0 0 2px 2px;
-    background: var(--hc-teal);
-    box-shadow: 0 0 8px var(--hc-teal-glow);
-  }
-  .sc-mob-tab-btn__dot {
-    display: none !important; /* replaced by sc-mob-sos-dot on the SOS button */
-  }
-
-  /* SOS tab button — normal colour, only the dot is red. */
-  .sc-mob-tab-btn--sos {
-    color: var(--hc-text3) !important;
-  }
-  .sc-mob-tab-btn--sos.active {
-    color: var(--hc-teal) !important;
-  }
-  /* No indicator line for SOS */
-  .sc-mob-tab-btn--sos.active::after {
-    display: none !important;
-  }
-
-  /* Icon wrapper — relative container for the dot */
-  .sc-mob-sos-icon-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-  }
-
-  /* Red notification dot — top-right of the phone icon */
-  .sc-mob-sos-dot {
-    position: absolute;
-    top: -2px;
-    right: -3px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--hc-red, #ef4444);
-    border: 1.5px solid var(--hc-surface, #020B14);
-    box-shadow: 0 0 5px rgba(239,68,68,0.55);
-    pointer-events: none;
-  }
-  html.dark-mode .sc-mob-sos-dot { border-color: rgba(5,18,32,0.97); }
-  html:not(.dark-mode) .sc-mob-sos-dot { border-color: #ffffff; }
+  /* sc-mob-tab-bar retired — page now uses shared .mob-tab-bar from dashboard-header.css */
 
   /* ══════════════════════════════════════════════════════════
      ASSESSMENT VIEW — mobile
@@ -674,31 +527,17 @@
    Very small phones (≤ 390px)
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 390px) {
-  .sc-mob-topbar__logo-text { font-size: 14px !important; }
-  .sc-mob-topbar__sos       { padding: 4px 9px !important; font-size: 10.5px !important; }
-  .sc-mob-tab-btn           { padding: 6px 6px 4px !important; font-size: 9.5px !important; }
-  .sc-bubble                { font-size: 12.5px !important; }
-  .sc-textarea              { font-size: 14px !important; }
+  .mob-topbar__logo-text { font-size: 14px !important; }
+  .mob-tab-btn           { padding: 6px 6px 4px !important; font-size: 9px !important; }
+  .sc-bubble             { font-size: 12.5px !important; }
+  .sc-textarea           { font-size: 14px !important; }
 }
 
 /* ════════════════════════════════════════════════════════════════
    LIGHT MODE — mobile elements
 ════════════════════════════════════════════════════════════════ */
-html:not(.dark-mode) .sc-mob-topbar {
-  background: rgba(255,255,255,0.94);
-  border-bottom-color: rgba(0,0,0,0.08);
-}
-html:not(.dark-mode) .sc-mob-topbar__logo-icon { filter: none; color: #0ea5e9; }
-html:not(.dark-mode) .sc-mob-topbar__logo-text {
-  background: linear-gradient(90deg, #0ea5e9 0%, #0ea5e9 48%, #0f172a 48%);
-  -webkit-background-clip: text; background-clip: text; filter: none;
-}
-html:not(.dark-mode) .sc-mob-topbar__btn { border-color: rgba(0,0,0,0.10); color: #475569; }
-html:not(.dark-mode) .sc-mob-topbar__btn:hover { background: rgba(14,165,233,0.08); color: #0ea5e9; }
-html:not(.dark-mode) .sc-mob-topbar__bell-dot { border-color: #ffffff; }
-html:not(.dark-mode) .sc-mob-topbar__avatar { background: rgba(14,165,233,0.10); border-color: rgba(14,165,233,0.30); color: #0ea5e9; box-shadow: none; }
 
-html:not(.dark-mode) .sc-mob-risk-bar { background: rgba(241,245,249,0.96); border-bottom-color: rgba(0,0,0,0.07); }
+html:not(.dark-mode) .sc-mob-risk-bar { background: transparent; border-bottom: none; }
 html:not(.dark-mode) .sc-mob-risk-bar__label { color: #64748b; }
 html:not(.dark-mode) .sc-mob-risk-bar__ticks { color: #94a3b8; }
 html:not(.dark-mode) .sc-mob-risk-bar__track { background: rgba(0,0,0,0.08); }
@@ -707,23 +546,11 @@ html:not(.dark-mode) .sc-mob-risk-bar__panel-btn { background: rgba(8,145,178,0.
 html:not(.dark-mode) .sc-mob-new-chat-btn { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.12); color: #475569; }
 html:not(.dark-mode) .sc-mob-new-chat-btn:hover { background: rgba(8,145,178,0.07); border-color: rgba(8,145,178,0.25); color: #0891b2; }
 
-html:not(.dark-mode) .sc-mob-tab-bar {
-  background: rgba(255,255,255,0.97);
-  border-top-color: rgba(0,0,0,0.08);
-  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
-}
-html:not(.dark-mode) .sc-mob-tab-btn       { color: #94a3b8; }
-html:not(.dark-mode) .sc-mob-tab-btn.active { color: #0891b2; }
-html:not(.dark-mode) .sc-mob-tab-btn.active::after {
-  background: #0891b2;
-  box-shadow: 0 0 8px rgba(8,145,178,0.4);
-}
-
 html:not(.dark-mode) .sc-mob-panel-sheet { background: rgba(248,250,252,0.99); border-top-color: rgba(0,0,0,0.08); }
 html:not(.dark-mode) .sc-mob-panel-sheet__handle::before { background: rgba(0,0,0,0.1); }
 html:not(.dark-mode) .sc-mob-panel-sheet__title { color: #0f172a; }
 html:not(.dark-mode) .sc-mob-panel-sheet__close { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: #64748b; }
-html:not(.dark-mode) .sc-mob-quick-pills { border-bottom-color: rgba(0,0,0,0.06); }
+html:not(.dark-mode) .sc-mob-quick-pills { border-bottom: none; }
 html:not(.dark-mode) .sc-mob-pill { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.08); color: #475569; }
 html:not(.dark-mode) .sc-mob-pill:hover { background: rgba(8,145,178,0.07); border-color: rgba(8,145,178,0.22); color: #0891b2; }
 /* Session history — light mode mobile overrides */
@@ -736,7 +563,10 @@ html:not(.dark-mode) .sc-sess-date { color: #94a3b8; }
 html:not(.dark-mode) .sc-sess-title-text { color: #0f172a; }
 html:not(.dark-mode) .sc-sess-sub { color: #94a3b8; }
 
-/* Input bar — light mode */
-html:not(.dark-mode) .sc-input-bar { background: rgba(255,255,255,0.97) !important; border-top-color: rgba(0,0,0,0.08) !important; }
-html:not(.dark-mode) .sc-input-inner { background: #f1f5f9 !important; border-color: rgba(0,0,0,0.10) !important; }
+/* Input bar — light mode pill (matches dark mode pill, just lighter surface) */
+html:not(.dark-mode) .sc-input-bar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.70) !important;
+}
+html:not(.dark-mode) .sc-input-inner { background: transparent !important; border: none !important; }
 html:not(.dark-mode) .sc-textarea { color: #0f172a !important; }

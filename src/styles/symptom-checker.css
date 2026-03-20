@@ -302,13 +302,14 @@
 .sc-spin-slow { animation: scSpin 1.4s linear infinite; }
 @keyframes scSpin { to { transform: rotate(360deg); } }
 
-.sc-loading   {
+/* sc-loading — redirect to shared hc-loading in dashboard-header.css */
+.sc-loading {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 100dvh; gap: 14px;
+  min-height: 100dvh; gap: 20px;
   background: var(--hc-bg, #020B14);
   color: var(--hc-teal, #00D2FF);
 }
-.sc-loading p { font-size: 15px; font-weight: 600; color: var(--hc-text2, rgba(255,255,255,0.55)); margin: 0; letter-spacing: 0.2px; }
+.sc-loading p { display: none; } /* replaced by hc-loading__brand in JSX */
 
 /* ══ RIGHT PANEL ══════════════════════════════════════════════════ */
 .sc-right       { grid-area: right; display: flex; flex-direction: column; overflow: hidden; min-height: 0; min-width: 0; background: var(--hc-surface,rgba(7,24,40,.45)); border-left: 1px solid var(--hc-border,rgba(255,255,255,.07)); opacity: 0; pointer-events: none; transition: opacity 0.2s ease 0.15s; }
@@ -426,11 +427,14 @@
 }
 
 /* ══ LIGHT MODE ═══════════════════════════════════════════════════ */
-html:not(.dark-mode) .sc-bubble--bot      { background: rgba(255,255,255,.85); border-color: rgba(0,0,0,.07); color: #1e293b; }
-html:not(.dark-mode) .sc-bubble--user     { background: linear-gradient(135deg,rgba(0,180,220,.15),rgba(0,130,180,.1)); color: #1e293b; }
-html:not(.dark-mode) .sc-chat-header      { background: rgba(255,255,255,.85); }
-html:not(.dark-mode) .sc-left            { background: rgba(255,255,255,.5); }
-html:not(.dark-mode) .sc-right           { background: rgba(248,250,252,.9); border-left-color: rgba(0,0,0,.07); }
+html:not(.dark-mode) .sc-bubble--bot      { background: #ffffff; border-color: rgba(0,0,0,.10); color: #1e293b; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+html:not(.dark-mode) .sc-bubble--user     { background: linear-gradient(135deg,rgba(0,150,200,.12),rgba(0,100,160,.08)); border-color: rgba(0,150,200,.22); color: #1e293b; }
+html:not(.dark-mode) .sc-chat-header      { background: rgba(255,255,255,.95); border-bottom-color: rgba(0,0,0,.09); box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+html:not(.dark-mode) .sc-left            { background: #f0f4f8; border-right: 1px solid rgba(0,0,0,.09); }
+html:not(.dark-mode) .sc-right           { background: #f0f4f8; border-left-color: rgba(0,0,0,.09); }
+html:not(.dark-mode) .sc-center          { background: #dde3ec; }
+html:not(.dark-mode) .sc-messages        { background: #dde3ec; }
+html:not(.dark-mode) .sc-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); }
 html:not(.dark-mode) .sc-hist-item       { border-color: rgba(0,0,0,.08); background: rgba(255,255,255,.6); }
 html:not(.dark-mode) .sc-hist-item:hover { background: rgba(0,0,0,.04); border-color: rgba(14,165,233,.25); }
 html:not(.dark-mode) .sc-hist-item--active { background: rgba(14,165,233,.08) !important; border-color: rgba(14,165,233,.40) !important; }
@@ -440,13 +444,33 @@ html:not(.dark-mode) .sc-sess-item--completed { border-color: rgba(14,165,233,.1
 html:not(.dark-mode) .sc-sess-item       { border-color: rgba(0,0,0,.08); background: rgba(255,255,255,.6); }
 html:not(.dark-mode) .sc-sess-item:hover { background: rgba(0,0,0,.04); border-color: rgba(14,165,233,.25); }
 html:not(.dark-mode) .sc-sess-item--active { background: rgba(14,165,233,.08) !important; border-color: rgba(14,165,233,.40) !important; }
-html:not(.dark-mode) .sc-input-bar       { background: rgba(255,255,255,.92); }
-html:not(.dark-mode) .sc-input-inner     { background: #fff; border-color: rgba(0,0,0,.1); }
+/* Input bar — clearly distinct white card floating above the page bg */
+html:not(.dark-mode) .sc-input-bar {
+  background: #ffffff;
+  border-top: 1px solid rgba(0,0,0,.10);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.07);
+}
+html:not(.dark-mode) .sc-input-inner {
+  background: #f8fafc;
+  border-color: rgba(0,0,0,.14);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.04);
+}
+html:not(.dark-mode) .sc-input-inner:focus-within {
+  border-color: rgba(8,145,178,.45);
+  box-shadow: 0 0 0 3px rgba(8,145,178,.10), inset 0 1px 3px rgba(0,0,0,.04);
+}
 html:not(.dark-mode) .sc-textarea        { color: #1e293b; }
+html:not(.dark-mode) .sc-textarea::placeholder { color: #94a3b8; }
+/* Chips row — lighter than message bg, darker than input bar */
+html:not(.dark-mode) .sc-chips {
+  background: #edf1f6;
+  border-top-color: rgba(0,0,0,.09);
+}
+html:not(.dark-mode) .sc-chip            { background: #f1f5f9; border-color: rgba(0,0,0,.10); color: #475569; }
+html:not(.dark-mode) .sc-chip:hover      { background: rgba(8,145,178,.08); border-color: rgba(8,145,178,.28); color: #0891b2; }
 html:not(.dark-mode) .sc-md-li           { color: #475569; }
 html:not(.dark-mode) .sc-md-p            { color: #1e293b; }
 html:not(.dark-mode) .sc-md-heading      { color: #1e293b; }
-html:not(.dark-mode) .sc-chips           { background: rgba(241,245,249,.8); }
 html:not(.dark-mode) .sc-input-hint      { color: #94a3b8; }
 html:not(.dark-mode) .sc-footer          { background: rgba(241,245,249,.95); border-top-color: rgba(0,0,0,.07); }
 html:not(.dark-mode) .sc-footer__logo    { color: #0891b2; }

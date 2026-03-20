@@ -1333,11 +1333,13 @@ function DynamicFacilityFinderInner() {
 
   if (status === 'loading') {
     return (
-      <div className="loading-screen">
-        <div className="loading-content">
-          <Heart size={32} className="loading-icon" />
-          <div className="loading-title">Loading Ghana Health Network...</div>
+      <div className="hc-loading">
+        <div className="hc-loading__mark"><Heart size={26} /></div>
+        <div className="hc-loading__brand">
+          <span className="hc-loading__name">HealthConnect</span>
+          <span className="hc-loading__sub">Navigator</span>
         </div>
+        <div className="hc-loading__dots"><span /><span /><span /></div>
       </div>
     );
   }
@@ -1416,7 +1418,7 @@ function DynamicFacilityFinderInner() {
             type="button"
             aria-label="Home"
           >
-            <Heart size={22} />
+            <span className="mob-tab-btn__icon"><Heart size={20} /></span>
             Home
           </button>
           <button
@@ -1426,7 +1428,7 @@ function DynamicFacilityFinderInner() {
             aria-current="page"
             aria-label="Find facilities"
           >
-            <MapPin size={22} />
+            <span className="mob-tab-btn__icon"><MapPin size={20} /></span>
             Find
           </button>
           <button
@@ -1435,19 +1437,16 @@ function DynamicFacilityFinderInner() {
             type="button"
             aria-label="Symptom Checker"
           >
-            <Bot size={22} />
+            <span className="mob-tab-btn__icon"><Bot size={20} /></span>
             Check
           </button>
           <button
-            className={`mob-tab-btn fac-sos-btn${activeBottomTab === 'emergency' ? ' active' : ''}`}
+            className={`mob-tab-btn mob-tab-btn--sos${activeBottomTab === 'emergency' ? ' active' : ''}`}
             onClick={() => handleBottomNavClick('/emergency', 'emergency')}
             type="button"
             aria-label="Emergency"
           >
-            <span className="fac-sos-icon-wrap">
-              <Phone size={20} />
-              <span className="fac-sos-dot" />
-            </span>
+            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
             SOS
           </button>
           <button
@@ -1456,7 +1455,7 @@ function DynamicFacilityFinderInner() {
             type="button"
             aria-label="Profile"
           >
-            <User size={22} />
+            <span className="mob-tab-btn__icon"><User size={20} /></span>
             Profile
           </button>
         </div>

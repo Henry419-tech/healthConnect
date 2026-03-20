@@ -1617,44 +1617,11 @@ html.dark-mode .em-location-card__city { color: #fff; }
 /* ──────────────────────────────────────────────────────────────
    MOBILE TAB BAR — SOS button on emergency page
    Overrides dashboard-mobile.css + dashboard-header.css.
-   Plain phone icon + red notification dot — no pill, no animation.
-   Matches the facilities page SOS style exactly.
+   SOS icon: plain phone + red dot (defined in dashboard-header.css).
+   Only override needed here is to scope the red label to this page.
 ──────────────────────────────────────────────────────────────── */
-.mob-tab-btn--sos .mob-tab-sos-icon {
-  position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 22px !important;
-  height: 22px !important;
-  border-radius: 0 !important;
-  background: none !important;
-  box-shadow: none !important;
-  animation: none !important;
-  margin-bottom: 0 !important;
-  margin-top: 0 !important;
-}
-.mob-tab-btn--sos .mob-tab-sos-icon::after {
-  content: '' !important;
-  position: absolute !important;
-  top: -2px !important;
-  right: -3px !important;
-  width: 7px !important;
-  height: 7px !important;
-  border-radius: 50% !important;
-  background: var(--hc-red, #ef4444) !important;
-  border: 1.5px solid var(--hc-surface) !important;
-  box-shadow: 0 0 5px rgba(239,68,68,0.55) !important;
-  pointer-events: none !important;
-}
-html.dark-mode .mob-tab-btn--sos .mob-tab-sos-icon::after {
-  border-color: rgba(7,24,40,0.96) !important;
-}
-/* ── SOS nav button — RED only on the emergency page ──────────
-   Scoped with :has(.em-page) so this ONLY applies when the
-   emergency page is mounted. Prevents colour bleed to other pages
-   on client-side navigation (same fix used for overflow:hidden
-   on the symptom checker).                                       */
+/* ── SOS nav button — RED label scoped to emergency page ──────
+   :has(.em-page) prevents colour bleed on client-side navigation. */
 .hc-layout:has(.em-page) .mob-tab-btn--sos {
   color: var(--hc-red, #ef4444) !important;
 }
@@ -1681,18 +1648,16 @@ html.dark-mode .mob-tab-btn--sos .mob-tab-sos-icon::after {
 ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
 
-  /* ── Clear the fixed mob-topbar (54px) + mob-tab-bar (60px) ──
-     em-page overrides db-page with padding:0, so we restore the
-     top clearance here. Bottom clearance handles the tab bar.   */
+  /* ── Clear the fixed mob-topbar (10px gap + 50px) + mob-tab-bar (56px + 12px gap) ──
+     Floating topbar needs 72px top clearance, floating nav needs 80px bottom. */
   .em-page {
-    padding-top: 56px !important;
-    padding-bottom: 76px !important;
+    padding-top: 72px !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  /* Offset background pattern so it starts where content starts,
-     not in the topbar clearance padding area above the hero.    */
+  /* Offset background pattern so it starts where content starts */
   .em-page::before,
   .em-page::after {
-    top: 56px !important;
+    top: 72px !important;
   }
 
   /* Hero */
@@ -1952,8 +1917,8 @@ html.dark-mode .em-card-overlay {
 /* Mobile: constrain overlay to the space between topbar and nav */
 @media (max-width: 640px) {
   .em-card-overlay {
-    top: 54px;        /* below fixed topbar */
-    bottom: 60px;     /* above fixed nav bar */
+    top: 72px;        /* below floating topbar (10px gap + 50px height + 12px breathing) */
+    bottom: 80px;     /* above floating nav bar (56px height + 12px gap + safe-area) */
     padding: 12px 14px;
     align-items: center;
   }

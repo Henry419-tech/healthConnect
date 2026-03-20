@@ -392,8 +392,12 @@ const Dashboard: NextPage = () => {
   /* ── Guards ───────────────────────────────────────────── */
   if (status === 'loading') return (
     <div className="hc-loading">
-      <div className="hc-loading__logo"><Heart size={22} /></div>
-      <p>Loading your dashboard…</p>
+      <div className="hc-loading__mark"><Heart size={26} /></div>
+      <div className="hc-loading__brand">
+        <span className="hc-loading__name">HealthConnect</span>
+        <span className="hc-loading__sub">Navigator</span>
+      </div>
+      <div className="hc-loading__dots"><span /><span /><span /></div>
     </div>
   );
   if (status === 'unauthenticated') return null;
@@ -561,7 +565,7 @@ const Dashboard: NextPage = () => {
             type="button"
             aria-current="page"
           >
-            <Heart size={22} />
+            <span className="mob-tab-btn__icon"><Heart size={22} /></span>
             Home
           </button>
           <button
@@ -569,7 +573,7 @@ const Dashboard: NextPage = () => {
             onClick={() => router.push('/facilities')}
             type="button"
           >
-            <MapPin size={22} />
+            <span className="mob-tab-btn__icon"><MapPin size={22} /></span>
             Find
           </button>
           <button
@@ -577,7 +581,7 @@ const Dashboard: NextPage = () => {
             onClick={() => router.push('/symptom-checker')}
             type="button"
           >
-            <Bot size={22} />
+            <span className="mob-tab-btn__icon"><Bot size={22} /></span>
             Check
           </button>
           <button
@@ -594,7 +598,7 @@ const Dashboard: NextPage = () => {
             onClick={() => router.push('/profile')}
             type="button"
           >
-            <User size={22} />
+            <span className="mob-tab-btn__icon"><User size={22} /></span>
             Profile
           </button>
         </div>

@@ -819,9 +819,13 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
 
   // ── Loading / unauth guards ───────────────────────────────────
   if (status === 'loading') return (
-    <div className="sc-loading">
-      <Bot size={44} className="sc-spin-slow" />
-      <p>Loading AI Symptom Checker…</p>
+    <div className="hc-loading">
+      <div className="hc-loading__mark"><Heart size={26} /></div>
+      <div className="hc-loading__brand">
+        <span className="hc-loading__name">HealthConnect</span>
+        <span className="hc-loading__sub">Navigator</span>
+      </div>
+      <div className="hc-loading__dots"><span /><span /><span /></div>
     </div>
   );
   if (status === 'unauthenticated') return null;
@@ -967,24 +971,21 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
           </>
         )}
 
-        {/* Mobile top bar */}
-        <div className="sc-mob-topbar">
-          <div className="sc-mob-topbar__left">
-            <Heart size={18} className="sc-mob-topbar__logo-icon" />
-            <span className="sc-mob-topbar__logo-text">HealthConnect</span>
+        {/* Mobile top bar — identical to dashboard */}
+        <div className="mob-topbar">
+          <div className="mob-topbar__left">
+            <Heart size={18} className="mob-topbar__logo-icon" />
+            <span className="mob-topbar__logo-text">HealthConnect</span>
           </div>
-          <div className="sc-mob-topbar__right">
-            <button className="sc-mob-topbar__btn" type="button" onClick={toggleDarkMode}>
+          <div className="mob-topbar__right">
+            <button className="mob-topbar__btn" type="button" onClick={toggleDarkMode} aria-label="Toggle dark mode">
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button ref={notifMobRef} className="sc-mob-topbar__btn" type="button" style={{ position: 'relative' }} aria-label="Notifications" onClick={toggleNotifPanel}>
-              <Bell size={18} />{hasUnread && <span className="sc-mob-topbar__bell-dot" />}
+            <button ref={notifMobRef} className="mob-topbar__btn mob-topbar__bell" type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
+              <Bell size={18} />{hasUnread && <span className="mob-topbar__bell-dot" />}
             </button>
-            <button className="sc-mob-topbar__sos" type="button" onClick={() => setShowEmergency(true)}>
-              <Phone size={13} /> SOS
-            </button>
-            <button className="sc-mob-topbar__avatar-btn" type="button" onClick={() => router.push('/profile')}>
-              <div className="sc-mob-topbar__avatar">
+            <button className="mob-topbar__avatar-btn" type="button" onClick={() => router.push('/profile')}>
+              <div className="mob-topbar__avatar">
                 {userImage ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" /> : userInit}
               </div>
             </button>
@@ -1544,27 +1545,24 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
           </>
         )}
 
-        {/* ── Mobile bottom tab bar ── */}
-        <nav className={`sc-mob-tab-bar${(inputFocused || keyboardOpen) ? ' sc-mob-tab-bar--hidden' : ''}`} aria-label="Main navigation">
-          <div className="sc-mob-tab-bar__inner">
-            <button className="sc-mob-tab-btn" type="button" onClick={() => router.push('/dashboard')} aria-label="Home">
-              <Heart size={22} /><span>Home</span>
+        {/* ── Mobile bottom tab bar — identical to dashboard ── */}
+        <nav className={`mob-tab-bar${(inputFocused || keyboardOpen) ? ' mob-tab-bar--hidden' : ''}`} aria-label="Main navigation">
+          <div className="mob-tab-bar__inner">
+            <button className="mob-tab-btn" type="button" onClick={() => router.push('/dashboard')} aria-label="Home">
+              <span className="mob-tab-btn__icon"><Heart size={20} /></span><span>Home</span>
             </button>
-            <button className="sc-mob-tab-btn" type="button" onClick={() => router.push('/facilities')} aria-label="Find facilities">
-              <MapPin size={22} /><span>Find</span>
+            <button className="mob-tab-btn" type="button" onClick={() => router.push('/facilities')} aria-label="Find facilities">
+              <span className="mob-tab-btn__icon"><MapPin size={20} /></span><span>Find</span>
             </button>
-            <button className="sc-mob-tab-btn active" type="button" aria-current="page" aria-label="Symptom Checker">
-              <Bot size={22} /><span>Check</span>
+            <button className="mob-tab-btn active" type="button" aria-current="page" aria-label="Symptom Checker">
+              <span className="mob-tab-btn__icon"><Bot size={20} /></span><span>Check</span>
             </button>
-            <button className="sc-mob-tab-btn sc-mob-tab-btn--sos" type="button" onClick={() => router.push('/emergency')} aria-label="Emergency">
-              <span className="sc-mob-sos-icon-wrap">
-                <Phone size={20} />
-                <span className="sc-mob-sos-dot" />
-              </span>
+            <button className="mob-tab-btn mob-tab-btn--sos" type="button" onClick={() => router.push('/emergency')} aria-label="Emergency">
+              <span className="mob-tab-sos-icon"><Phone size={17} /></span>
               <span>SOS</span>
             </button>
-            <button className="sc-mob-tab-btn" type="button" onClick={() => router.push('/profile')} aria-label="Profile">
-              <User size={22} /><span>Profile</span>
+            <button className="mob-tab-btn" type="button" onClick={() => router.push('/profile')} aria-label="Profile">
+              <span className="mob-tab-btn__icon"><User size={20} /></span><span>Profile</span>
             </button>
           </div>
         </nav>

@@ -1045,21 +1045,24 @@ html:not(.dark-mode) .pr-medid-responder-banner__sub { color: #475569; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 64px 24px;
-  color: var(--hc-text2);
-  margin: 0 40px 24px;
+  gap: 12px;
+  padding: 52px 24px;
+  color: var(--hc-teal);
   background: var(--hc-surface);
   border: 1px solid var(--hc-border);
   border-radius: 20px;
+  margin: 0 40px 24px;
 }
 .pr-loading p {
-  font-size: 14px; font-weight: 600;
-  color: var(--hc-text2); margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-text2);
+  margin: 0;
+  letter-spacing: 0.1px;
 }
 html.dark-mode .pr-loading {
-  background: rgba(7,24,40,0.72);
-  border-color: rgba(0,210,255,0.10);
+  background: rgba(7, 24, 40, 0.72);
+  border-color: rgba(0, 210, 255, 0.10);
 }
 
 /* ── VIEW ACTIVITIES BANNER ──────────────────────────────────── */

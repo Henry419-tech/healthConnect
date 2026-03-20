@@ -275,7 +275,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
             onClick={() => router.push(path)}
             type="button"
           >
-            <Icon size={21} /><span>{label}</span>
+            <span className="mob-tab-btn__icon"><Icon size={21} /></span>
+            <span>{label}</span>
           </button>
         ))}
       </nav>

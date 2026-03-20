@@ -674,7 +674,14 @@ const ProfileContent = () => {
   const toggleNotifPanel = () => { setShowNotifPanel(p => !p); setNotifsRead(true); };
 
   if (status === 'loading') return (
-    <div className="hc-loading"><div className="hc-loading__logo"><Heart size={22} /></div><p>Loading…</p></div>
+    <div className="hc-loading">
+      <div className="hc-loading__mark"><Heart size={26} /></div>
+      <div className="hc-loading__brand">
+        <span className="hc-loading__name">HealthConnect</span>
+        <span className="hc-loading__sub">Navigator</span>
+      </div>
+      <div className="hc-loading__dots"><span /><span /><span /></div>
+    </div>
   );
   if (status === 'unauthenticated') return null;
 
@@ -798,24 +805,19 @@ const ProfileContent = () => {
       <nav className="mob-tab-bar" aria-label="Main navigation">
         <div className="mob-tab-bar__inner">
           <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button" aria-label="Home">
-            <Heart size={22} />
-            Home
+            <span className="mob-tab-btn__icon"><Heart size={20} /></span>Home
           </button>
           <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button" aria-label="Find facilities">
-            <MapPin size={22} />
-            Find
+            <span className="mob-tab-btn__icon"><MapPin size={20} /></span>Find
           </button>
           <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button" aria-label="Symptom Checker">
-            <Bot size={22} />
-            Check
+            <span className="mob-tab-btn__icon"><Bot size={20} /></span>Check
           </button>
           <button className="mob-tab-btn mob-tab-btn--sos" onClick={() => router.push('/emergency')} type="button" aria-label="Emergency">
-            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
-            SOS
+            <span className="mob-tab-sos-icon"><Phone size={20} /></span>SOS
           </button>
           <button className="mob-tab-btn active" onClick={() => router.push('/profile')} type="button" aria-current="page" aria-label="Profile">
-            <User size={22} />
-            Profile
+            <span className="mob-tab-btn__icon"><User size={20} /></span>Profile
           </button>
         </div>
       </nav>
@@ -962,7 +964,7 @@ const ProfileContent = () => {
         {/* ── Health Records Grid ─────────────────────────── */}
         {isLoadingProfile ? (
           <div className="pr-loading">
-            <Loader2 size={24} className="pr-spin" />
+            <div className="hc-loading__dots"><span /><span /><span /></div>
             <p>Loading your health profile…</p>
           </div>
         ) : (
@@ -1551,7 +1553,7 @@ const ProfileContent = () => {
                   {/* Loading */}
                   {isLoadingContacts ? (
                     <div className="pr-loading" style={{ padding: '32px 16px', margin: 0 }}>
-                      <Loader2 size={20} className="pr-spin" />
+                      <div className="hc-loading__dots"><span /><span /><span /></div>
                       <p>Loading contacts…</p>
                     </div>
                   ) : (

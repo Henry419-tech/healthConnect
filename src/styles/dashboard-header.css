@@ -698,27 +698,36 @@ html:not(.dark-mode) .hc-sidebar__nav-item--active {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   MOB-TOPBAR — custom dashboard mobile top bar
+   MOB-TOPBAR — floating pill (matches bottom nav style)
 ════════════════════════════════════════════════════════════════ */
 .mob-topbar {
   position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 56px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  right: 16px;
+  height: 50px;
   z-index: 150;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 14px;
   gap: 8px;
-  background: var(--hc-surface);
-  border-bottom: 1px solid var(--hc-border);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.12),
+    0 1px 6px  rgba(0, 0, 0, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.80);
 }
 html.dark-mode .mob-topbar {
-  background: rgba(7,24,40,0.90);
-  border-bottom-color: rgba(0,210,255,0.10);
-  box-shadow: 0 1px 0 rgba(0,210,255,0.08), 0 4px 20px rgba(0,0,0,0.4);
+  background: rgba(7, 24, 40, 0.88);
+  border-color: rgba(0, 210, 255, 0.14);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.50),
+    0 1px 6px  rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(0, 210, 255, 0.10);
 }
 
 .mob-topbar__left {
@@ -803,103 +812,142 @@ html.dark-mode .mob-topbar__avatar {
 .mob-topbar__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* ════════════════════════════════════════════════════════════════
-   MOB-TAB-BAR — custom dashboard bottom navigation
+   MOB-TAB-BAR — floating pill nav (Telegram-style)
+   • Floats above page content — does NOT touch screen edges
+   • Fully rounded pill shape
+   • Glassmorphism surface with soft shadow
+   • Active item: filled teal bubble behind icon
 ════════════════════════════════════════════════════════════════ */
 .mob-tab-bar {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  /* Float above bottom edge — safe-area aware */
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
   z-index: 150;
-  background: var(--hc-surface);
-  border-top: 1px solid var(--hc-border);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Pill shape */
+  border-radius: 28px;
+
+  /* Glassmorphism */
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+
+  /* Floating shadow — key depth effect */
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.14),
+    0 2px 8px  rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.70);
 }
 html.dark-mode .mob-tab-bar {
-  background: rgba(7,24,40,0.96);
-  border-top-color: rgba(0,210,255,0.12);
-  box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+  background: rgba(7, 24, 40, 0.88);
+  border-color: rgba(0, 210, 255, 0.14);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(0, 210, 255, 0.10);
 }
-/* Subtle teal glow line on top edge */
-.mob-tab-bar::before {
-  content: '';
-  position: absolute; top: -1px; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, transparent 5%, var(--hc-teal-glow) 50%, transparent 95%);
-  pointer-events: none;
-}
+
+/* Remove old glow line — pill border replaces it */
+.mob-tab-bar::before { display: none; }
 
 .mob-tab-bar__inner {
   display: flex;
-  align-items: stretch;
-  height: 60px;
+  align-items: center;
+  height: 56px;
+  padding: 0 6px;
 }
 
 .mob-tab-btn {
   flex: 1;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
   padding: 6px 4px;
-  border: none; background: none;
+  border: none;
+  background: none;
   color: var(--hc-text3);
   font-family: 'Outfit', 'Inter', sans-serif;
-  font-size: 10px; font-weight: 600;
+  font-size: 9.5px;
+  font-weight: 600;
   letter-spacing: 0.2px;
   cursor: pointer;
   position: relative;
-  transition: color 0.18s;
+  transition: color 0.2s;
   min-width: 0;
   -webkit-tap-highlight-color: transparent;
 }
-.mob-tab-btn:active { opacity: 0.75; }
+.mob-tab-btn:active { transform: scale(0.92); }
 html.dark-mode .mob-tab-btn { color: var(--hc-text3); }
 
-/* Active state */
+/* ── Active state: filled bubble behind icon ─────────────────── */
 .mob-tab-btn.active { color: var(--hc-teal); }
 html.dark-mode .mob-tab-btn.active { color: var(--hc-teal); }
 
-/* Active indicator line at top */
-.mob-tab-btn.active::after {
+/* Icon wrapper — gives the bubble something to attach to */
+.mob-tab-btn__icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 26px;
+  border-radius: 13px;
+  transition: background 0.22s var(--hc-ease-spring), transform 0.22s var(--hc-ease-spring);
+}
+
+/* Active bubble fill */
+.mob-tab-btn.active .mob-tab-btn__icon {
+  background: var(--hc-teal-dim);
+  transform: translateY(-1px);
+}
+html.dark-mode .mob-tab-btn.active .mob-tab-btn__icon {
+  background: rgba(0, 210, 255, 0.15);
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.18);
+}
+
+/* Remove old top-bar indicator — bubble replaces it */
+.mob-tab-btn.active::after { display: none; }
+
+/* ── SOS button — grey by default, red only on emergency page ── */
+.mob-tab-btn--sos { color: var(--hc-text3) !important; }
+.mob-tab-btn--sos.active { color: var(--hc-red) !important; }
+.mob-tab-btn--sos.active::after { display: none !important; }
+
+/* SOS icon wrapper — plain relative container for the red dot */
+.mob-tab-sos-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
+}
+/* Red notification dot — top-right of phone icon */
+.mob-tab-sos-icon::after {
   content: '';
   position: absolute;
-  top: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 28px; height: 2px;
-  border-radius: 0 0 3px 3px;
-  background: var(--hc-teal);
-  box-shadow: 0 0 8px var(--hc-teal-glow);
+  top: -2px; right: -3px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--hc-red, #ef4444);
+  border: 1.5px solid var(--hc-surface);
+  box-shadow: 0 0 5px rgba(239,68,68,0.55);
+  pointer-events: none;
 }
-
-/* SOS button — inherits mob-tab-btn, overrides colour */
-.mob-tab-btn--sos { color: var(--hc-red) !important; }
-.mob-tab-btn--sos.active { color: var(--hc-red) !important; }
-.mob-tab-btn--sos.active::after {
-  background: var(--hc-red) !important;
-  box-shadow: 0 0 8px rgba(239,68,68,0.60) !important;
+html.dark-mode .mob-tab-sos-icon::after {
+  border-color: rgba(7,24,40,0.96);
 }
-
-/* SOS icon pill (red capsule wrapping the phone icon) */
-.mob-tab-sos-icon {
-  display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 24px;
-  background: var(--hc-red);
-  border-radius: 8px;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(239,68,68,0.40);
-  transition: box-shadow 0.2s;
-}
-.mob-tab-btn--sos:active .mob-tab-sos-icon {
-  box-shadow: 0 0 0 3px rgba(239,68,68,0.30);
-}
-/* Active SOS: pulsing glow */
-.mob-tab-btn--sos.active .mob-tab-sos-icon {
-  animation: sosPulse 1.6s ease-out infinite;
-}
-@keyframes sosPulse {
-  0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.70), 0 2px 8px rgba(239,68,68,0.40); }
-  60%  { box-shadow: 0 0 0 8px rgba(239,68,68,0),    0 2px 8px rgba(239,68,68,0.40); }
-  100% { box-shadow: 0 0 0 0   rgba(239,68,68,0),    0 2px 8px rgba(239,68,68,0.40); }
+html:not(.dark-mode) .mob-tab-sos-icon::after {
+  border-color: #ffffff;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -967,97 +1015,199 @@ html.dark-mode .mob-tab-btn.active { color: var(--hc-teal); }
     border-color: rgba(0,210,255,0.12);
   }
 
-  /* hc-bottom-nav: use mob-tab-bar styling for profile/facilities
-     (shown via hc-layout__main padding-bottom on these pages) */
+  /* hc-bottom-nav: floating pill style matching mob-tab-bar */
   .hc-bottom-nav {
-    height: 60px;
-    border-top: 1px solid var(--hc-border);
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 16px !important;
+    right: 16px !important;
+    border-radius: 28px !important;
+    border-top: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.60) !important;
+    background: rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(24px) saturate(1.6) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(1.6) !important;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.14),
+      0 2px 8px  rgba(0, 0, 0, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.70) !important;
+    height: 56px !important;
+    padding-bottom: 0 !important;
   }
   html.dark-mode .hc-bottom-nav {
-    background: rgba(7, 24, 40, 0.96);
-    border-top-color: rgba(0, 210, 255, 0.12);
-    box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+    background: rgba(7, 24, 40, 0.88) !important;
+    border-color: rgba(0, 210, 255, 0.14) !important;
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.55),
+      0 2px 10px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(0, 210, 255, 0.10) !important;
   }
 }
 
-/* Match hc-bottom-nav items to mob-tab-btn style at mobile */
+/* Match hc-bottom-nav items to floating pill mob-tab-btn style */
 @media (max-width: 640px) {
   .hc-bottom-nav {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    height: auto;
     padding-top: 0;
   }
   .hc-bottom-nav__item {
     flex: 1;
     min-width: 0;
-    padding: 6px 14px;
+    padding: 6px 4px;
     border-radius: 0;
-    font-size: 10px;
+    font-size: 9.5px;
+    font-weight: 600;
     gap: 3px;
     position: relative;
+    transition: color 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
   }
+  .hc-bottom-nav__item:active { transform: scale(0.92); }
   .hc-bottom-nav__item--active {
     color: var(--hc-teal);
-    background: none; /* remove pill background */
   }
-  /* Top indicator line matching mob-tab-btn.active::after */
-  .hc-bottom-nav__item--active::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 50%;
-    transform: translateX(-50%);
-    width: 28px; height: 2px;
-    border-radius: 0 0 2px 2px;
-    background: var(--hc-teal);
-    box-shadow: 0 0 8px var(--hc-teal-glow);
-  }
+  /* No top line — bubble is handled via icon wrapper on mob-tab-btn */
+  .hc-bottom-nav__item--active::after { display: none; }
 }
 
 /* ════════════════════════════════════════════════════════════════
-   SOS TAB BUTTON — red glowing style across all pages
-   Used on: dashboard, facilities, emergency, symptom-checker
-   Classes: mob-tab-btn--sos / sc-mob-tab-btn.mob-tab-btn--sos
+   SOS TAB BUTTON — plain icon + red dot, all pages (≤640px)
+   The global definition above already handles this. The media
+   query block below just reinforces dark/light border colours.
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
-  /* SOS icon wrapper — red pill background */
+  .mob-tab-btn--sos { color: var(--hc-text3) !important; }
+  .mob-tab-btn--sos.active { color: var(--hc-red, #ef4444) !important; }
+  .mob-tab-btn--sos.active::after { display: none !important; }
+
   .mob-tab-sos-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 24px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px;
+    background: none; border-radius: 0; box-shadow: none; color: inherit;
+  }
+  .mob-tab-sos-icon::after {
+    content: ''; position: absolute;
+    top: -2px; right: -3px;
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--hc-red, #ef4444);
-    border-radius: 8px;
-    color: #fff;
-    box-shadow: 0 0 8px rgba(239,68,68,0.45);
-    transition: box-shadow 0.2s;
+    border: 1.5px solid var(--hc-surface);
+    box-shadow: 0 0 5px rgba(239,68,68,0.55);
+    pointer-events: none;
   }
+  html.dark-mode .mob-tab-sos-icon::after { border-color: rgba(7,24,40,0.96); }
+  html:not(.dark-mode) .mob-tab-sos-icon::after { border-color: #ffffff; }
 
-  /* SOS button label color */
-  .mob-tab-btn--sos {
-    color: var(--hc-red, #ef4444) !important;
-  }
-
-  /* Active SOS — pulsing red glow (emergency page) */
-  .mob-tab-btn--sos.active .mob-tab-sos-icon {
-    box-shadow:
-      0 0 0 0 rgba(239,68,68,0.7);
-    animation: sosPulse 1.6s ease-out infinite;
-  }
-  .mob-tab-btn--sos.active::after {
-    background: var(--hc-red, #ef4444) !important;
-    box-shadow: 0 0 8px rgba(239,68,68,0.8) !important;
-  }
-
-  @keyframes sosPulse {
-    0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.7), 0 0 8px rgba(239,68,68,0.45); }
-    60%  { box-shadow: 0 0 0 8px rgba(239,68,68,0),   0 0 8px rgba(239,68,68,0.45); }
-    100% { box-shadow: 0 0 0 0   rgba(239,68,68,0),   0 0 8px rgba(239,68,68,0.45); }
-  }
-
-  /* sc-mob-tab-bar SOS button same treatment */
-  .sc-mob-tab-bar .mob-tab-btn--sos {
-    color: var(--hc-red, #ef4444) !important;
-  }
+  /* sc-mob-tab-bar same treatment — grey by default */
+  .sc-mob-tab-bar .mob-tab-btn--sos { color: var(--hc-text3) !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   SHARED LOADING STATE — hc-loading
+   Used by all pages. Replace per-page loading CSS with this.
+   Light mode handled via html:not(.dark-mode) overrides below.
+════════════════════════════════════════════════════════════════ */
+.hc-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: var(--hc-bg, #020B14);
+}
+
+/* Logo mark — Heart icon inside a glowing pill */
+.hc-loading__mark {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--hc-teal-dim, rgba(0,210,255,0.12));
+  border: 1px solid rgba(0,210,255,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hc-teal, #00D2FF);
+  animation: hcLoadPulse 1.8s ease-in-out infinite;
+}
+html.dark-mode .hc-loading__mark {
+  box-shadow: 0 0 0 0 rgba(0,210,255,0.35);
+}
+@keyframes hcLoadPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(0,210,255,0.35); }
+  50%  { box-shadow: 0 0 0 14px rgba(0,210,255,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(0,210,255,0);    }
+}
+
+/* Brand name */
+.hc-loading__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.hc-loading__name {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, var(--hc-teal, #00D2FF) 0%, var(--hc-teal, #00D2FF) 46%, var(--hc-text, #E8F4FF) 46%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hc-loading__sub {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--hc-teal, #00D2FF);
+  opacity: 0.5;
+}
+
+/* Loading dots */
+.hc-loading__dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.hc-loading__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hc-teal, #00D2FF);
+  opacity: 0.3;
+  animation: hcDot 1.4s ease-in-out infinite;
+}
+.hc-loading__dots span:nth-child(2) { animation-delay: 0.2s; }
+.hc-loading__dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes hcDot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1.1); }
+}
+
+/* Light mode */
+html:not(.dark-mode) .hc-loading {
+  background: #f1f5f9;
+}
+html:not(.dark-mode) .hc-loading__mark {
+  background: rgba(14,165,233,0.10);
+  border-color: rgba(14,165,233,0.22);
+  color: #0891b2;
+  box-shadow: none;
+  animation: hcLoadPulseLight 1.8s ease-in-out infinite;
+}
+@keyframes hcLoadPulseLight {
+  0%   { box-shadow: 0 0 0 0   rgba(14,165,233,0.30); }
+  50%  { box-shadow: 0 0 0 14px rgba(14,165,233,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(14,165,233,0);    }
+}
+html:not(.dark-mode) .hc-loading__name {
+  background: linear-gradient(90deg, #0891b2 0%, #0891b2 46%, #0f172a 46%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html:not(.dark-mode) .hc-loading__sub  { color: #0891b2; }
+html:not(.dark-mode) .hc-loading__dots span { background: #0891b2; }
