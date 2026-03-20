@@ -19,8 +19,12 @@
    on DashboardLayout in page.tsx (defined in dashboard-header.css) */
 .sc-page {
   width: 100%;
-  height: 100dvh;       /* use viewport height directly — no parent chain dependency */
-  max-height: 100dvh;
+  /* DO NOT set height:100dvh here. sc-page is a flex child of
+     hc-layout__main which at ≤1024px receives padding-bottom:64px
+     from dashboard-header.css. Setting height:100dvh would make
+     sc-page overflow that padding, pushing the input bar off-screen.
+     Instead let sc-page fill its parent via flex:1 (set in the mobile
+     CSS) and let the locked layout chain define the total height. */
   display: flex;
   flex-direction: column;
   font-family: 'DM Sans', system-ui, sans-serif;
@@ -425,7 +429,9 @@
   .sc-grid              { grid-template-columns: 1fr !important; grid-template-areas: "center" !important; }
   .sc-right             { display: none !important; }
   .sc-footer            { display: none; }
-  .hc-layout            { height: 100dvh; }
+  /* DO NOT set hc-layout height here — hc-layout--locked in
+     dashboard-header.css owns that with 100svh. Setting 100dvh
+     here would override it and reintroduce the keyboard gap. */
 }
 
 /* ══ LIGHT MODE ═══════════════════════════════════════════════════ */

@@ -61,17 +61,19 @@
   ══════════════════════════════════════════════════════════ */
   .hc-layout:has(.sc-page),
   .hc-layout--locked:has(.sc-page) {
-    height: 100dvh !important;
+    height: 100svh !important;
     overflow: hidden !important;
   }
 
   .hc-layout:has(.sc-page) .hc-layout__main,
   .hc-layout--locked:has(.sc-page) .hc-layout__main {
-    height: 100dvh !important;
+    height: 100svh !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
     margin-left: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   .hc-layout:has(.sc-page) .hc-layout__content,
@@ -84,9 +86,7 @@
   }
 
   /* sc-page: flex column filling the viewport.
-     overflow:clip (not hidden) so position:sticky works inside it.
-     padding-top: 56px compensates for the fixed sc-mob-topbar being
-     out of flow — without it the topbar overlaps the risk bar. */
+     overflow:clip (not hidden) so position:sticky works inside it. */
   .sc-page {
     position: relative !important;
     inset: auto !important;
@@ -132,11 +132,8 @@
   .sc-chat-header { display: none !important; }
 
   /* sc-messages: the scrollable flex:1 area.
-     padding-bottom clears both the sticky input bar (~56px) AND the
-     fixed tab bar (61px) so the last message is never hidden.
-     The tab bar is position:fixed — it is NOT in flow — so sc-center's
-     scroll container ends at the real screen bottom. We must manually
-     reserve space for both fixed layers via padding. */
+     padding-bottom creates clearance for the sticky input bar
+     + tab bar so the last message is never hidden. */
   .sc-messages {
     position: relative !important;
     top: auto !important; left: auto !important;
@@ -148,7 +145,7 @@
     padding: 14px 14px calc(var(--sc-tab-bar-h) + 72px) !important;
     gap: 14px !important;
   }
-  /* Keyboard open — tab bar is hidden, only clear the input bar height */
+  /* When keyboard is open the tab bar is hidden — reduce bottom clearance */
   .sc-messages:has(~ .sc-input-bar--focused),
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
     padding-bottom: 72px !important;
@@ -161,15 +158,9 @@
     display: none !important;
   }
 
-  /* sc-input-bar: sticky at the REAL bottom of its scroll container.
-     The tab bar is position:fixed (out of flow) — the scroll container
-     bottom IS the screen bottom — so sticky bottom:0 puts the input bar
-     flush with the screen edge. The tab bar then overlays on top of it
-     visually, so we add padding-bottom equal to the tab bar height so
-     the input bar content sits ABOVE the tab bar.
-     This eliminates the empty gap that appeared when sticky was set to
-     bottom:var(--sc-tab-bar-h) — that pushed the bar 61px UP from the
-     scroll container bottom, leaving 61px of blank space below it. */
+  /* sc-input-bar: sticky in the normal flow, always visible above the tab bar.
+     This is the most reliable approach on Android Chrome — avoids the
+     position:fixed + virtual keyboard interaction bug entirely. */
   .sc-input-bar {
     position: sticky !important;
     bottom: 0 !important;
@@ -179,7 +170,7 @@
     border-top: 1px solid var(--hc-border) !important;
     z-index: 50 !important;
   }
-  /* Keyboard open — tab bar hidden, no need to pad for it */
+  /* Keyboard open — tab bar is hidden, no need to pad for it */
   .sc-input-bar--focused {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
   }
@@ -212,10 +203,6 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* Fixed — NOT sticky. sticky inside overflow:clip loses its
-       anchor when the virtual keyboard reshapes the viewport on
-       Android Chrome, causing the bar to scroll off-screen mid-type.
-       Fixed is viewport-anchored so the keyboard cannot affect it. */
     position: fixed;
     top: 0; left: 0; right: 0;
     z-index: 200;
