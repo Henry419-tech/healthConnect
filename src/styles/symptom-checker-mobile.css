@@ -54,10 +54,12 @@
 
   /* ══════════════════════════════════════════════════════════
      ROOT LAYOUT CHAIN — full height flex column
-     CRITICAL: These rules are scoped to pages that contain
-     .sc-page so they ONLY apply to the symptom checker.
-     Without this scoping, overflow:hidden leaks to emergency
-     and profile pages on client-side navigation (no full reload).
+     KEY INSIGHT: We use 100dvh (dynamic) NOT 100svh here.
+     dvh shrinks when the keyboard opens on Android Chrome,
+     which means the entire flex chain shrinks and the input bar
+     — kept IN FLOW as a flex child — naturally rises above the
+     keyboard without any JS or fixed positioning needed.
+     The chain must have NO overflow:hidden so the resize propagates.
   ══════════════════════════════════════════════════════════ */
   .hc-layout:has(.sc-page),
   .hc-layout--locked:has(.sc-page) {
@@ -85,10 +87,7 @@
     flex-direction: column !important;
   }
 
-  /* sc-page: flex column filling the dvh container.
-     padding-top:56px clears the fixed topbar.
-     overflow:hidden clips sc-page children only — dvh resize
-     already propagated through the visible ancestors above. */
+  /* sc-page: flex column filling the shrinking dvh container */
   .sc-page {
     position: relative !important;
     inset: auto !important;
@@ -99,6 +98,7 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    /* top bar is position:fixed so compensate with padding */
     padding-top: 56px !important;
   }
 
@@ -133,9 +133,8 @@
   /* sc-chat-header: hidden on mobile (sc-mob-topbar replaces it) */
   .sc-chat-header { display: none !important; }
 
-  /* sc-messages: the scrollable flex:1 area.
-     padding-bottom creates clearance for the sticky input bar
-     + tab bar so the last message is never hidden. */
+  /* sc-messages: scrollable flex:1 — padding-bottom clears the
+     sticky input bar + fixed tab bar */
   .sc-messages {
     position: relative !important;
     top: auto !important; left: auto !important;
@@ -147,36 +146,51 @@
     padding: 14px 14px calc(var(--sc-tab-bar-h) + 72px) !important;
     gap: 14px !important;
   }
-  /* When keyboard is open the tab bar is hidden — reduce bottom clearance */
-  .sc-messages:has(~ .sc-input-bar--focused),
+  /* Keyboard open — tab bar gone, only clear the input bar (~56px) */
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
     padding-bottom: 72px !important;
   }
 
-  /* sc-chips: hidden on mobile (replaced by sc-mob-quick-pills) */
+  /* sc-chips: hidden on mobile */
   .sc-chips {
     position: relative !important;
     bottom: auto !important;
     display: none !important;
   }
 
-  /* sc-input-bar: sticky bottom:0.
-     Tab bar is position:fixed so scroll container bottom = screen
-     bottom. sticky:0 puts bar flush there. padding-bottom clears
-     the fixed tab bar visually. bottom:var(--sc-tab-bar-h) caused
-     a 61px dead gap — fixed by moving that offset into padding. */
+  /* sc-input-bar: sticky IN FLOW at the bottom of the flex column.
+     Because the layout uses dvh which shrinks when the keyboard opens,
+     this bar naturally rises with the shrinking container — no JS,
+     no fixed positioning, no visualViewport needed.
+     It must NOT be position:fixed because fixed elements don't move
+     when overflow:hidden is on a parent, making them hide behind
+     the keyboard. Sticky within a shrinking dvh flex column is the
+     correct cross-browser approach. */
   .sc-input-bar {
     position: sticky !important;
     bottom: 0 !important;
     flex-shrink: 0 !important;
-    padding: 6px 12px calc(var(--sc-tab-bar-h) + 8px) !important;
+    padding: 6px 12px 8px !important;
     background: var(--hc-surface) !important;
     border-top: 1px solid var(--hc-border) !important;
     z-index: 50 !important;
   }
-  /* Keyboard open — tab bar hidden, only safe-area padding needed */
+  /* Not focused: add padding for the fixed tab bar sitting below */
+  .sc-input-bar:not(.sc-input-bar--focused) {
+    padding-bottom: calc(var(--sc-tab-bar-h) + 8px) !important;
+  }
+  /* Keyboard open: tab bar hidden, safe-area only */
   .sc-input-bar--focused {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+  }
+
+  /* Hide BOTH tab bars when keyboard is open —
+     sc-mob-tab-bar is the checker's own bar,
+     mob-tab-bar is DashboardHeader's generic bar which can
+     show through if the layout suppression fails */
+  .sc-mob-tab-bar--hidden,
+  .sc-page:has(.sc-input-bar--focused) ~ .mob-tab-bar {
+    display: none !important;
   }
   .sc-input-inner {
     padding: 6px 6px 6px 12px !important;
@@ -193,18 +207,13 @@
   .sc-send { width: 34px !important; height: 34px !important; border-radius: 50% !important; }
   /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
-  /* Hide sc-mob-tab-bar when keyboard is open */
+  /* Hide tab bar when keyboard is open — instant, no transition */
   .sc-mob-tab-bar--hidden {
-    display: none !important;
-  }
-  /* Always hide DashboardHeader's generic mob-tab-bar on this page —
-     sc-mob-tab-bar is the only tab bar needed here */
-  .hc-layout:has(.sc-page) .mob-tab-bar {
     display: none !important;
   }
 
   /* ══════════════════════════════════════════════════════════
-     MOBILE STICKY TOP BAR
+     MOBILE TOP BAR — fixed so keyboard can't scroll it away
   ══════════════════════════════════════════════════════════ */
   .sc-mob-topbar {
     display: flex;
