@@ -85,8 +85,6 @@
     flex-direction: column !important;
   }
 
-  /* sc-page: flex column filling the viewport.
-     overflow:clip (not hidden) so position:sticky works inside it. */
   .sc-page {
     position: relative !important;
     inset: auto !important;
@@ -131,9 +129,9 @@
   /* sc-chat-header: hidden on mobile (sc-mob-topbar replaces it) */
   .sc-chat-header { display: none !important; }
 
-  /* sc-messages: the scrollable flex:1 area.
-     padding-bottom creates clearance for the sticky input bar
-     + tab bar so the last message is never hidden. */
+  /* sc-messages: padding-bottom must clear both fixed layers —
+     the input bar (~56px) and the tab bar (61px) — since both are
+     position:fixed and invisible to the scroll container. */
   .sc-messages {
     position: relative !important;
     top: auto !important; left: auto !important;
@@ -145,8 +143,7 @@
     padding: 14px 14px calc(var(--sc-tab-bar-h) + 72px) !important;
     gap: 14px !important;
   }
-  /* When keyboard is open the tab bar is hidden — reduce bottom clearance */
-  .sc-messages:has(~ .sc-input-bar--focused),
+  /* Keyboard open — tab bar hidden, only clear the input bar */
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
     padding-bottom: 72px !important;
   }
@@ -158,20 +155,25 @@
     display: none !important;
   }
 
-  /* sc-input-bar: sticky in the normal flow, always visible above the tab bar.
-     This is the most reliable approach on Android Chrome — avoids the
-     position:fixed + virtual keyboard interaction bug entirely. */
+  /* sc-input-bar: FIXED to the viewport — not sticky.
+     sticky rides up with scroll because it anchors to the scroll
+     container's bottom edge, not the screen. fixed is the only
+     way to guarantee it never moves when the user scrolls.
+     Sits above the fixed tab bar via bottom: var(--sc-tab-bar-h). */
   .sc-input-bar {
-    position: sticky !important;
-    bottom: 0 !important;
+    position: fixed !important;
+    bottom: var(--sc-tab-bar-h) !important;
+    left: 0 !important;
+    right: 0 !important;
     flex-shrink: 0 !important;
-    padding: 6px 12px calc(var(--sc-tab-bar-h) + 8px) !important;
+    padding: 6px 12px 8px !important;
     background: var(--hc-surface) !important;
     border-top: 1px solid var(--hc-border) !important;
     z-index: 50 !important;
   }
-  /* Keyboard open — tab bar is hidden, no need to pad for it */
+  /* Keyboard open — tab bar hidden, drop to screen bottom */
   .sc-input-bar--focused {
+    bottom: 0 !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
   }
   .sc-input-inner {

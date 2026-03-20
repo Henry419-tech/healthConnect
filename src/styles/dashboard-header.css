@@ -113,11 +113,6 @@ html.dark-mode {
 .hc-layout--locked .hc-layout__main {
   overflow: hidden;
   height: 100%;
-  /* Zero out padding injected by the @media(≤1024px) block above.
-     That block adds padding-top:56px + padding-bottom:64px for the
-     generic hc-topbar/hc-bottom-nav. On locked pages those bars are
-     hidden and sc-page manages its own spacing — the extra padding
-     pushes sc-page's content off-screen causing the bottom gap. */
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
