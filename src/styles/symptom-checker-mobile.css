@@ -140,12 +140,17 @@
     min-height: 0 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
-    padding: 14px 14px calc(var(--sc-tab-bar-h) + 72px) !important;
+    /* Clear tab bar (61px) + input bar (~56px) + extra breathing room */
+    padding: 14px 14px calc(var(--sc-tab-bar-h) + 80px) !important;
     gap: 14px !important;
+    /* Prevent scroll chaining — keeps scroll inside this container */
+    overscroll-behavior: contain;
   }
-  /* Keyboard open — tab bar hidden, only clear the input bar */
+  /* Keyboard open — tab bar is hidden, only need to clear input bar.
+     Use a generous value (100px) since exact input height varies with
+     textarea growth. JS handles the actual input bar positioning. */
   .sc-center:has(.sc-input-bar--focused) .sc-messages {
-    padding-bottom: 72px !important;
+    padding-bottom: 100px !important;
   }
 
   /* sc-chips: hidden on mobile (replaced by sc-mob-quick-pills) */
@@ -159,7 +164,15 @@
      sticky rides up with scroll because it anchors to the scroll
      container's bottom edge, not the screen. fixed is the only
      way to guarantee it never moves when the user scrolls.
-     Sits above the fixed tab bar via bottom: var(--sc-tab-bar-h). */
+     Sits above the fixed tab bar via bottom: var(--sc-tab-bar-h).
+     
+     KEYBOARD HANDLING: When the software keyboard opens, Android
+     Chrome keeps position:fixed relative to the layout viewport
+     (full page) — so bottom:0 ends up BELOW the keyboard.
+     We use a visualViewport resize listener in JS (page.tsx) to
+     imperatively set .style.bottom to the correct visual offset.
+     The --focused modifier only removes the tab-bar gap; JS does
+     the actual repositioning. */
   .sc-input-bar {
     position: fixed !important;
     bottom: var(--sc-tab-bar-h) !important;
@@ -169,11 +182,15 @@
     padding: 6px 12px 8px !important;
     background: var(--hc-surface) !important;
     border-top: 1px solid var(--hc-border) !important;
-    z-index: 50 !important;
+    z-index: 100 !important;
+    /* Ensure input bar is always on top of keyboard overlay */
+    will-change: bottom;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
-  /* Keyboard open — tab bar hidden, drop to screen bottom */
+  /* Keyboard open — JS repositions .style.bottom directly.
+     This class only adjusts padding for safe-area insets. */
   .sc-input-bar--focused {
-    bottom: 0 !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
   }
   .sc-input-inner {
@@ -192,10 +209,12 @@
   /* Disclaimer text — hidden on mobile */
   .sc-input-hint { display: none !important; }
   /* Hide tab bar when keyboard is open.
-     No transition on hide — instant removal prevents the bar
-     getting stuck in the hidden state after blur on Android Chrome. */
+     display:none instantly removes layout space so the input bar
+     isn't fighting for z-index with the tab bar during transition. */
   .sc-mob-tab-bar--hidden {
     display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -452,13 +471,15 @@
   .sc-mob-tab-bar {
     display: flex !important;
     position: fixed;
-    bottom: 0; left: 0; right: 0; z-index: 400;
+    bottom: 0; left: 0; right: 0; z-index: 90;
     background: var(--hc-surface);
     border-top: 1px solid var(--hc-border);
     backdrop-filter: blur(20px) saturate(1.4);
     -webkit-backdrop-filter: blur(20px) saturate(1.4);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+    /* Prevent tab bar from interfering with scroll */
+    touch-action: none;
   }
   html.dark-mode .sc-mob-tab-bar {
     background: rgba(5,18,32,0.97);

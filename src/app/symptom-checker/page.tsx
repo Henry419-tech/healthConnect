@@ -202,6 +202,7 @@ export default function SymptomChecker() {
   const [rightOpen,     setRightOpen]     = useState(false);
   const [mobPanelOpen,  setMobPanelOpen]  = useState(false);
   const [inputFocused,  setInputFocused]  = useState(false);
+  const [keyboardOpen,  setKeyboardOpen]  = useState(false);
 
   // ── Facility state ───────────────────────────────────────────
   const [nearby,             setNearby]             = useState<NearbyFacility[]>([]);
@@ -246,6 +247,87 @@ export default function SymptomChecker() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark-mode', isDarkMode);
   }, [isDarkMode]);
+
+  // ── Inject interactive-widget viewport meta on mobile ─────────
+  // Chrome Android 108+ supports interactive-widget=resizes-content which
+  // causes the layout viewport to shrink when the keyboard opens.
+  // This makes position:fixed work correctly above the keyboard.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const existing = document.querySelector('meta[name="viewport"]');
+    const content = 'width=device-width, initial-scale=1, interactive-widget=resizes-content';
+    if (existing) {
+      // Only patch if not already set — avoid overriding other pages
+      if (!existing.getAttribute('content')?.includes('interactive-widget')) {
+        existing.setAttribute('content', content);
+      }
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = content;
+      document.head.appendChild(meta);
+    }
+    // Restore original on unmount so other pages aren't affected
+    return () => {
+      const m = document.querySelector('meta[name="viewport"]');
+      if (m && m.getAttribute('content')?.includes('interactive-widget')) {
+        m.setAttribute('content', 'width=device-width, initial-scale=1');
+      }
+    };
+  }, []);
+
+  // ── Visual viewport / keyboard detection (mobile) ─────────────
+  // On mobile, the visual viewport shrinks when the software keyboard
+  // opens. We use this to reliably detect keyboard state rather than
+  // relying on focus/blur events which are unreliable on Android.
+  // For Chrome Android 108+ with interactive-widget=resizes-content,
+  // position:fixed works naturally. This effect handles older browsers.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const KEYBOARD_THRESHOLD = 150; // px — anything less is not a keyboard
+
+    // Capture stable initial height after a brief settle.
+    // window.screen.height is used as a reliable "no keyboard" reference.
+    const getBaseHeight = () => Math.max(vv.height, window.screen.height * 0.6);
+    let baseHeight = getBaseHeight();
+    const initTimer = setTimeout(() => { baseHeight = vv.height; }, 500);
+
+    const handleResize = () => {
+      const diff = baseHeight - vv.height;
+      const isKbOpen = diff > KEYBOARD_THRESHOLD;
+      setKeyboardOpen(isKbOpen);
+
+      // Imperatively reposition the input bar so it always sits above the
+      // keyboard. This is the fallback for browsers that don't support
+      // interactive-widget=resizes-content.
+      const inputBar = document.querySelector<HTMLElement>('.sc-input-bar');
+      if (inputBar && window.innerWidth <= 640) {
+        if (isKbOpen) {
+          // visualViewport.offsetTop + height gives the bottom of visible area.
+          // The distance from that to window.innerHeight is the keyboard height
+          // in layout-viewport coordinates.
+          const layoutBottom = vv.offsetTop + vv.height;
+          const offsetFromBottom = window.innerHeight - layoutBottom;
+          inputBar.style.setProperty('bottom', `${offsetFromBottom}px`, 'important');
+        } else {
+          inputBar.style.removeProperty('bottom');
+        }
+      }
+    };
+
+    vv.addEventListener('resize', handleResize);
+    vv.addEventListener('scroll', handleResize);
+    return () => {
+      clearTimeout(initTimer);
+      vv.removeEventListener('resize', handleResize);
+      vv.removeEventListener('scroll', handleResize);
+      // Clean up any inline bottom override on unmount
+      const inputBar = document.querySelector<HTMLElement>('.sc-input-bar');
+      if (inputBar) inputBar.style.removeProperty('bottom');
+    };
+  }, []);
 
   // ── Auto-scroll ───────────────────────────────────────────────
   useEffect(() => {
@@ -1092,7 +1174,7 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
                 )}
 
                 {/* Input bar */}
-                <div className={`sc-input-bar${inputFocused ? ' sc-input-bar--focused' : ''}`}>
+                <div className={`sc-input-bar${(inputFocused || keyboardOpen) ? ' sc-input-bar--focused' : ''}`}>
                   <div className="sc-input-inner">
                     <textarea
                       ref={textareaRef}
@@ -1100,7 +1182,7 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
                       onChange={handleTextarea}
                       onKeyDown={handleKeyDown}
                       onFocus={() => setInputFocused(true)}
-                      onBlur={() => { setTimeout(() => setInputFocused(false), 150); }}
+                      onBlur={() => { setTimeout(() => setInputFocused(false), 200); }}
                       placeholder="Describe your symptom or ask a health question…"
                       className="sc-textarea"
                       rows={1}
@@ -1463,7 +1545,7 @@ ${assessment.nextSteps.length ? `<section><h2>Next Steps</h2><ol>${assessment.ne
         )}
 
         {/* ── Mobile bottom tab bar ── */}
-        <nav className={`sc-mob-tab-bar${inputFocused ? ' sc-mob-tab-bar--hidden' : ''}`} aria-label="Main navigation">
+        <nav className={`sc-mob-tab-bar${(inputFocused || keyboardOpen) ? ' sc-mob-tab-bar--hidden' : ''}`} aria-label="Main navigation">
           <div className="sc-mob-tab-bar__inner">
             <button className="sc-mob-tab-btn" type="button" onClick={() => router.push('/dashboard')} aria-label="Home">
               <Heart size={22} /><span>Home</span>
