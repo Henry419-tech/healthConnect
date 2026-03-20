@@ -19,9 +19,6 @@
    on DashboardLayout in page.tsx (defined in dashboard-header.css) */
 .sc-page {
   width: 100%;
-  /* No height set here — sc-page fills its parent via flex:1 on mobile.
-     Setting 100dvh overflows the parent's injected padding-bottom and
-     pushes the input bar off screen. */
   display: flex;
   flex-direction: column;
   font-family: 'DM Sans', system-ui, sans-serif;

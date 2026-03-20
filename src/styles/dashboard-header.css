@@ -107,11 +107,11 @@ html.dark-mode {
    emergency, profile, facilities or any other body-scroll page.
    ──────────────────────────────────────────────────────────────────── */
 .hc-layout--locked {
-  height: 100svh;
-  overflow: hidden;
+  height: 100dvh;
+  overflow: visible;
 }
 .hc-layout--locked .hc-layout__main {
-  overflow: hidden;
+  overflow: visible;
   height: 100%;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
