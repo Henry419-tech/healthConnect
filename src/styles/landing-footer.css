@@ -1,0 +1,132 @@
+/* ================================================================
+   src/styles/landing-footer.css
+   HealthConnect Navigator — Landing Page Footer
+   Import AFTER landing.css
+   ================================================================ */
+
+.lp-footer {
+  position: relative;
+  z-index: 10;
+  background: rgba(4, 10, 22, 0.85);
+  border-top: 1px solid rgba(255,255,255,.07);
+  display: block; /* visible on desktop */
+}
+.lp-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 56px 56px 0;
+}
+
+/* Top: brand + nav */
+.lp-footer-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 64px;
+  align-items: flex-start;
+}
+
+/* Brand */
+.lp-footer-brand { max-width: 340px; }
+.lp-footer-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.lp-footer-logo-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--lp-teal, #00d4ff), #0099bb);
+  display: flex; align-items: center; justify-content: center;
+  color: #050e1d; box-shadow: 0 3px 12px rgba(0,212,255,.25); flex-shrink: 0;
+}
+.lp-footer-logo-name {
+  font-family: 'DM Serif Display', serif;
+  font-size: 16px; color: rgba(255,255,255,.90); letter-spacing: -.2px; margin: 0;
+}
+.lp-footer-tagline { font-size: 13px; line-height: 1.70; color: rgba(255,255,255,.40); margin: 0 0 24px; }
+
+/* Emergency pills */
+.lp-footer-emergency-label {
+  display: block; font-size: 9.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 1.4px;
+  color: rgba(255,255,255,.28); margin-bottom: 10px;
+}
+.lp-footer-emergency-numbers { display: flex; gap: 8px; flex-wrap: wrap; }
+.lp-footer-emergency-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 11.5px; font-weight: 700; text-decoration: none;
+  transition: all .2s; letter-spacing: .1px;
+}
+.lp-footer-emergency-pill--red {
+  background: rgba(255,77,109,.12); border: 1px solid rgba(255,77,109,.25); color: #ff4d6d;
+}
+.lp-footer-emergency-pill--red:hover { background: rgba(255,77,109,.20); border-color: rgba(255,77,109,.45); transform: translateY(-1px); }
+.lp-footer-emergency-pill--teal {
+  background: rgba(0,212,255,.10); border: 1px solid rgba(0,212,255,.20); color: #00d4ff;
+}
+.lp-footer-emergency-pill--teal:hover { background: rgba(0,212,255,.18); border-color: rgba(0,212,255,.38); transform: translateY(-1px); }
+
+/* Nav columns */
+.lp-footer-nav { display: flex; gap: 52px; }
+.lp-footer-nav-group { display: flex; flex-direction: column; gap: 10px; min-width: 120px; }
+.lp-footer-nav-title {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.3px; color: rgba(255,255,255,.30); margin: 0 0 4px;
+}
+.lp-footer-nav-link {
+  display: block; font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.48);
+  background: none; border: none; padding: 0; cursor: pointer;
+  text-align: left; text-decoration: none; transition: color .18s; line-height: 1.4;
+}
+.lp-footer-nav-link:hover { color: rgba(255,255,255,.88); }
+
+/* Divider */
+.lp-footer-divider {
+  border: none; border-top: 1px solid rgba(255,255,255,.06);
+  max-width: 1200px; margin: 40px auto 0;
+}
+
+/* Bottom bar */
+.lp-footer-bottom {
+  max-width: 1200px; margin: 0 auto;
+  padding: 20px 56px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.lp-footer-copy { font-size: 12px; color: rgba(255,255,255,.28); margin: 0; }
+.lp-footer-badges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lp-footer-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,.32);
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  padding: 3px 10px; border-radius: 20px;
+}
+.lp-footer-version {
+  font-size: 10.5px; font-weight: 700; color: rgba(0,212,255,.40);
+  background: rgba(0,212,255,.07); border: 1px solid rgba(0,212,255,.12);
+  padding: 3px 9px; border-radius: 20px; letter-spacing: .3px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .lp-footer-inner  { padding: 44px 36px 0; }
+  .lp-footer-bottom { padding: 20px 36px 24px; }
+  .lp-footer-top    { gap: 40px; }
+  .lp-footer-nav    { gap: 36px; }
+}
+@media (max-width: 768px) {
+  .lp-footer-inner  { padding: 40px 24px 0; }
+  .lp-footer-bottom { padding: 18px 24px 24px; }
+  .lp-footer-top    { grid-template-columns: 1fr; gap: 36px; }
+  .lp-footer-brand  { max-width: 100%; }
+  .lp-footer-nav    { gap: 24px; flex-wrap: wrap; }
+  .lp-footer-nav-group { min-width: 100px; }
+}
+@media (max-width: 640px) {
+  .lp-footer { display: none; }
+}
+
+@media (max-width: 480px) {
+  .lp-footer-inner   { padding: 32px 18px 0; }
+  .lp-footer-bottom  { padding: 16px 18px 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .lp-footer-nav     { gap: 16px; }
+  .lp-footer-nav-group { min-width: calc(50% - 8px); }
+  .lp-footer-badges  { gap: 7px; }
+}

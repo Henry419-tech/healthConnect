@@ -299,22 +299,22 @@ export default function SymptomChecker() {
       const isKbOpen = diff > KEYBOARD_THRESHOLD;
       setKeyboardOpen(isKbOpen);
 
-      // Imperatively reposition the input bar so it always sits above the
-      // keyboard. This is the fallback for browsers that don't support
-      // interactive-widget=resizes-content.
-      const inputBar = document.querySelector<HTMLElement>('.sc-input-bar');
-      if (inputBar && window.innerWidth <= 640) {
-        if (isKbOpen) {
-          // visualViewport.offsetTop + height gives the bottom of visible area.
-          // The distance from that to window.innerHeight is the keyboard height
-          // in layout-viewport coordinates.
-          const layoutBottom = vv.offsetTop + vv.height;
-          const offsetFromBottom = window.innerHeight - layoutBottom;
-          inputBar.style.setProperty('bottom', `${offsetFromBottom}px`, 'important');
-        } else {
-          inputBar.style.removeProperty('bottom');
+      // Imperatively reposition the input bar above the keyboard.
+      // Wrapped in rAF to batch with the browser paint cycle for a
+      // smooth slide — avoids a jarring jump on Android Chrome.
+      requestAnimationFrame(() => {
+        const inputBar = document.querySelector<HTMLElement>('.sc-input-bar');
+        if (inputBar && window.innerWidth <= 640) {
+          if (isKbOpen) {
+            const layoutBottom = vv.offsetTop + vv.height;
+            const offsetFromBottom = window.innerHeight - layoutBottom;
+            // Small extra gap so pill doesn't press flush against keyboard
+            inputBar.style.setProperty('bottom', `${offsetFromBottom + 6}px`, 'important');
+          } else {
+            inputBar.style.removeProperty('bottom');
+          }
         }
-      }
+      });
     };
 
     vv.addEventListener('resize', handleResize);

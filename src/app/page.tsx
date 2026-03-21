@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import '@/styles/landing.css'
 import '@/styles/landing-light.css'
+import '@/styles/landing-footer.css'
 
 /* ── Types ─────────────────────────────────────────────────────── */
 type Panel = 'closed' | 'signin' | 'signup'
@@ -26,27 +27,39 @@ const CARDS = [
   {
     id: 'facilities', color: 'teal',
     icon: MapPin, badge: 'GPS Live',
-    title: 'Find Nearby Care', sub: 'Accra, Kumasi & beyond',
-    desc: 'Live GPS search for hospitals, clinics and pharmacies near you — with distance, hours and directions.',
+    title: 'Find Nearby Care',
+    sub: 'Hospitals · Clinics · Pharmacies',
+    desc: 'Real-time GPS search across Ghana — see distance, opening hours, ratings and get directions instantly.',
   },
   {
     id: 'symptom', color: 'violet', featured: true,
     icon: Bot, badge: 'AI Powered',
-    title: 'AI Health Check', sub: 'Get instant assessment',
-    desc: 'Describe your symptoms and our AI gives you a triage assessment and recommends next steps.',
+    title: 'AI Symptom Checker',
+    sub: 'Instant triage assessment',
+    desc: 'Describe your symptoms in plain language. Our AI assesses severity, suggests causes and recommends your next step.',
   },
   {
     id: 'emergency', color: 'red',
     icon: Phone, badge: '24 / 7',
-    title: 'Emergency: 193', sub: 'Quick access 24/7',
-    desc: 'One-tap call to National Ambulance, plus first-aid guides, SOS button, and your emergency contacts.',
+    title: 'Emergency Hub',
+    sub: 'National Ambulance · 193',
+    desc: 'One-tap call to emergency services, SOS alerts, first-aid guides and your pre-filled emergency contacts.',
   },
   {
     id: 'profile', color: 'amber',
-    icon: User, badge: 'Offline',
-    title: 'Health Profile', sub: 'Your full medical ID',
-    desc: 'Blood type, allergies, medications and health score — shown to first responders when it matters most.',
+    icon: User, badge: 'Medical ID',
+    title: 'Health Profile',
+    sub: 'Your complete medical record',
+    desc: 'Blood type, allergies, medications, conditions and your health score — always available, even offline.',
   },
+]
+
+
+
+const HOW_IT_WORKS = [
+  { step: '01', title: 'Create your free account', desc: 'Sign up in under 2 minutes. No credit card, no subscriptions.' },
+  { step: '02', title: 'Build your Health Profile', desc: 'Add your blood type, allergies, medications and emergency contacts.' },
+  { step: '03', title: 'Access care anywhere', desc: 'Find facilities, check symptoms and reach emergency services — all in one place.' },
 ]
 
 /* ══════════════════════════════════════════════════════════════ */
@@ -158,7 +171,7 @@ function LandingPage() {
           >
             {mounted && isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button className="lp-btn lp-btn--ghost"  onClick={() => open('signin')}>Sign In</button>
+          <button className="lp-btn lp-btn--ghost lp-btn--signin" onClick={() => open('signin')}>Sign In</button>
           <button className="lp-btn lp-btn--primary" onClick={() => open('signup')}>
             Get Started <ArrowRight size={14} />
           </button>
@@ -167,29 +180,95 @@ function LandingPage() {
 
       {/* Hero */}
       <section className="lp-hero">
-        <div className="lp-eyebrow">
-          <span className="lp-live-dot" />
-          Ghana's Health Navigation Platform
+        <div className="lp-hero__left">
+          <div className="lp-eyebrow">
+            <span className="lp-live-dot" />
+             Built for Ghana · Free forever
+          </div>
+          <h1 className="lp-hero__title">
+            Your health,<br />
+            <em>always within<br />reach.</em>
+          </h1>
+          <p className="lp-hero__sub">
+            Find hospitals and pharmacies near you, check your symptoms with AI, access emergency services instantly — and carry your complete medical ID wherever you go.
+          </p>
+          <div className="lp-hero__cta">
+            <button className="lp-btn lp-btn--primary lp-btn--lg" onClick={() => open('signup')}>
+              Create Free Account <Sparkles size={16} />
+            </button>
+            <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => open('signin')}>
+              Sign In
+            </button>
+          </div>
+          <div className="lp-trust-row">
+            <span className="lp-trust-pill"><Shield size={12} />End-to-end encrypted</span>
+            <span className="lp-trust-pill"><CheckCircle size={12} />Free forever</span>
+            <span className="lp-trust-pill"><Zap size={12} />Works offline</span>
+          </div>
         </div>
-        <h1 className="lp-hero__title">
-          Your health,<br />
-          <em>always within<br />reach.</em>
-        </h1>
-        <p className="lp-hero__sub">
-          Emergency services, AI symptom checking, nearby facilities and your complete medical ID — designed for Ghana.
-        </p>
-        <div className="lp-hero__cta">
-          <button className="lp-btn lp-btn--primary lp-btn--lg" onClick={() => open('signup')}>
-            Create Free Account <Sparkles size={16} />
-          </button>
-          <button className="lp-btn lp-btn--outline lp-btn--lg" onClick={() => open('signin')}>
-            Sign In
-          </button>
-        </div>
-        <div className="lp-trust-row">
-          <span className="lp-trust-pill"><Shield size={12} />End-to-end encrypted</span>
-          <span className="lp-trust-pill"><CheckCircle size={12} />Free forever</span>
-          <span className="lp-trust-pill"><Zap size={12} />Works offline</span>
+
+        {/* App preview mock */}
+        <div className="lp-hero__preview" aria-hidden>
+          <div className="lp-preview-phone">
+            <div className="lp-preview-topbar">
+              <div className="lp-preview-logo">
+                <Heart size={11} />
+                <span>HealthConnect</span>
+              </div>
+              <div className="lp-preview-avatar">HC</div>
+            </div>
+            <div className="lp-preview-greeting">
+              <p className="lp-preview-sub">Good morning ☀️</p>
+              <p className="lp-preview-name">Henry Carl</p>
+            </div>
+            <div className="lp-preview-score-card">
+              <p className="lp-preview-score-label">OVERALL HEALTH SCORE</p>
+              <div className="lp-preview-score-row">
+                <span className="lp-preview-score-num">67</span>
+                <span className="lp-preview-score-denom">/100</span>
+                <div className="lp-preview-ring">
+                  <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(0,212,255,.12)" strokeWidth="3.5"/><circle cx="22" cy="22" r="18" fill="none" stroke="#00d4ff" strokeWidth="3.5" strokeDasharray="75 113" strokeLinecap="round" transform="rotate(-90 22 22)"/></svg>
+                  <span>67%</span>
+                </div>
+              </div>
+              <p className="lp-preview-status">Good standing · Last check today</p>
+              <div className="lp-preview-badges">
+                <span className="lp-preview-badge lp-preview-badge--teal">✓ Meds on track</span>
+                <span className="lp-preview-badge">No alerts</span>
+              </div>
+            </div>
+            <div className="lp-preview-actions">
+              {[
+                { icon: '🗺', label: 'Facilities' },
+                { icon: '🤖', label: 'AI Check' },
+                { icon: '🚨', label: 'Emergency' },
+                { icon: '👤', label: 'Profile' },
+              ].map(a => (
+                <div key={a.label} className="lp-preview-action">
+                  <div className="lp-preview-action-icon">{a.icon}</div>
+                  <span>{a.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="lp-preview-nav">
+              {['Home','Find','Check','SOS','Profile'].map((t, i) => (
+                <div key={t} className={`lp-preview-nav-item${i === 0 ? ' active' : ''}${t === 'SOS' ? ' sos' : ''}`}>
+                  <div className="lp-preview-nav-dot" />
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Floating stat pills */}
+          <div className="lp-preview-pill lp-preview-pill--1">
+            <MapPin size={11} /> 3 hospitals nearby
+          </div>
+          <div className="lp-preview-pill lp-preview-pill--2">
+            <Phone size={11} /> Emergency: 193
+          </div>
+          <div className="lp-preview-pill lp-preview-pill--3">
+            <Shield size={11} /> Medical ID ready
+          </div>
         </div>
       </section>
 
@@ -224,30 +303,68 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Stats */}
-      <div className="lp-stats">
-        {[
-          { n: '193',  l: 'Ambulance Service' },
-          { n: '192',  l: 'Fire Service' },
-          { n: '24/7', l: 'Emergency Access' },
-          { n: '100%', l: 'Private & Secure' },
-        ].map(s => (
-          <div key={s.n} className="lp-stat">
-            <span className="lp-stat__n">{s.n}</span>
-            <span className="lp-stat__l">{s.l}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Footer */}
+      {/* Footer — desktop only */}
       <footer className="lp-footer">
-        <div className="lp-footer__brand">
-          <Heart size={14} style={{ color: 'var(--lp-red)' }} />
-          HealthConnect Navigator
+        <div className="lp-footer-inner">
+          <div className="lp-footer-top">
+            <div className="lp-footer-brand">
+              <div className="lp-footer-logo">
+                <div className="lp-footer-logo-icon"><Heart size={17} /></div>
+                <p className="lp-footer-logo-name">HealthConnect Navigator</p>
+              </div>
+              <p className="lp-footer-tagline">
+                Ghana's health navigation platform — find care, check symptoms and access emergency services instantly.
+              </p>
+              <div className="lp-footer-emergency">
+                <span className="lp-footer-emergency-label">Emergency Numbers</span>
+                <div className="lp-footer-emergency-numbers">
+                  <a href="tel:193" className="lp-footer-emergency-pill lp-footer-emergency-pill--red">
+                    <Phone size={10} /> 193 · Ambulance
+                  </a>
+                  <a href="tel:192" className="lp-footer-emergency-pill lp-footer-emergency-pill--teal">
+                    <Phone size={10} /> 192 · Fire
+                  </a>
+                  <a href="tel:191" className="lp-footer-emergency-pill lp-footer-emergency-pill--teal">
+                    <Phone size={10} /> 191 · Police
+                  </a>
+                </div>
+              </div>
+            </div>
+            <nav className="lp-footer-nav" aria-label="Footer navigation">
+              <div className="lp-footer-nav-group">
+                <p className="lp-footer-nav-title">Services</p>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">Find Facilities</button>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">AI Symptom Checker</button>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">Emergency Hub</button>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">Health Profile</button>
+              </div>
+              <div className="lp-footer-nav-group">
+                <p className="lp-footer-nav-title">Account</p>
+                <button className="lp-footer-nav-link" onClick={() => open('signin')} type="button">Sign In</button>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">Create Account</button>
+                <button className="lp-footer-nav-link" onClick={() => open('signup')} type="button">Dashboard</button>
+              </div>
+              <div className="lp-footer-nav-group">
+                <p className="lp-footer-nav-title">Legal</p>
+                <span className="lp-footer-nav-link">Privacy Policy</span>
+                <span className="lp-footer-nav-link">Terms of Service</span>
+                <span className="lp-footer-nav-link">Medical Disclaimer</span>
+              </div>
+            </nav>
+          </div>
         </div>
-        <p className="lp-footer__copy">
-          Built for Ghana · Emergency: <a href="tel:193">193</a>
-        </p>
+        <hr className="lp-footer-divider" />
+        <div className="lp-footer-bottom">
+          <p className="lp-footer-copy">
+            © {new Date().getFullYear()} HealthConnect Navigator · Built for Ghana · Free forever
+          </p>
+          <div className="lp-footer-badges">
+            <span className="lp-footer-badge"><Shield size={10} /> Encrypted</span>
+            <span className="lp-footer-badge"><CheckCircle size={10} /> Free forever</span>
+            <span className="lp-footer-badge"><Zap size={10} /> Works offline</span>
+            <span className="lp-footer-version">v2.0</span>
+          </div>
+        </div>
       </footer>
 
       {/* Backdrop */}
@@ -274,7 +391,10 @@ function LandingPage() {
           {/* Brand strip */}
           <div className="lp-panel-brand">
             <div className="lp-panel-brand__icon"><Heart size={15} /></div>
-            <span className="lp-panel-brand__name">HealthConnect Navigator</span>
+            <div className="lp-panel-brand__text">
+              <span className="lp-panel-brand__name">HealthConnect</span>
+              <span className="lp-panel-brand__sub">Navigator</span>
+            </div>
           </div>
 
           {panel === 'signin' && (

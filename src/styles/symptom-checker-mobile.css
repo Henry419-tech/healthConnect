@@ -200,6 +200,11 @@
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     align-items: center !important;
+    /* Smooth keyboard slide */
+    transition: bottom 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+                border-radius 0.18s ease,
+                left 0.18s ease,
+                right 0.18s ease !important;
   }
   html.dark-mode .sc-input-bar {
     background: rgba(7, 24, 40, 0.88) !important;
@@ -209,9 +214,22 @@
       0 1px 6px  rgba(0, 0, 0, 0.30),
       inset 0 1px 0 rgba(0, 210, 255, 0.10) !important;
   }
-  /* Keyboard open — JS repositions .style.bottom directly. */
+  /* Keyboard open — pill flattens slightly and stretches edge to edge */
   .sc-input-bar--focused {
     padding-bottom: 6px !important;
+    left: 8px !important;
+    right: 8px !important;
+    border-radius: 20px !important;
+    box-shadow:
+      0 -2px 16px rgba(0, 0, 0, 0.10),
+      0 1px 4px  rgba(0, 0, 0, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.70) !important;
+  }
+  html.dark-mode .sc-input-bar--focused {
+    box-shadow:
+      0 -2px 20px rgba(0, 0, 0, 0.40),
+      0 1px 4px  rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(0, 210, 255, 0.08) !important;
   }
   .sc-input-inner {
     padding: 0 !important;
