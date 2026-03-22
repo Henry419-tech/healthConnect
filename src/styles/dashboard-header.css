@@ -239,15 +239,17 @@ html.dark-mode .hc-sidebar {
   overflow: hidden; /* only clip the text, not the outer row */
 }
 
-.hc-sidebar__logo-mark {
-  width: 34px; height: 34px; flex-shrink: 0;
-  border-radius: 11px;
-  background: var(--hc-teal-dim);
-  border: 1px solid var(--hc-teal);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--hc-teal);
-  box-shadow: 0 0 12px var(--hc-teal-glow);
+/* Sidebar SVG logo — shown directly, no container box */
+.hc-sidebar__logo-inner > svg {
+  flex-shrink: 0;
+  transition: opacity 0.18s;
 }
+.hc-sidebar--collapsed .hc-sidebar__logo-inner > svg {
+  /* keep visible when collapsed so user sees the logo icon */
+  opacity: 1;
+}
+
+/* Logo image — fits inside the sidebar mark container */
 
 .hc-sidebar__logo-text {
   display: flex; flex-direction: column;
