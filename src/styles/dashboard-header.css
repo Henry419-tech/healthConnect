@@ -456,8 +456,11 @@ html:not(.dark-mode) .hc-sidebar__nav-item:hover {
   transition: background 0.18s, color 0.18s;
 }
 .hc-topbar__icon-btn:hover { background: var(--hc-nav-hover-bg); color: var(--hc-text); }
-.hc-topbar__logo {
+.hc-topbar__brand {
   flex: 1; display: flex; align-items: center; gap: 6px;
+}
+.hc-topbar__logo {
+  display: flex; align-items: center;
   font-size: 15px; font-weight: 700; color: var(--hc-text);
 }
 .hc-topbar__logo svg { color: var(--hc-teal); }
@@ -966,7 +969,13 @@ html:not(.dark-mode) .mob-tab-sos-icon::after {
     display: none;
   }
 
-  /* Logo: left-aligned, two-tone font matching mob-topbar */
+  /* Logo: brand wrapper holds SVG + text side by side, no text-fill tricks on SVG */
+  .hc-topbar__brand {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   .hc-topbar__logo {
     font-size: 16px;
     font-weight: 900;
@@ -981,15 +990,6 @@ html:not(.dark-mode) .mob-tab-sos-icon::after {
     background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 48%, #e2f0ff 48%);
     -webkit-background-clip: text;
     background-clip: text;
-    filter: drop-shadow(0 0 8px rgba(0,210,255,0.20));
-  }
-  /* Keep logo icon teal (svg color override won't work with text-fill trick,
-     so we target the svg directly) */
-  .hc-topbar__logo svg {
-    color: var(--hc-teal);
-    filter: drop-shadow(0 0 6px rgba(0,210,255,0.45));
-    flex-shrink: 0;
-    -webkit-text-fill-color: initial;
   }
 
   /* Avatar: match mob-topbar__avatar size + border radius */

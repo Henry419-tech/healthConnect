@@ -105,7 +105,8 @@
     display: flex !important;
     flex-direction: column !important;
     overflow: clip !important;
-    padding-top: 72px !important;
+    /* mob-topbar: 10px gap + 50px height + safe-area + 10px breathing room */
+    padding-top: calc(72px + env(safe-area-inset-top, 0px)) !important;
   }
 
   /* Grid: single flex column — fills remaining space after topbar/riskbar/pills */
@@ -284,6 +285,9 @@
     flex-shrink: 0;
     background: transparent;
     border-bottom: none;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
   /* Top row: label on left, badge + button on right */
   .sc-mob-risk-bar__row1 {

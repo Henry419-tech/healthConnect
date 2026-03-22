@@ -186,9 +186,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
           <Menu size={22} />
         </button>
 
-        <div className="hc-topbar__logo">
+        <div className="hc-topbar__brand">
           <HCLogo size={26} />
-          <span>HealthConnect</span>
+          <div className="hc-topbar__logo">
+            <span>HealthConnect</span>
+          </div>
         </div>
 
         <div className="hc-topbar__actions">
