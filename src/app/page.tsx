@@ -13,6 +13,7 @@ import {
 import '@/styles/landing.css'
 import '@/styles/landing-light.css'
 import '@/styles/landing-footer.css'
+import '@/styles/landing-mobile-hero.css'
 
 /* ── Types ─────────────────────────────────────────────────────── */
 type Panel = 'closed' | 'signin' | 'signup'
@@ -145,6 +146,102 @@ function LandingPage() {
 
   return (
     <div className={rootCls}>
+
+      {/* ── Mobile Splash Hero (visible only ≤640px) ─────────────── */}
+      <section className="lp-mobile-splash" aria-label="Welcome">
+        {/* Ambient layers */}
+        <div className="lp-splash-bg" aria-hidden />
+        <div className="lp-splash-streaks" aria-hidden />
+
+        {/* Status bar mimic */}
+        <div className="lp-splash-statusbar" aria-hidden>
+          <span className="lp-splash-statusbar__time">
+            {mounted
+              ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : ''}
+          </span>
+          <div className="lp-splash-statusbar__icons">
+            <span className="lp-splash-statusbar__dot" />
+            <span>●●●</span>
+          </div>
+        </div>
+
+        {/* Logo */}
+        <div className="lp-splash-logo-wrap">
+          <div className="lp-splash-logo-ring">
+            {/* Use the uploaded landing.png as the logo image */}
+            <img
+              src="/landing.png"
+              alt="HealthConnect Navigator"
+              className="lp-splash-logo-img"
+              onError={(e) => {
+                /* Fallback: render the Heart icon in a styled circle */
+                const target = e.currentTarget as HTMLImageElement
+                target.style.display = 'none'
+                const fallback = target.nextElementSibling as HTMLElement
+                if (fallback) fallback.style.display = 'flex'
+              }}
+            />
+            {/* Fallback icon shown only if image fails to load */}
+            <div
+              aria-hidden
+              style={{
+                display: 'none',
+                width: 148, height: 148,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg,#050e1d 0%,#0a1a30 100%)',
+                alignItems: 'center', justifyContent: 'center',
+                position: 'relative', zIndex: 1,
+              }}
+            >
+              <Heart size={56} color="#00d4ff" />
+            </div>
+          </div>
+
+          <h1 className="lp-splash-app-name">
+            <span>HealthConnect</span>
+            <br />
+            <span>Navigator</span>
+          </h1>
+
+          <p className="lp-splash-tagline">Your health, always within reach.</p>
+        </div>
+
+        {/* Trust pills */}
+        <div className="lp-splash-pills">
+          <span className="lp-splash-pill lp-splash-pill--teal">
+            <Shield size={10} /> Encrypted
+          </span>
+          <span className="lp-splash-pill">
+            <CheckCircle size={10} /> Free forever
+          </span>
+          <span className="lp-splash-pill">
+            <Zap size={10} /> Works offline
+          </span>
+        </div>
+
+        <div className="lp-splash-spacer" />
+
+        {/* CTA buttons */}
+        <div className="lp-splash-cta">
+          <button
+            className="lp-splash-btn-primary"
+            onClick={() => open('signup')}
+          >
+            <Sparkles size={16} />
+            Create Free Account
+            <ArrowRight size={15} />
+          </button>
+          <button
+            className="lp-splash-btn-secondary"
+            onClick={() => open('signin')}
+          >
+            Sign In
+          </button>
+        </div>
+
+        <div className="lp-splash-bottom-hint">Built for Ghana</div>
+      </section>
 
       {/* Background */}
       <div className="lp-bg" aria-hidden>

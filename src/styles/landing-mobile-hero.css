@@ -1,0 +1,387 @@
+/* ================================================================
+   src/styles/landing-mobile-hero.css
+   HealthConnect Navigator — Mobile Splash Hero
+   Import AFTER landing.css
+   ================================================================ */
+
+/* ── Mobile Splash Hero (≤ 640px only) ─────────────────────────── */
+
+/* Hidden on desktop — desktop uses the standard nav + hero */
+.lp-mobile-splash {
+  display: none;
+}
+
+@media (max-width: 640px) {
+
+  /* Hide the standard desktop nav & hero on mobile */
+  .lp-nav,
+  .lp-hero {
+    display: none !important;
+  }
+
+  /* Show the mobile splash */
+  .lp-mobile-splash {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100svh;
+    position: relative;
+    z-index: 10;
+    overflow: hidden;
+    padding: 0 0 40px;
+  }
+
+  /* ── Ambient gradient layers ─────────────────────────────────── */
+  .lp-splash-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Deep radial glow from center-top */
+  .lp-splash-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 120% 55% at 50% -5%,  rgba(0,212,255,.28) 0%, transparent 60%),
+      radial-gradient(ellipse 80%  60% at 15%  80%, rgba(0,150,255,.18) 0%, transparent 55%),
+      radial-gradient(ellipse 70%  50% at 85%  70%, rgba(167,139,250,.14) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 50%  50%, rgba(4,10,22,.70) 0%, transparent 100%);
+  }
+
+  /* Animated top arc glow */
+  .lp-splash-bg::after {
+    content: '';
+    position: absolute;
+    top: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,212,255,.22) 0%, transparent 70%);
+    filter: blur(40px);
+    animation: lp-splash-pulse 4s ease-in-out infinite;
+  }
+
+  @keyframes lp-splash-pulse {
+    0%, 100% { opacity: .7; transform: translateX(-50%) scale(1); }
+    50%       { opacity: 1;  transform: translateX(-50%) scale(1.08); }
+  }
+
+  /* Diagonal streak lines for depth */
+  .lp-splash-streaks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .lp-splash-streaks::before,
+  .lp-splash-streaks::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 60%;
+    background: linear-gradient(to bottom, transparent, rgba(0,212,255,.12), transparent);
+    border-radius: 2px;
+    animation: lp-streak-fall 6s linear infinite;
+  }
+  .lp-splash-streaks::before {
+    left: 18%;
+    top: -30%;
+    animation-delay: -2s;
+    opacity: .6;
+  }
+  .lp-splash-streaks::after {
+    right: 22%;
+    top: -50%;
+    animation-delay: -4.5s;
+    opacity: .4;
+    height: 45%;
+  }
+  @keyframes lp-streak-fall {
+    0%   { transform: translateY(-10%) rotate(15deg); opacity: 0; }
+    20%  { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(110vh) rotate(15deg); opacity: 0; }
+  }
+
+  /* ── Status bar area ─────────────────────────────────────────── */
+  .lp-splash-statusbar {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,.35);
+    letter-spacing: .4px;
+  }
+  .lp-splash-statusbar__time {
+    font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,.45);
+  }
+  .lp-splash-statusbar__icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lp-splash-statusbar__dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--lp-teal, #00d4ff);
+    box-shadow: 0 0 6px rgba(0,212,255,.6);
+  }
+
+  /* ── Logo container ──────────────────────────────────────────── */
+  .lp-splash-logo-wrap {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 48px;
+    animation: lp-splash-rise .8s cubic-bezier(.22,1,.36,1) both;
+  }
+
+  /* Glowing ring behind the logo */
+  .lp-splash-logo-ring {
+    position: relative;
+    width: 168px;
+    height: 168px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lp-splash-logo-ring::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: conic-gradient(
+      from 0deg,
+      rgba(0,212,255,.55),
+      rgba(0,150,255,.30),
+      rgba(167,139,250,.25),
+      rgba(0,212,255,.55)
+    );
+    filter: blur(14px);
+    animation: lp-ring-spin 8s linear infinite;
+    opacity: .8;
+  }
+
+  @keyframes lp-ring-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .lp-splash-logo-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,212,255,.22);
+    box-shadow:
+      0 0 0 6px rgba(0,212,255,.06),
+      inset 0 0 20px rgba(0,212,255,.08);
+  }
+
+  /* The actual logo image */
+  .lp-splash-logo-img {
+    width: 148px;
+    height: 148px;
+    border-radius: 50%;
+    object-fit: cover;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 28px rgba(0,212,255,.50));
+    animation: lp-logo-float 5s ease-in-out infinite;
+  }
+
+  @keyframes lp-logo-float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-7px); }
+  }
+
+  /* App name beneath logo */
+  .lp-splash-app-name {
+    margin-top: 22px;
+    font-family: 'Outfit', 'DM Sans', sans-serif;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -0.8px;
+    text-align: center;
+    animation: lp-splash-rise .9s .1s cubic-bezier(.22,1,.36,1) both;
+  }
+  .lp-splash-app-name span:first-child {
+    background: linear-gradient(90deg, #00d4ff, #00a8ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .lp-splash-app-name span:last-child {
+    color: rgba(255,255,255,.92);
+  }
+
+  .lp-splash-tagline {
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,.42);
+    text-align: center;
+    letter-spacing: .2px;
+    animation: lp-splash-rise .9s .2s cubic-bezier(.22,1,.36,1) both;
+  }
+
+  /* ── Trust pills row ─────────────────────────────────────────── */
+  .lp-splash-pills {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0 24px;
+    animation: lp-splash-rise .9s .3s cubic-bezier(.22,1,.36,1) both;
+  }
+  .lp-splash-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,.48);
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.09);
+    padding: 5px 11px;
+    border-radius: 20px;
+    letter-spacing: .2px;
+  }
+  .lp-splash-pill svg { flex-shrink: 0; }
+  .lp-splash-pill--teal {
+    color: rgba(0,212,255,.75);
+    background: rgba(0,212,255,.07);
+    border-color: rgba(0,212,255,.15);
+  }
+
+  /* ── Spacer to push buttons toward bottom ────────────────────── */
+  .lp-splash-spacer { flex: 1; min-height: 32px; }
+
+  /* ── CTA buttons ─────────────────────────────────────────────── */
+  .lp-splash-cta {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    padding: 0 28px;
+    animation: lp-splash-rise .9s .45s cubic-bezier(.22,1,.36,1) both;
+  }
+
+  /* Primary — Get Started */
+  .lp-splash-btn-primary {
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: -.1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 60%, #006fa8 100%);
+    color: #030c18;
+    box-shadow:
+      0 6px 30px rgba(0,212,255,.40),
+      0 2px 8px rgba(0,0,0,.30),
+      inset 0 1px 0 rgba(255,255,255,.30);
+    transition: all .22s;
+  }
+  .lp-splash-btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent);
+    transition: left .45s;
+  }
+  .lp-splash-btn-primary:hover::before,
+  .lp-splash-btn-primary:active::before { left: 100%; }
+  .lp-splash-btn-primary:active {
+    transform: scale(.98);
+    box-shadow: 0 3px 16px rgba(0,212,255,.35);
+  }
+
+  /* Secondary — Sign In */
+  .lp-splash-btn-secondary {
+    width: 100%;
+    padding: 15px 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,.14);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(255,255,255,.06);
+    backdrop-filter: blur(12px);
+    color: rgba(255,255,255,.82);
+    transition: all .22s;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .lp-splash-btn-secondary:active {
+    background: rgba(255,255,255,.10);
+    transform: scale(.98);
+  }
+
+  /* ── Bottom safe area hint ───────────────────────────────────── */
+  .lp-splash-bottom-hint {
+    position: relative;
+    z-index: 10;
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: rgba(255,255,255,.22);
+    font-weight: 500;
+    animation: lp-splash-rise .9s .55s cubic-bezier(.22,1,.36,1) both;
+  }
+  .lp-splash-bottom-hint::before,
+  .lp-splash-bottom-hint::after {
+    content: '';
+    height: 1px;
+    width: 32px;
+    background: rgba(255,255,255,.10);
+  }
+
+  /* ── Keyframes ───────────────────────────────────────────────── */
+  @keyframes lp-splash-rise {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+}
+
+/* On wider screens make absolutely sure the splash is hidden */
+@media (min-width: 641px) {
+  .lp-mobile-splash { display: none !important; }
+}
