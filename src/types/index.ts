@@ -2,7 +2,6 @@ export interface User {
   id: string
   name: string | null
   email: string
-  phone: string | null
   emergencyContact: string | null
   createdAt: Date
   updatedAt: Date
@@ -25,30 +24,12 @@ export interface Facility {
   distance?: number
 }
 
-export interface SymptomAssessment {
-  id: string
-  userId: string
-  symptoms: string[]
-  assessmentResult: string
-  riskLevel: RiskLevel
-  recommendations: Recommendation[]
-  createdAt: Date
-}
-
 export interface EmergencyContact {
   id: string
   name: string
   phone: string
   relationship: string
   priority: number
-}
-
-export interface Recommendation {
-  type: 'facility' | 'action' | 'medication'
-  title: string
-  description: string
-  urgency: 'immediate' | 'within_24h' | 'within_week' | 'routine'
-  facilityType?: FacilityType
 }
 
 export enum FacilityType {

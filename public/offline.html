@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You're offline — HealthConnect Navigator</title>
+  <style>
+    :root {
+      --teal: #14b8a6;
+      --bg:   #0f1117;
+      --card: #1a1d27;
+      --text: #e2e8f0;
+      --text2: #94a3b8;
+      --border: rgba(255,255,255,.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100dvh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 36px 28px;
+      max-width: 420px; width: 100%; text-align: center;
+    }
+    .icon {
+      width: 64px; height: 64px; border-radius: 16px;
+      background: color-mix(in srgb, var(--teal) 15%, transparent);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .icon svg { stroke: var(--teal); }
+    h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 0.9rem; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+    .retry-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 11px 22px; border-radius: 10px;
+      background: var(--teal); color: #fff;
+      font-weight: 600; font-size: 0.92rem; border: none;
+      cursor: pointer; text-decoration: none;
+    }
+    .retry-btn:hover { opacity: .88; }
+
+    /* Emergency quick-access — visible offline */
+    .emergency-box {
+      margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;
+    }
+    .emergency-box h2 { font-size: 0.85rem; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .em-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .em-btn {
+      padding: 10px 8px; border-radius: 10px;
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      color: var(--text); font-size: 0.82rem; font-weight: 500;
+      text-decoration: none; text-align: center;
+    }
+    .em-btn:hover { background: rgba(255,255,255,.07); }
+    .em-btn--red { border-color: rgba(239,68,68,.3); color: #f87171; }
+    .em-btn--red:hover { background: rgba(239,68,68,.08); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+    <h1>You're offline</h1>
+    <p>HealthConnect Navigator can't reach the internet right now. Check your connection and try again.</p>
+    <button class="retry-btn" onclick="window.location.reload()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Try again
+    </button>
+
+    <div class="emergency-box">
+      <h2>Emergency contacts (Ghana)</h2>
+      <div class="em-grid">
+        <a class="em-btn em-btn--red" href="tel:999">🚨 Police — 999</a>
+        <a class="em-btn em-btn--red" href="tel:193">🚒 Fire — 193</a>
+        <a class="em-btn em-btn--red" href="tel:112">🚑 Ambulance — 112</a>
+        <a class="em-btn em-btn--red" href="tel:0302773906">🏥 Korle Bu — 030 277 3906</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

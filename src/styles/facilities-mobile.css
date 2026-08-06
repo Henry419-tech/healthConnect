@@ -58,57 +58,75 @@
     max-width: 100% !important;
   }
 
-  /* Hide the desktop page header on mobile (mob-topbar replaces it) */
-  .facility-finder-page-header { display: none !important; }
+  /* Hide desktop topbar on mobile — mob-topbar handles navigation */
+  .db-topbar { display: none !important; }
+  /* Page header — scoped to facility-finder so profile page is unaffected */
+  /* Page header — compact on mobile, scoped to facility-finder only */
+  .facility-finder .pr-page-header {
+    padding:        12px 0 8px !important;
+    flex-direction: column !important;
+    align-items:    flex-start !important;
+    gap:            8px !important;
+  }
+  .facility-finder .pr-page-header__title {
+    font-size:      clamp(22px, 7vw, 28px) !important;
+    letter-spacing: -0.8px !important;
+  }
+  .facility-finder .pr-page-header__sub {
+    font-size: 11px !important;
+    padding:   4px 10px 4px 8px !important;
+  }
+  .facility-finder .pr-page-header__actions {
+    width:           100% !important;
+    justify-content: flex-end !important;
+  }
 
   /* ════════════════════════════════════════════════════════════
-     LOCATION CONFIRMATION — new class names
+     LOCATION CARD — mobile overrides
   ════════════════════════════════════════════════════════════ */
   .loc-confirmation-wrap {
-    min-height: 58px !important; /* prevents jump when card appears */
+    min-height: 72px !important;
   }
-  .loc-confirmation {
-    padding: 10px 14px !important;
-    border-radius: 13px !important;
-    gap: 10px !important;
+  .loc-confirmation-wrap--compact {
+    min-height: 0 !important;
   }
-  .loc-confirmation__icon {
-    width: 34px !important;
-    height: 34px !important;
-    border-radius: 10px !important;
+  .loc-card {
+    padding: 14px 14px 12px !important;
+    border-radius: 16px !important;
+    gap: 12px !important;
+  }
+  /* Hide radar rings on mobile — save space, keep it tight */
+  .loc-card__rings { display: none !important; }
+  .loc-card__pin {
+    width: 42px !important; height: 42px !important;
+    border-radius: 12px !important;
     flex-shrink: 0 !important;
   }
-  .loc-confirmation__title  { font-size: 13px !important; font-weight: 700 !important; }
-  .loc-confirmation__detail { font-size: 11.5px !important; }
-  .loc-confirmation__acc    { font-size: 10.5px !important; }
-  .loc-confirmation__refresh {
-    padding: 6px 11px !important;
+  .loc-card__city   { font-size: 15px !important; }
+  .loc-card__coords { font-size: 10.5px !important; margin-bottom: 8px !important; }
+  .loc-card__acc-label { display: none !important; }
+  .loc-card__actions  { gap: 8px !important; }
+  .loc-card__refresh {
+    padding: 7px 12px !important;
     font-size: 11.5px !important;
-    border-radius: 8px !important;
+    border-radius: 9px !important;
   }
 
   /* ════════════════════════════════════════════════════════════
-     LOCATION PERMISSION BANNER — new class names
+     LOCATION ACCESS BANNER — mobile (lba)
   ════════════════════════════════════════════════════════════ */
-  .loc-banner {
-    padding: 16px !important;
-    border-radius: 16px !important;
-  }
-  .loc-banner__top    { gap: 12px !important; margin-bottom: 12px !important; }
-  .loc-banner__icon-wrap {
-    width: 40px !important; height: 40px !important;
-    border-radius: 11px !important; flex-shrink: 0 !important;
-  }
-  .loc-banner__title  { font-size: 14px !important; }
-  .loc-banner__sub    { font-size: 12px !important; }
-  .loc-banner__benefits { gap: 6px !important; margin-bottom: 14px !important; }
-  .loc-banner__benefit  { font-size: 11px !important; padding: 3px 9px !important; }
-  .loc-banner__actions  { gap: 8px !important; flex-wrap: wrap !important; }
-  .loc-banner__btn-primary,
-  .loc-banner__btn-ghost {
-    flex: 1 !important; justify-content: center !important;
-    padding: 11px 14px !important; font-size: 13px !important;
-  }
+  .lba__inner     { grid-template-columns: 1fr !important; }
+  .lba__visual    { display: none !important; }
+  .lba__content   { padding: 16px 16px 18px !important; gap: 13px !important; }
+  .lba__ring--2,
+  .lba__ring--3   { display: none !important; }
+  .lba__icon-wrap { width: 44px !important; height: 44px !important; border-radius: 12px !important; }
+  .lba__title     { font-size: 17px !important; }
+  .lba__sub       { font-size: 12px !important; }
+  .lba__chip      { font-size: 10.5px !important; padding: 4px 9px !important; }
+  .lba__actions   { flex-wrap: wrap !important; gap: 8px !important; }
+  .lba__btn-primary,
+  .lba__btn-ghost { flex: 1 !important; justify-content: center !important; padding: 11px 14px !important; }
 
   /* ════════════════════════════════════════════════════════════
      SEARCH + FILTERS BAR
@@ -236,12 +254,20 @@
   /* Results row */
   .facility-finder-view-controls {
     flex-direction: row !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
+    row-gap: 8px !important;
   }
   .results-count { font-size: 20px !important; }
   .results-label { font-size: 12px !important; }
+  .facility-finder-add-link {
+    font-size: 12px !important;
+    order: 3 !important;
+    flex-basis: 100% !important;
+  }
   .facility-finder-view-toggle {
     padding: 3px !important; border-radius: 11px !important; gap: 2px !important;
+    margin-left: auto !important;
   }
   .facility-finder-view-btn {
     padding: 7px 14px !important; font-size: 12.5px !important;
@@ -271,13 +297,13 @@
   .facility-finder-map-container > div:first-child,
   .facility-finder-map {
     width: 100% !important;
-    height: 55vh !important;
-    min-height: 380px !important;
-    max-height: 560px !important;
-    border-radius: 18px !important;
+    height: 52vh !important;
+    min-height: 340px !important;
+    max-height: 520px !important;
+    border-radius: 16px !important;
     overflow: hidden !important;
     border: 1px solid var(--hc-border) !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.10) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
   }
 
   /* Results sheet below map */
@@ -299,8 +325,9 @@
     font-size: 14px !important; font-weight: 800 !important;
   }
   .facility-finder-results-list {
-    max-height: 340px !important;
+    max-height: 260px !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     padding: 8px !important;
     gap: 6px !important;
   }
@@ -413,29 +440,27 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     FACILITY DETAIL MODAL — bottom sheet on mobile
-     The modal overlay covers inset:0, but the mob-tab-bar sits
-     at z-index:150 at the bottom. We push the sheet up by the
-     tab bar height (60px) so the action buttons are never hidden.
+     FACILITY DETAIL PANEL — bottom sheet on mobile
+     Sits above the tab bar, shows map in top ~42% of screen.
   ════════════════════════════════════════════════════════════ */
-  .facility-detail-modal {
-    padding: 0 !important;
-    align-items: flex-end !important;
-    /* Inset shrinks the overlay bottom so the sheet sits above the tab bar */
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  .facility-detail-panel {
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    height: 56vh !important;
   }
   .facility-detail-content {
+    inset: 0 !important;
     border-radius: 20px 20px 0 0 !important;
-    /* height gives the flex column a concrete anchor so flex:1 on the
-       scroll wrapper and flex-shrink:0 on the action bar both work.  */
-    height: 75vh !important;
-    max-height: 75vh !important;
-    width: 100% !important; max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
     animation: sheetSlideUp 0.28s var(--hc-ease) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.24) !important;
   }
   /* Scrollable area — grows to fill all space above the action bar */
   .facility-detail-scroll {
@@ -498,6 +523,28 @@
   }
 
   /* ════════════════════════════════════════════════════════════
+     SEARCH DROPDOWN — mobile
+  ════════════════════════════════════════════════════════════ */
+  .search-dropdown {
+    border-radius: 14px !important;
+    max-height: 280px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .search-dropdown__item {
+    padding: 11px 14px !important;
+    gap: 10px !important;
+    min-height: 52px !important; /* thumb-friendly tap target */
+  }
+  .search-dropdown__icon {
+    width: 36px !important; height: 36px !important; flex-shrink: 0 !important;
+  }
+  .search-dropdown__name  { font-size: 13px !important; }
+  .search-dropdown__meta  { font-size: 11px !important; }
+  /* Always show "View on map" on mobile — no hover state */
+  .search-dropdown__action { opacity: 1 !important; font-size: 11px !important; }
+
+  /* ════════════════════════════════════════════════════════════
      BOTTOM TAB BAR  — facilities page owns its own mob-tab-bar
      mob-topbar / mob-tab-bar are styled in dashboard-header.css.
      hc-layout--has-mob-topbar (set on DashboardLayout in page.tsx)
@@ -533,7 +580,7 @@
   .dashboard-footer { display: none !important; }
 
   /* ════════════════════════════════════════════════════════════
-     BOTTOM TAB BAR SOS — uses shared mob-tab-btn--sos style
+     BOTTOM TAB BAR EMERGENCY TAB — uses shared mob-tab-btn--emergency style
      from dashboard-header.css. No overrides needed here.
   ════════════════════════════════════════════════════════════ */
 

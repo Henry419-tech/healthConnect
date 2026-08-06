@@ -79,225 +79,111 @@
   color: rgba(10,22,40,.92);
 }
 
-/* ── Background ──────────────────────────────────────────────── */
+/* ── Additional token overrides for new tokens (landing.css rewrite) ──
+   Everything below (hero, background, how-it-works, feed, cards) is
+   written against var(--lp-*) tokens rather than hardcoded hex, so most
+   of it adapts for free once these token values flip. Only a handful of
+   hardcoded #fff text colors and the two decorative background layers
+   need explicit overrides below that. ─────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  .lp-root:not(.lp-root--force-dark) .lp-bg__mesh {
-    background:
-      radial-gradient(ellipse 65% 55% at 12% 18%, rgba(0,153,187,.12) 0%, transparent 60%),
-      radial-gradient(ellipse 55% 65% at 88% 78%, rgba(224,48,78,.07) 0%, transparent 60%),
-      radial-gradient(ellipse 90% 80% at 50% 50%, rgba(220,234,250,.92) 0%, transparent 100%);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-bg__grid {
-    background-image:
-      linear-gradient(rgba(0,100,160,.028) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,100,160,.028) 1px, transparent 1px);
-    background-size: 52px 52px;
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--1 {
-    background: radial-gradient(circle, rgba(0,153,187,.14), transparent 70%);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--2 {
-    background: radial-gradient(circle, rgba(224,48,78,.09), transparent 70%);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-bg__orb--3 {
-    background: radial-gradient(circle, rgba(124,92,252,.07), transparent 70%);
+  .lp-root:not(.lp-root--force-dark) {
+    --lp-border2:     rgba(10,22,40,.14);
+    --lp-teal-border: rgba(0,153,187,.28);
+    --lp-red-glow:    rgba(224,48,78,.18);
+    --lp-violet-glow: rgba(124,92,252,.18);
+    --lp-amber-glow:  rgba(217,119,6,.18);
   }
 }
-.lp-root--light-mode .lp-bg__mesh {
-  background:
-    radial-gradient(ellipse 65% 55% at 12% 18%, rgba(0,153,187,.12) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 65% at 88% 78%, rgba(224,48,78,.07) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 80% at 50% 50%, rgba(220,234,250,.92) 0%, transparent 100%);
-}
-.lp-root--light-mode .lp-bg__grid {
-  background-image:
-    linear-gradient(rgba(0,100,160,.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,100,160,.028) 1px, transparent 1px);
-  background-size: 52px 52px;
-}
-.lp-root--light-mode .lp-bg__orb--1 {
-  background: radial-gradient(circle, rgba(0,153,187,.14), transparent 70%);
-}
-.lp-root--light-mode .lp-bg__orb--2 {
-  background: radial-gradient(circle, rgba(224,48,78,.09), transparent 70%);
-}
-.lp-root--light-mode .lp-bg__orb--3 {
-  background: radial-gradient(circle, rgba(124,92,252,.07), transparent 70%);
+.lp-root--light-mode {
+  --lp-border2:     rgba(10,22,40,.14);
+  --lp-teal-border: rgba(0,153,187,.28);
+  --lp-red-glow:    rgba(224,48,78,.18);
+  --lp-violet-glow: rgba(124,92,252,.18);
+  --lp-amber-glow:  rgba(217,119,6,.18);
 }
 
-/* ── Nav ─────────────────────────────────────────────────────── */
+/* ── Background ──────────────────────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  .lp-root:not(.lp-root--force-dark) .lp-nav {
-    background: rgba(240,246,255,.82);
-    border-bottom-color: rgba(10,22,40,.07);
+  .lp-root:not(.lp-root--force-dark) .lp-bg__field {
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 0%, rgba(0,153,187,.08) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 45% at 100% 100%, rgba(124,92,252,.05) 0%, transparent 60%);
   }
-  .lp-root:not(.lp-root--force-dark) .lp-brand__name {
-    color: #0a1628;
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-brand__tag {
-    color: #0099bb;
-    background: rgba(0,153,187,.10);
-    border-color: rgba(0,153,187,.20);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-brand__icon {
-    color: #fff;
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost {
-    color: rgba(10,22,40,.60);
-    border-color: rgba(10,22,40,.12);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost:hover {
-    color: #0a1628;
-    background: rgba(10,22,40,.05);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--outline {
-    color: #0a1628;
-    border-color: rgba(10,22,40,.20);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--outline:hover {
-    background: rgba(10,22,40,.04);
-    border-color: rgba(10,22,40,.35);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--primary {
-    background: #0099bb;
-    color: #fff;
-    box-shadow: 0 4px 18px rgba(0,153,187,.28);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-btn--primary:hover {
-    box-shadow: 0 7px 24px rgba(0,153,187,.35);
+  .lp-root:not(.lp-root--force-dark) .lp-bg__contours {
+    background-image:
+      repeating-linear-gradient(178deg, transparent 0 64px, rgba(0,100,160,.05) 64px 65px, transparent 65px 130px, rgba(0,100,160,.03) 130px 131px),
+      repeating-linear-gradient(92deg, transparent 0 96px, rgba(0,100,160,.035) 96px 97px);
   }
 }
-.lp-root--light-mode .lp-nav {
-  background: rgba(240,246,255,.82);
-  border-bottom-color: rgba(10,22,40,.07);
+.lp-root--light-mode .lp-bg__field {
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 0%, rgba(0,153,187,.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 45% at 100% 100%, rgba(124,92,252,.05) 0%, transparent 60%);
 }
-.lp-root--light-mode .lp-brand__name  { color: #0a1628; }
-.lp-root--light-mode .lp-brand__tag   { color: #0099bb; background: rgba(0,153,187,.10); border-color: rgba(0,153,187,.20); }
-.lp-root--light-mode .lp-brand__icon  { color: #fff; }
-.lp-root--light-mode .lp-btn--ghost   { color: rgba(10,22,40,.60); border-color: rgba(10,22,40,.12); }
+.lp-root--light-mode .lp-bg__contours {
+  background-image:
+    repeating-linear-gradient(178deg, transparent 0 64px, rgba(0,100,160,.05) 64px 65px, transparent 65px 130px, rgba(0,100,160,.03) 130px 131px),
+    repeating-linear-gradient(92deg, transparent 0 96px, rgba(0,100,160,.035) 96px 97px);
+}
+
+/* ── Nav / brand ─────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .lp-root:not(.lp-root--force-dark) .lp-nav { background: rgba(240,246,255,.82); border-bottom-color: rgba(10,22,40,.07); }
+  .lp-root:not(.lp-root--force-dark) .lp-brand__name { color: #0a1628; }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost { color: rgba(10,22,40,.60); border-color: rgba(10,22,40,.12); }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--ghost:hover { color: #0a1628; background: rgba(10,22,40,.05); }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--outline { color: #0a1628; border-color: rgba(10,22,40,.20); }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--outline:hover { background: rgba(10,22,40,.04); border-color: rgba(10,22,40,.35); }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--primary { background: #0099bb; color: #fff; box-shadow: 0 4px 18px rgba(0,153,187,.28); }
+  .lp-root:not(.lp-root--force-dark) .lp-btn--primary:hover { box-shadow: 0 7px 24px rgba(0,153,187,.35); }
+  .lp-root:not(.lp-root--force-dark) .lp-mobile-mast__name { color: #0a1628; }
+  .lp-root:not(.lp-root--force-dark) .lp-theme-fab {
+    background: rgba(0,153,187,.09); border-color: rgba(0,153,187,.22); color: #0099bb;
+  }
+  .lp-root:not(.lp-root--force-dark) .lp-theme-fab:active { background: rgba(0,153,187,.16); }
+}
+.lp-root--light-mode .lp-nav { background: rgba(240,246,255,.82); border-bottom-color: rgba(10,22,40,.07); }
+.lp-root--light-mode .lp-brand__name { color: #0a1628; }
+.lp-root--light-mode .lp-btn--ghost { color: rgba(10,22,40,.60); border-color: rgba(10,22,40,.12); }
 .lp-root--light-mode .lp-btn--ghost:hover { color: #0a1628; background: rgba(10,22,40,.05); }
 .lp-root--light-mode .lp-btn--outline { color: #0a1628; border-color: rgba(10,22,40,.20); }
 .lp-root--light-mode .lp-btn--outline:hover { background: rgba(10,22,40,.04); border-color: rgba(10,22,40,.35); }
 .lp-root--light-mode .lp-btn--primary { background: #0099bb; color: #fff; box-shadow: 0 4px 18px rgba(0,153,187,.28); }
 .lp-root--light-mode .lp-btn--primary:hover { box-shadow: 0 7px 24px rgba(0,153,187,.35); }
-
-/* ── Hero ─────────────────────────────────────────────────────── */
-@media (prefers-color-scheme: light) {
-  .lp-root:not(.lp-root--force-dark) .lp-eyebrow    { color: #0099bb; }
-  .lp-root:not(.lp-root--force-dark) .lp-live-dot   { background: #0099bb; box-shadow: 0 0 9px #0099bb; }
-  .lp-root:not(.lp-root--force-dark) .lp-hero__title { color: #0a1628; }
-  .lp-root:not(.lp-root--force-dark) .lp-hero__title em { color: #0099bb; }
-  .lp-root:not(.lp-root--force-dark) .lp-hero__sub  { color: rgba(10,22,40,.55); }
-  .lp-root:not(.lp-root--force-dark) .lp-trust-pill { color: rgba(10,22,40,.36); }
+.lp-root--light-mode .lp-mobile-mast__name { color: #0a1628; }
+.lp-root--light-mode .lp-theme-fab {
+  background: rgba(0,153,187,.09); border-color: rgba(0,153,187,.22); color: #0099bb;
 }
-.lp-root--light-mode .lp-eyebrow     { color: #0099bb; }
-.lp-root--light-mode .lp-live-dot    { background: #0099bb; box-shadow: 0 0 9px #0099bb; }
-.lp-root--light-mode .lp-hero__title { color: #0a1628; }
-.lp-root--light-mode .lp-hero__title em { color: #0099bb; }
-.lp-root--light-mode .lp-hero__sub   { color: rgba(10,22,40,.55); }
-.lp-root--light-mode .lp-trust-pill  { color: rgba(10,22,40,.36); }
+.lp-root--light-mode .lp-theme-fab:active { background: rgba(0,153,187,.16); }
 
-/* ── Feature Cards ───────────────────────────────────────────── */
+/* ── Hero / signature / feed ─────────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  .lp-root:not(.lp-root--force-dark) .lp-cards__label { color: rgba(10,22,40,.36); }
-
-  .lp-root:not(.lp-root--force-dark) .lp-card {
-    background: rgba(255,255,255,.72);
-    border-color: rgba(10,22,40,.08);
-    box-shadow: 0 2px 14px rgba(10,22,40,.05);
-    backdrop-filter: blur(8px);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-card:focus-visible { outline-color: #0099bb; }
-
-  .lp-root:not(.lp-root--force-dark) .lp-card--teal   { border-color: rgba(0,153,187,.15); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--violet { border-color: rgba(124,92,252,.15); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--red    { border-color: rgba(224,48,78,.15); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--amber  { border-color: rgba(217,119,6,.15); }
-
-  .lp-root:not(.lp-root--force-dark) .lp-card--teal::before   { background: linear-gradient(140deg, rgba(0,153,187,.07), transparent 60%); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--violet::before { background: linear-gradient(140deg, rgba(124,92,252,.07), transparent 60%); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--red::before    { background: linear-gradient(140deg, rgba(224,48,78,.07), transparent 60%); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--amber::before  { background: linear-gradient(140deg, rgba(217,119,6,.07), transparent 60%); }
-
-  .lp-root:not(.lp-root--force-dark) .lp-card--teal:hover   { border-color: rgba(0,153,187,.40);   box-shadow: 0 18px 44px rgba(0,153,187,.10); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--violet:hover { border-color: rgba(124,92,252,.40); box-shadow: 0 18px 44px rgba(124,92,252,.10); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--red:hover    { border-color: rgba(224,48,78,.40);  box-shadow: 0 18px 44px rgba(224,48,78,.10); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--amber:hover  { border-color: rgba(217,119,6,.40);  box-shadow: 0 18px 44px rgba(217,119,6,.10); }
-
-  .lp-root:not(.lp-root--force-dark) .lp-card--featured {
-    border-color: rgba(124,92,252,.28);
-    background: rgba(255,255,255,.85);
-  }
-
-  /* Icon containers */
-  .lp-root:not(.lp-root--force-dark) .lp-card--teal   .lp-card__icon { background: rgba(0,153,187,.10);   color: #0099bb;  border-color: rgba(0,153,187,.20); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--violet .lp-card__icon { background: rgba(124,92,252,.10); color: #7c5cfc; border-color: rgba(124,92,252,.20); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--red    .lp-card__icon { background: rgba(224,48,78,.09);  color: #e0304e; border-color: rgba(224,48,78,.18); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--amber  .lp-card__icon { background: rgba(217,119,6,.10);  color: #d97706; border-color: rgba(217,119,6,.20); }
-
-  /* Badges */
-  .lp-root:not(.lp-root--force-dark) .lp-card--teal   .lp-card__badge { background: rgba(0,153,187,.08);   color: #0099bb;  border-color: rgba(0,153,187,.16); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--violet .lp-card__badge { background: rgba(124,92,252,.08); color: #7c5cfc; border-color: rgba(124,92,252,.16); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--red    .lp-card__badge { background: rgba(224,48,78,.08);  color: #e0304e; border-color: rgba(224,48,78,.16); }
-  .lp-root:not(.lp-root--force-dark) .lp-card--amber  .lp-card__badge { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.16); }
-
-  /* Card text */
+  .lp-root:not(.lp-root--force-dark) .lp-hero__title,
+  .lp-root:not(.lp-root--force-dark) .lp-how__title,
+  .lp-root:not(.lp-root--force-dark) .lp-how__heading,
+  .lp-root:not(.lp-root--force-dark) .lp-feed__title,
   .lp-root:not(.lp-root--force-dark) .lp-card__title { color: #0a1628; }
-  .lp-root:not(.lp-root--force-dark) .lp-card__sub   { color: rgba(10,22,40,.55); }
-  .lp-root:not(.lp-root--force-dark) .lp-card__desc  { color: rgba(10,22,40,.38); }
-  .lp-root:not(.lp-root--force-dark) .lp-card__arrow { color: rgba(10,22,40,.28); }
-  .lp-root:not(.lp-root--force-dark) .lp-card:hover .lp-card__arrow { color: rgba(10,22,40,.55); }
+  .lp-root:not(.lp-root--force-dark) .lp-feed__slide { box-shadow: 0 16px 44px rgba(10,22,40,.10), inset 0 1px 0 rgba(255,255,255,.6); }
+  .lp-root:not(.lp-root--force-dark) .lp-feed__chip { color: rgba(10,22,40,.55); }
 }
-
-.lp-root--light-mode .lp-cards__label { color: rgba(10,22,40,.36); }
-.lp-root--light-mode .lp-card {
-  background: rgba(255,255,255,.72);
-  border-color: rgba(10,22,40,.08);
-  box-shadow: 0 2px 14px rgba(10,22,40,.05);
-  backdrop-filter: blur(8px);
-}
-.lp-root--light-mode .lp-card:focus-visible { outline-color: #0099bb; }
-.lp-root--light-mode .lp-card--teal   { border-color: rgba(0,153,187,.15); }
-.lp-root--light-mode .lp-card--violet { border-color: rgba(124,92,252,.15); }
-.lp-root--light-mode .lp-card--red    { border-color: rgba(224,48,78,.15); }
-.lp-root--light-mode .lp-card--amber  { border-color: rgba(217,119,6,.15); }
-.lp-root--light-mode .lp-card--teal::before   { background: linear-gradient(140deg, rgba(0,153,187,.07), transparent 60%); }
-.lp-root--light-mode .lp-card--violet::before { background: linear-gradient(140deg, rgba(124,92,252,.07), transparent 60%); }
-.lp-root--light-mode .lp-card--red::before    { background: linear-gradient(140deg, rgba(224,48,78,.07), transparent 60%); }
-.lp-root--light-mode .lp-card--amber::before  { background: linear-gradient(140deg, rgba(217,119,6,.07), transparent 60%); }
-.lp-root--light-mode .lp-card--teal:hover   { border-color: rgba(0,153,187,.40);   box-shadow: 0 18px 44px rgba(0,153,187,.10); }
-.lp-root--light-mode .lp-card--violet:hover { border-color: rgba(124,92,252,.40); box-shadow: 0 18px 44px rgba(124,92,252,.10); }
-.lp-root--light-mode .lp-card--red:hover    { border-color: rgba(224,48,78,.40);  box-shadow: 0 18px 44px rgba(224,48,78,.10); }
-.lp-root--light-mode .lp-card--amber:hover  { border-color: rgba(217,119,6,.40);  box-shadow: 0 18px 44px rgba(217,119,6,.10); }
-.lp-root--light-mode .lp-card--featured     { border-color: rgba(124,92,252,.28); background: rgba(255,255,255,.85); }
-.lp-root--light-mode .lp-card--teal   .lp-card__icon { background: rgba(0,153,187,.10);   color: #0099bb;  border-color: rgba(0,153,187,.20); }
-.lp-root--light-mode .lp-card--violet .lp-card__icon { background: rgba(124,92,252,.10); color: #7c5cfc; border-color: rgba(124,92,252,.20); }
-.lp-root--light-mode .lp-card--red    .lp-card__icon { background: rgba(224,48,78,.09);  color: #e0304e; border-color: rgba(224,48,78,.18); }
-.lp-root--light-mode .lp-card--amber  .lp-card__icon { background: rgba(217,119,6,.10);  color: #d97706; border-color: rgba(217,119,6,.20); }
-.lp-root--light-mode .lp-card--teal   .lp-card__badge { background: rgba(0,153,187,.08);   color: #0099bb;  border-color: rgba(0,153,187,.16); }
-.lp-root--light-mode .lp-card--violet .lp-card__badge { background: rgba(124,92,252,.08); color: #7c5cfc; border-color: rgba(124,92,252,.16); }
-.lp-root--light-mode .lp-card--red    .lp-card__badge { background: rgba(224,48,78,.08);  color: #e0304e; border-color: rgba(224,48,78,.16); }
-.lp-root--light-mode .lp-card--amber  .lp-card__badge { background: rgba(217,119,6,.08);  color: #d97706; border-color: rgba(217,119,6,.16); }
+.lp-root--light-mode .lp-hero__title,
+.lp-root--light-mode .lp-how__title,
+.lp-root--light-mode .lp-how__heading,
+.lp-root--light-mode .lp-feed__title,
 .lp-root--light-mode .lp-card__title { color: #0a1628; }
-.lp-root--light-mode .lp-card__sub   { color: rgba(10,22,40,.55); }
-.lp-root--light-mode .lp-card__desc  { color: rgba(10,22,40,.38); }
-.lp-root--light-mode .lp-card__arrow { color: rgba(10,22,40,.28); }
-.lp-root--light-mode .lp-card:hover .lp-card__arrow { color: rgba(10,22,40,.55); }
+.lp-root--light-mode .lp-feed__slide { box-shadow: 0 16px 44px rgba(10,22,40,.10), inset 0 1px 0 rgba(255,255,255,.6); }
+.lp-root--light-mode .lp-feed__chip { color: rgba(10,22,40,.55); }
 
-/* ── Stats Bar ───────────────────────────────────────────────── */
+/* ── Feature cards ───────────────────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  .lp-root:not(.lp-root--force-dark) .lp-stats {
-    border-top-color: rgba(10,22,40,.07);
-    border-bottom-color: rgba(10,22,40,.07);
-  }
-  .lp-root:not(.lp-root--force-dark) .lp-stat { border-right-color: rgba(10,22,40,.07); }
-  .lp-root:not(.lp-root--force-dark) .lp-stat__n { color: #0a1628; }
-  .lp-root:not(.lp-root--force-dark) .lp-stat__l { color: rgba(10,22,40,.38); }
+  .lp-root:not(.lp-root--force-dark) .lp-card { box-shadow: 0 2px 14px rgba(10,22,40,.05); }
+  .lp-root:not(.lp-root--force-dark) .lp-card:focus-visible { outline-color: #0099bb; }
+  .lp-root:not(.lp-root--force-dark) .lp-card--featured { background: rgba(255,255,255,.7); }
 }
-.lp-root--light-mode .lp-stats         { border-top-color: rgba(10,22,40,.07); border-bottom-color: rgba(10,22,40,.07); }
-.lp-root--light-mode .lp-stat          { border-right-color: rgba(10,22,40,.07); }
-.lp-root--light-mode .lp-stat__n       { color: #0a1628; }
-.lp-root--light-mode .lp-stat__l       { color: rgba(10,22,40,.38); }
+.lp-root--light-mode .lp-card { box-shadow: 0 2px 14px rgba(10,22,40,.05); }
+.lp-root--light-mode .lp-card:focus-visible { outline-color: #0099bb; }
+.lp-root--light-mode .lp-card--featured { background: rgba(255,255,255,.7); }
+
 
 /* ── Footer ──────────────────────────────────────────────────── */
 @media (prefers-color-scheme: light) {
@@ -365,11 +251,11 @@
     box-shadow: 0 8px 22px rgba(0,153,187,.30);
   }
 
-  /* Eye icon (password toggle) — must always be visible */
-  .lp-root:not(.lp-root--force-dark) .lp-input-toggle {
+  /* Eye icon (password toggle) — must always be visible, scoped to light panel only */
+  .lp-root:not(.lp-root--force-dark) .lp-input-toggle:not(.lp-auth-panel--dark .lp-input-toggle) {
     color: #475569;
   }
-  .lp-root:not(.lp-root--force-dark) .lp-input-toggle:hover {
+  .lp-root:not(.lp-root--force-dark) .lp-input-toggle:not(.lp-auth-panel--dark .lp-input-toggle):hover {
     color: #0f172a;
   }
 
@@ -399,9 +285,9 @@
 .lp-root--light-mode .lp-submit--signup { background: linear-gradient(135deg, #0077a0, #0099bb); color: #fff; }
 .lp-root--light-mode .lp-submit--signup:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0,153,187,.30); }
 
-/* Eye icon always visible in light mode */
-.lp-root--light-mode .lp-input-toggle       { color: #475569; }
-.lp-root--light-mode .lp-input-toggle:hover { color: #0f172a; }
+/* Eye icon always visible in light mode — scoped to exclude dark auth panel */
+.lp-root--light-mode .lp-input-toggle:not(.lp-auth-panel--dark .lp-input-toggle)       { color: #475569; }
+.lp-root--light-mode .lp-input-toggle:not(.lp-auth-panel--dark .lp-input-toggle):hover { color: #0f172a; }
 
 /* Terms in light mode */
 .lp-root--light-mode .lp-terms         { background: #f8fafc; border-color: #e2e8f0; }

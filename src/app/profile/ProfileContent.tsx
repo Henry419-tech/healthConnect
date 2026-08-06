@@ -1,74 +1,58 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+// src/app/profile/ProfileContent.tsx
+//
+// Combined Profile + Settings — one tab, two sections. HEALTHNAV handoff
+// Section 14. Replaces the old 1000+ line Medical-ID / saved-facilities /
+// tabbed profile. All of that health-record machinery is still in the
+// codebase (HealthProfile, NhisCard, etc.) — just not surfaced here. See
+// Section 2 "What Was Cut and Why".
+//
+// One deliberate deviation from the literal spec: "Change password" does
+// NOT link to /reset-password. That route is the *forgot-password* flow —
+// it requires a token query param and shows an "invalid link" state
+// without one, which would be a dead end for someone who just wants to
+// change their password while already signed in. There's already a
+// working POST /api/user/password for exactly that (current + new
+// password, handles Google-only accounts with no password gracefully),
+// so this page uses that instead via a small inline panel.
+
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { useFontSize, type FontSize } from '@/contexts/FontSizeContext';
+import { useFontStyle, type FontStyle } from '@/contexts/FontStyleContext';
+import { useLanguage, useTranslation, type Language } from '@/contexts/LanguageContext';
+import MobTabBar from '@/components/MobTabBar';
 import DashboardLayout from '@/components/DashboardLayout';
+import NotificationBell from '@/components/NotificationBell';
+import { LegalModal, type LegalModalType } from '@/components/LegalModal';
 import { getRelativeTime } from '@/lib/activityTracker';
-import { useFacilitySearch } from '@/hooks/useFacilitySearch';
+import { calculateDistance, formatDistance } from '@/lib/utils';
+import { getNhisExpiryInfo } from '@/lib/nhisExpiry';
+import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '@/lib/pushClient';
 import '@/styles/dashboard-header.css';
 import '@/styles/dashboard.css';
-import '@/styles/footer.css';
 import '@/styles/dashboard-mobile.css';
-import '@/styles/profile.css';
+import '@/styles/footer.css';
+import '@/styles/language.css';
+// Reuses the small .dbh-topbar-brand rule from the dashboard rebuild for the
+// desktop topbar logo/wordmark — not worth duplicating for two rules.
+import '@/styles/dashboard-launchpad.css';
+import '@/styles/profile-settings.css';
 import {
-  Heart, Camera, User, Mail, Moon, Sun, LogOut, Save, X,
-  Check, AlertCircle, Edit2, Bell, Settings, Search,
-  ChevronRight, Plus, Shield, Pill, Activity, Star,
-  Users, BookOpen, Zap, AlertTriangle, Stethoscope,
-  Phone, MapPin, Bot, Loader2, Lock, Eye, EyeOff, Navigation, BookmarkCheck,
-  Droplets, Weight, Calendar, ClipboardList, TrendingUp, CheckCircle, Copy,
+  Heart, Bell, Moon, Sun, Loader2, CheckCircle2, XCircle,
+  Save, Type, Palette, Globe, LogOut, Mail,
+  Lock, ChevronRight, Check, Eye, EyeOff,
+  Bookmark, Phone, Navigation, MapPin, Trash2, X,
+  Search, Stethoscope, AlertTriangle, Building2, Clock, Camera,
+  Shield, Plus, Droplet, CreditCard, ClipboardList,
 } from 'lucide-react';
 
-/* ─── Types ─────────────────────────────────────────────────── */
-interface HealthProfile {
-  bloodType: string;
-  age: number;
-  weight: string;
-  height: string;
-  dob: string;
-  memberSince: string;
-  bmi?: number;
-  gender?: string;
-}
+const MobTopbarMenu = dynamic(() => import('@/components/MobTopbarMenu'), { ssr: false });
 
-interface Allergy   { id: string; name: string; severity: 'mild' | 'moderate' | 'severe'; }
-interface Medication { id: string; name: string; dose: string; frequency: string; active: boolean; }
-interface Condition  { id: string; name: string; status: 'managed' | 'active' | 'resolved'; since?: string; }
-interface SymptomSession { id: string; date: string; symptoms: string[]; result: string; }
-interface SavedFacility {
-  id: string;
-  facilityId: string;
-  name: string;
-  type: string;
-  city?: string;
-  region?: string;
-  phone?: string;
-  hours?: string;
-  emergencyServices: boolean;
-  latitude: number;
-  longitude: number;
-  distance?: number;
-  savedAt: string;
-}
-interface FamilyMember { id: string; name: string; relation: string; age: number; }
-interface EmergencyContact {
-  id: string; name: string; relationship: string; number: string;
-  email?: string;
-  isPrimary?: boolean; priority?: number;
-}
-
-/* ─── Default data ───────────────────────────────────────────── */
-const DEFAULT_HEALTH: HealthProfile = {
-  bloodType: 'Not set', age: 0, weight: 'Not set', height: 'Not set',
-  dob: '', memberSince: '',
-};
-
-const SEVERITY_COLOR = { mild: 'pr-tag--green', moderate: 'pr-tag--amber', severe: 'pr-tag--red' };
-const STATUS_COLOR   = { managed: 'pr-tag--teal', active: 'pr-tag--red', resolved: 'pr-tag--green' };
-
-/* ── HCLogo — inline SVG logo, no CSS text-fill interference ── */
 const HCLogo = ({ size = 24 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="115 55 460 363" fill="none"
     width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
@@ -81,610 +65,605 @@ const HCLogo = ({ size = 24 }: { size?: number }) => (
   </svg>
 );
 
-/* ─── Component ─────────────────────────────────────────────── */
-const ProfileContent = () => {
-  const { data: session, update, status } = useSession();
+/* ── Static config ────────────────────────────────────────────── */
+
+const FONT_SIZE_OPTIONS: { value: FontSize; label: string }[] = [
+  { value: 'small',  label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large',  label: 'Large' },
+  { value: 'xl',     label: 'Extra Large' },
+];
+
+const FONT_STYLE_OPTIONS: { value: FontStyle; label: string; family?: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'reading', label: 'Reading', family: 'Georgia, "Times New Roman", serif' },
+  { value: 'clear',   label: 'Clear',   family: '"Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, sans-serif' },
+  { value: 'bold',    label: 'Bold',    family: '"Nunito", -apple-system, BlinkMacSystemFont, sans-serif' },
+];
+const FONT_PREVIEW_TEXT = 'The quick brown fox jumps.';
+
+const PW_REQS = [
+  { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+  { label: 'Contains a number',     test: (p: string) => /\d/.test(p) },
+  { label: 'Contains a letter',     test: (p: string) => /[a-zA-Z]/.test(p) },
+];
+
+interface Banner { kind: 'success' | 'error'; message: string }
+
+interface SavedFacilityItem {
+  id: string; facilityId: string; name: string; type: string;
+  address?: string | null; phone?: string | null; hours?: string | null;
+  latitude: number; longitude: number;
+}
+
+interface ActivityItem {
+  id: string;
+  activityType: string;
+  title: string;
+  description?: string | null;
+  createdAt: string;
+}
+
+const ACTIVITY_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  facility_found:       Building2,
+  facility_search:      Search,
+  symptom_search:       Stethoscope,
+  symptom_text_search:  Stethoscope,
+  emergency_guide:      Heart,
+  // Defined in activityTracker.ts but never actually fired anywhere currently
+  emergency_accessed:   AlertTriangle,
+  first_aid_viewed:     Heart,
+};
+
+function activityIconFor(type: string): React.ComponentType<{ size?: number }> {
+  return ACTIVITY_ICONS[type] ?? Clock;
+}
+
+export default function ProfileContent() {
+  const { data: session, status, update: updateSession } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const { fontSize, setFontSize } = useFontSize();
+  const { fontStyle, setFontStyle } = useFontStyle();
+  const { language, setLanguage } = useLanguage();
+  const { t } = useTranslation();
 
-  /* Open modal from URL query param — e.g. /profile?modal=medicalId
-     Triggered when navigating from the emergency page Medical ID button */
-  useEffect(() => {
-    const modalParam = searchParams.get('modal');
-    if (modalParam === 'medicalId') {
-      setModal('medicalId');
-      // Clean the URL without triggering a navigation/re-render
-      window.history.replaceState(null, '', '/profile');
-    }
-  }, [searchParams]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  /* Auth/basic */
-  const {
-    searchQuery: facilityQuery, setSearchQuery: setFacilityQuery,
-    searchInputRef: facilitySearchRef,
-    handleSearchSubmit, handleSearchKeyDown,
-  } = useFacilitySearch();
-  const [isEditing,    setIsEditing]    = useState(false);
-  const [isSaving,     setIsSaving]     = useState(false);
-  const [saveSuccess,  setSaveSuccess]  = useState(false);
-  const [saveError,    setSaveError]    = useState('');
-  const [isScrolled,   setIsScrolled]   = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [formData, setFormData] = useState({
-    name:  session?.user?.name  || '',
-    email: session?.user?.email || '',
-  });
-  const [imagePreview, setImagePreview] = useState(session?.user?.image || '');
-
-  /* Health data */
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [health,    setHealth]    = useState<HealthProfile>(DEFAULT_HEALTH);
-  const [allergies, setAllergies] = useState<Allergy[]>([]);
-  const [meds,      setMeds]      = useState<Medication[]>([]);
-  const [conditions,setConditions]= useState<Condition[]>([]);
-  const [sessions,  setSessions]  = useState<SymptomSession[]>([]);
-  const [facilities,setFacilities]= useState<SavedFacility[]>([]);
-  const [family,    setFamily]    = useState<FamilyMember[]>([]);
-
-  /* Emergency contacts */
-  const [emergencyContacts,        setEmergencyContacts]        = useState<EmergencyContact[]>([]);
-  const [isLoadingContacts,        setIsLoadingContacts]        = useState(true);
-  const [showAddContact,           setShowAddContact]           = useState(false);
-  const [newContact,               setNewContact]               = useState({ name: '', relationship: '', number: '', email: '' });
-  const [addingContact,            setAddingContact]            = useState(false);
-  const [contactAddError,          setContactAddError]          = useState('');
-  const [contactSaveSuccess,       setContactSaveSuccess]       = useState(false);
-  const [copiedContactId,          setCopiedContactId]          = useState<string | null>(null);
-  const [copiedMedId,              setCopiedMedId]              = useState(false);
-
-  /* Edit contact state */
-  const [editingEcId,  setEditingEcId]  = useState<string | null>(null);
-  const [editEcForm,   setEditEcForm]   = useState({ name: '', relationship: '', number: '', email: '' });
-  const [savingEc,     setSavingEc]     = useState(false);
-  const [editEcError,  setEditEcError]  = useState('');
-
-  /* Modal state */
-  const [modal, setModal] = useState<null | 'medicalId' | 'allergies' | 'meds' | 'conditions' | 'sessions' | 'facilities' | 'family' | 'editHealth' | 'emergencyContacts'>(null);
-  const [recentActivityCount, setRecentActivityCount] = useState(0);
-  /* Inline add states */
-  const [newAllergy,   setNewAllergy]   = useState({ name: '', severity: 'mild' as Allergy['severity'] });
-  const [newMed,       setNewMed]       = useState({ name: '', dose: '', frequency: '' });
-  const [newCondition, setNewCondition] = useState({ name: '', status: 'managed' as Condition['status'] });
-  const [newFamilyMember, setNewFamilyMember] = useState({ name: '', relation: '', age: '' });
-  const [editHealthForm, setEditHealthForm] = useState({ bloodType: '', age: 0, weight: '', height: '', dob: '', memberSince: '', gender: '' });
-
-  /* ── Notification panel ───────────────────────────────────── */
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
-  const [notifsRead,     setNotifsRead]     = useState(false);
-  const notifBellRef  = useRef<HTMLButtonElement>(null);
-  const notifMobRef   = useRef<HTMLButtonElement>(null);
-  const notifPanelRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const layout = document.querySelector('.hc-layout');
+    if (layout) layout.classList.add('hc-layout--has-mob-topbar');
+    return () => { if (layout) layout.classList.remove('hc-layout--has-mob-topbar'); };
+  }, []);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin');
   }, [status, router]);
 
-  // ── Load profile + symptom history from API ──────────────
+  /* ── My Profile — name ──────────────────────────────────────────────── */
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [name, setName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileBanner, setProfileBanner] = useState<Banner | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  /* ── Avatar — uploads via /api/user/avatar (signed Cloudinary upload) ── */
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  /* ── Medical ID — blood type, allergies, conditions, NHIS card ────────
+     Trimmed to what the Emergency page's Personal Card actually shows.
+     No weight/height/BMI/gender/DOB and no medications here — those were
+     part of the old health-record profile and are out of scope now.
+     See HEALTHNAV_MASTER_HANDOFF.md "What Was Cut and Why". ────────── */
+  const medicalIdRef = useRef<HTMLDivElement>(null);
+  const [medIdLoaded, setMedIdLoaded] = useState(false);
+  const [medIdBanner, setMedIdBanner] = useState<Banner | null>(null);
+  // Collapsed by default — blood type/allergies/conditions/NHIS number are
+  // sensitive, so they shouldn't render open on a page someone might glance
+  // at over your shoulder. Tapping the header reveals it; deep-linking in via
+  // ?modal=medicalId (below) expands it automatically.
+  const [medIdExpanded, setMedIdExpanded] = useState(false);
+
+  const [bloodType, setBloodType] = useState('');
+  const [savingBloodType, setSavingBloodType] = useState(false);
+
+  const [allergies, setAllergies] = useState<{ id: string; name: string; severity: string }[]>([]);
+  const [newAllergyName, setNewAllergyName] = useState('');
+  const [newAllergySeverity, setNewAllergySeverity] = useState('moderate');
+  const [savingAllergy, setSavingAllergy] = useState(false);
+  const [deletingAllergyId, setDeletingAllergyId] = useState<string | null>(null);
+
+  const [conditions, setConditions] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [newConditionName, setNewConditionName] = useState('');
+  const [newConditionStatus, setNewConditionStatus] = useState('managed');
+  const [savingCondition, setSavingCondition] = useState(false);
+  const [deletingConditionId, setDeletingConditionId] = useState<string | null>(null);
+
+  const [nhisId, setNhisId] = useState('');
+  const [nhisMembershipType, setNhisMembershipType] = useState('');
+  const [nhisIssuingBody, setNhisIssuingBody] = useState('');
+  const [nhisIssuedDate, setNhisIssuedDate] = useState('');
+  const [nhisExpiryDate, setNhisExpiryDate] = useState('');
+  const [nhisNotes, setNhisNotes] = useState('');
+  const [savingNhis, setSavingNhis] = useState(false);
+
+  const nhisExpiryInfo = useMemo(
+    () => getNhisExpiryInfo(nhisExpiryDate, nhisIssuedDate),
+    [nhisExpiryDate, nhisIssuedDate]
+  );
+
   useEffect(() => {
     if (status !== 'authenticated') return;
-    setIsLoadingProfile(true);
+    let cancelled = false;
 
-    Promise.all([
-      fetch('/api/health-profile').then(r => r.json()),
-      fetch('/api/activities?type=symptom_checked&limit=10').then(r => r.json()),
-      fetch('/api/saved-facilities').then(r => r.json()),
-    ]).then(([{ profile }, actData, facData]) => {
-      if (Array.isArray(facData?.facilities)) {
-        setFacilities(facData.facilities);
-      }
-      if (profile) {
-        const dob = profile.dateOfBirth;
-        const age = dob
-          ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-          : 0;
-        const loaded: HealthProfile = {
-          bloodType:   profile.bloodType   || 'Not set',
-          age,
-          weight:      profile.weightKg    ? `${profile.weightKg} kg` : 'Not set',
-          height:      profile.heightCm    ? `${profile.heightCm} cm` : 'Not set',
-          dob:         dob ? dob.split('T')[0] : '',
-          memberSince: new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-          bmi:         profile.bmi,
-          gender:      profile.gender || '',
-        };
-        setHealth(loaded);
-        setEditHealthForm({ ...loaded, gender: profile.gender || '' });
-        setAllergies(profile.allergies   || []);
-        setMeds(profile.medications      || []);
-        setConditions(profile.conditions || []);
-        setFamily(profile.familyMembers  || []);
-      }
-      const actList = actData.activities || [];
-      setSessions(
-        actList.map((a: any) => ({
-          id:       a.id,
-          date:     getRelativeTime(new Date(a.createdAt)),
-          symptoms: a.description ? [a.description] : ['Health check'],
-          result:   a.metadata?.urgencyLevel
-                      ? `Risk: ${a.metadata.urgencyLevel}`
-                      : 'Assessment completed',
-        }))
-      );
-      setRecentActivityCount(actList.length);
-    }).catch(() => {}).finally(() => setIsLoadingProfile(false));
-  }, [status]);
-
-  useEffect(() => {
-    if (session?.user) {
-      setFormData({ name: session.user.name || '', email: session.user.email || '' });
-      setImagePreview(session.user.image || '');
-    }
-  }, [session]);
-
-  useEffect(() => {
-    const h = () => setIsScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', h, { passive: true });
-    return () => window.removeEventListener('scroll', h);
-  }, []);
-
-  const userName     = session?.user?.name  || 'User';
-  const userEmail    = session?.user?.email || '';
-  const userImage    = session?.user?.image || null;
-  const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-
-  const getInitials = (n: string) => n.split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2);
-
-  /* ── Image ────────────────────────────────────────────── */
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setSaveError('Image must be < 5MB'); return; }
-    if (!file.type.startsWith('image/')) { setSaveError('Please select an image file'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-    setSaveError('');
-  };
-
-  /* ── Save profile ─────────────────────────────────────── */
-  const handleSave = async () => {
-    setIsSaving(true); setSaveError(''); setSaveSuccess(false);
-    if (!formData.name.trim()) { setSaveError('Name is required'); setIsSaving(false); return; }
-    try {
-      const res = await fetch('/api/user/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formData.name.trim(), image: imagePreview }),
-      });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to update'); }
-      await update();
-      setSaveSuccess(true); setIsEditing(false);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) { setSaveError(err.message); }
-    finally { setIsSaving(false); }
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setFormData({ name: session?.user?.name || '', email: session?.user?.email || '' });
-    setImagePreview(session?.user?.image || '');
-    setSaveError('');
-  };
-
-  /* ── Add helpers ──────────────────────────────────────── */
-  const addAllergy = async () => {
-    if (!newAllergy.name.trim()) return;
-    const res = await fetch('/api/health-profile/allergies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newAllergy),
-    });
-    if (!res.ok) return;
-    const { record } = await res.json();
-    setAllergies(p => [...p, record]);
-    setNewAllergy({ name: '', severity: 'mild' });
-  };
-  const removeAllergy = async (id: string) => {
-    await fetch('/api/health-profile/allergies', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setAllergies(p => p.filter(a => a.id !== id));
-  };
-
-  const addMed = async () => {
-    if (!newMed.name.trim()) return;
-    const res = await fetch('/api/health-profile/medications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newMed, active: true }),
-    });
-    if (!res.ok) return;
-    const { record } = await res.json();
-    setMeds(p => [...p, record]);
-    setNewMed({ name: '', dose: '', frequency: '' });
-  };
-  const removeMed = async (id: string) => {
-    await fetch('/api/health-profile/medications', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setMeds(p => p.filter(m => m.id !== id));
-  };
-
-  const addCondition = async () => {
-    if (!newCondition.name.trim()) return;
-    const res = await fetch('/api/health-profile/conditions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newCondition),
-    });
-    if (!res.ok) return;
-    const { record } = await res.json();
-    setConditions(p => [...p, record]);
-    setNewCondition({ name: '', status: 'managed' });
-  };
-  const removeCondition = async (id: string) => {
-    await fetch('/api/health-profile/conditions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setConditions(p => p.filter(c => c.id !== id));
-  };
-
-  const addFamilyMember = async () => {
-    if (!newFamilyMember.name.trim()) return;
-    const res = await fetch('/api/health-profile/family-members', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newFamilyMember, age: Number(newFamilyMember.age) }),
-    });
-    if (!res.ok) return;
-    const { record } = await res.json();
-    setFamily(p => [...p, record]);
-    setNewFamilyMember({ name: '', relation: '', age: '' });
-  };
-  const removeFamilyMember = async (id: string) => {
-    await fetch('/api/health-profile/family-members', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setFamily(p => p.filter(f => f.id !== id));
-  };
-
-  /* ── Emergency contacts ───────────────────────────────────── */
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    setIsLoadingContacts(true);
-    fetch('/api/emergency-contacts')
+    fetch('/api/health-profile')
       .then(r => r.json())
-      .then(({ contacts: data }) => {
-        setEmergencyContacts(
-          (data || []).map((c: any) => ({
-            id:           c.id,
-            name:         c.name,
-            relationship: c.relationship,
-            number:       c.number,
-            email:        c.email || undefined,
-            isPrimary:    c.priority === 1,
-            priority:     c.priority,
-          })),
-        );
+      .then(d => {
+        if (cancelled || !d.profile) return;
+        setBloodType(d.profile.bloodType || '');
+        setAllergies(d.profile.allergies ?? []);
+        setConditions(d.profile.conditions ?? []);
+        const nhis = d.profile.nhisCard;
+        if (nhis) {
+          setNhisId(nhis.nhisId || '');
+          setNhisMembershipType(nhis.membershipType || '');
+          setNhisIssuingBody(nhis.issuingBody || '');
+          setNhisIssuedDate(nhis.issuedDate ? nhis.issuedDate.slice(0, 10) : '');
+          setNhisExpiryDate(nhis.expiryDate ? nhis.expiryDate.slice(0, 10) : '');
+          setNhisNotes(nhis.notes || '');
+        }
       })
       .catch(() => {})
-      .finally(() => setIsLoadingContacts(false));
+      .finally(() => { if (!cancelled) setMedIdLoaded(true); });
+
+    return () => { cancelled = true; };
   }, [status]);
 
-  const handleAddContact = async () => {
-    setContactAddError('');
-    if (!newContact.name.trim())   { setContactAddError('Name is required');         return; }
-    if (!newContact.number.trim()) { setContactAddError('Phone number is required'); return; }
-    setAddingContact(true);
+  // Deep link from the Emergency page's "Edit Profile" / "Add blood type"
+  // buttons (?modal=medicalId) — scroll to and briefly highlight the section
+  // instead of the old standalone modal, which no longer exists.
+  useEffect(() => {
+    if (searchParams.get('modal') !== 'medicalId') return;
+    setMedIdExpanded(true);
+    const el = medicalIdRef.current;
+    if (!el) return;
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('pfs-card--flash');
+      setTimeout(() => el.classList.remove('pfs-card--flash'), 1800);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [searchParams, medIdLoaded]);
+
+  async function handleSaveBloodType(value: string) {
+    setBloodType(value);
+    setSavingBloodType(true);
+    setMedIdBanner(null);
     try {
-      const res = await fetch('/api/emergency-contacts', {
-        method:  'POST',
+      const res = await fetch('/api/health-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bloodType: value || null }),
+      });
+      if (!res.ok) throw new Error('Could not save blood type.');
+    } catch (err: any) {
+      setMedIdBanner({ kind: 'error', message: err.message || 'Could not save blood type.' });
+    } finally {
+      setSavingBloodType(false);
+    }
+  }
+
+  async function handleAddAllergy() {
+    const name = newAllergyName.trim();
+    if (!name) return;
+    setSavingAllergy(true);
+    setMedIdBanner(null);
+    try {
+      const res = await fetch('/api/allergies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, severity: newAllergySeverity }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not add allergy.');
+      setAllergies(prev => [data.allergy, ...prev]);
+      setNewAllergyName('');
+      setNewAllergySeverity('moderate');
+    } catch (err: any) {
+      setMedIdBanner({ kind: 'error', message: err.message || 'Could not add allergy.' });
+    } finally {
+      setSavingAllergy(false);
+    }
+  }
+
+  async function handleDeleteAllergy(id: string) {
+    setDeletingAllergyId(id);
+    try {
+      await fetch('/api/allergies', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setAllergies(prev => prev.filter(a => a.id !== id));
+    } catch {
+      setMedIdBanner({ kind: 'error', message: 'Could not remove allergy.' });
+    } finally {
+      setDeletingAllergyId(null);
+    }
+  }
+
+  async function handleAddCondition() {
+    const name = newConditionName.trim();
+    if (!name) return;
+    setSavingCondition(true);
+    setMedIdBanner(null);
+    try {
+      const res = await fetch('/api/conditions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, status: newConditionStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not add condition.');
+      setConditions(prev => [data.condition, ...prev]);
+      setNewConditionName('');
+      setNewConditionStatus('managed');
+    } catch (err: any) {
+      setMedIdBanner({ kind: 'error', message: err.message || 'Could not add condition.' });
+    } finally {
+      setSavingCondition(false);
+    }
+  }
+
+  async function handleDeleteCondition(id: string) {
+    setDeletingConditionId(id);
+    try {
+      await fetch('/api/conditions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setConditions(prev => prev.filter(c => c.id !== id));
+    } catch {
+      setMedIdBanner({ kind: 'error', message: 'Could not remove condition.' });
+    } finally {
+      setDeletingConditionId(null);
+    }
+  }
+
+  async function handleSaveNhis() {
+    setSavingNhis(true);
+    setMedIdBanner(null);
+    try {
+      const res = await fetch('/api/nhis-card', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:         newContact.name.trim(),
-          relationship: newContact.relationship.trim(),
-          number:       newContact.number.trim(),
-          email:        newContact.email.trim() || undefined,
-          priority:     emergencyContacts.length + 1,
+          nhisId: nhisId.trim() || undefined,
+          membershipType: nhisMembershipType.trim() || undefined,
+          issuingBody: nhisIssuingBody.trim() || undefined,
+          issuedDate: nhisIssuedDate || undefined,
+          expiryDate: nhisExpiryDate || undefined,
+          notes: nhisNotes.trim() || undefined,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to save contact');
-      }
-      const { contact } = await res.json();
-      setEmergencyContacts(prev => [
-        ...prev,
-        { id: contact.id, name: contact.name, relationship: contact.relationship,
-          number: contact.number, email: contact.email || undefined,
-          isPrimary: contact.priority === 1, priority: contact.priority },
-      ]);
-      setNewContact({ name: '', relationship: '', number: '', email: '' });
-      setShowAddContact(false);
-      setContactSaveSuccess(true);
-      setTimeout(() => setContactSaveSuccess(false), 3000);
+      if (!res.ok) throw new Error('Could not save NHIS card.');
+      setMedIdBanner({ kind: 'success', message: 'NHIS card saved.' });
     } catch (err: any) {
-      setContactAddError(err.message || 'Failed to save contact. Please try again.');
+      setMedIdBanner({ kind: 'error', message: err.message || 'Could not save NHIS card.' });
     } finally {
-      setAddingContact(false);
+      setSavingNhis(false);
     }
-  };
+  }
 
-  /* ── Start editing a contact ─────────────────────────────── */
-  const startEditEc = (c: EmergencyContact) => {
-    setEditingEcId(c.id);
-    setEditEcForm({ name: c.name, relationship: c.relationship, number: c.number, email: c.email || '' });
-    setEditEcError('');
-    setShowAddContact(false);
-  };
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let cancelled = false;
 
-  /* ── Save edited contact ─────────────────────────────────── */
-  const handleSaveEc = async () => {
-    setEditEcError('');
-    if (!editEcForm.name.trim())   { setEditEcError('Name is required');         return; }
-    if (!editEcForm.number.trim()) { setEditEcError('Phone number is required'); return; }
-    setSavingEc(true);
+    fetch('/api/user/profile')
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled || !d.user) return;
+        setName(d.user.name || '');
+        setAvatarUrl(d.user.image || null);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setProfileLoaded(true); });
+
+    return () => { cancelled = true; };
+  }, [status]);
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so picking the same file again still fires onChange
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setProfileBanner({ kind: 'error', message: 'Please choose an image file.' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileBanner({ kind: 'error', message: 'Image is too large — please choose one under 5MB.' });
+      return;
+    }
+
+    setAvatarUploading(true);
+    setProfileBanner(null);
     try {
-      const res = await fetch('/api/emergency-contacts', {
-        method:  'PUT',
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/user/avatar', { method: 'POST', body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not upload photo.');
+      setAvatarUrl(data.image);
+      // Refresh the next-auth session so the new photo shows up wherever
+      // session.user.image is read (mobile topbar, sidebar, etc.), not
+      // just here — this page reads from avatarUrl, but nothing else does.
+      updateSession?.().catch(() => {});
+      setProfileBanner({ kind: 'success', message: 'Photo updated.' });
+    } catch (err: any) {
+      setProfileBanner({ kind: 'error', message: err.message || 'Could not upload photo. Please try again.' });
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setProfileError(null);
+
+    if (!name.trim()) {
+      setProfileError('Name is required.');
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileBanner(null);
+    try {
+      const profileRes = await fetch('/api/user/profile', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id:           editingEcId,
-          name:         editEcForm.name.trim(),
-          relationship: editEcForm.relationship.trim(),
-          number:       editEcForm.number.trim(),
-          email:        editEcForm.email.trim() || undefined,
-        }),
+        body: JSON.stringify({ name: name.trim() }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to update contact');
+      if (!profileRes.ok) {
+        const err = await profileRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Could not save profile.');
       }
-      const { contact } = await res.json();
-      setEmergencyContacts(prev => prev.map(c => c.id === editingEcId
-        ? { ...c, name: contact.name, relationship: contact.relationship,
-            number: contact.number, email: contact.email || undefined }
-        : c,
-      ));
-      setEditingEcId(null);
-      setContactSaveSuccess(true);
-      setTimeout(() => setContactSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setEditEcError(err.message || 'Failed to update contact.');
-    } finally {
-      setSavingEc(false);
-    }
-  };
 
-  const removeEmergencyContact = async (id: string) => {
-    // Optimistic update
-    setEmergencyContacts(prev => prev.filter(c => c.id !== id));
+      setProfileBanner({ kind: 'success', message: 'Profile saved.' });
+    } catch (err: any) {
+      setProfileBanner({ kind: 'error', message: err.message || 'Something went wrong. Please try again.' });
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  /* ── App settings — alert email prefs ─────────────────────────────── */
+  const [alertEmailsEnabled, setAlertEmailsEnabled] = useState(true);
+  const [alertNamePersonalization, setAlertNamePersonalization] = useState(true);
+  const [hasPassword, setHasPassword] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  // Push notifications — separate from the alertEmailsEnabled fields above
+  // because it lives inside privacyPrefs (a JSON blob) rather than as its
+  // own scalar column on User, and because turning it on/off has a real
+  // browser side effect (subscribing/unsubscribing via the service worker),
+  // not just a PATCH — see togglePush() below.
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSupported, setPushSupported] = useState(true);
+  useEffect(() => { setPushSupported(isPushSupported()); }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let cancelled = false;
+    fetch('/api/user/settings')
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        if (typeof d.alertEmailsEnabled === 'boolean') setAlertEmailsEnabled(d.alertEmailsEnabled);
+        if (typeof d.alertNamePersonalization === 'boolean') setAlertNamePersonalization(d.alertNamePersonalization);
+        if (typeof d.hasPassword === 'boolean') setHasPassword(d.hasPassword);
+        if (typeof d.privacyPrefs?.pushEnabled === 'boolean') setPushEnabled(d.privacyPrefs.pushEnabled);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [status]);
+
+  async function patchSetting(key: string, value: boolean, revert: () => void) {
+    setSavingKey(key);
     try {
-      await fetch('/api/emergency-contacts', {
-        method:  'DELETE',
+      const res = await fetch('/api/user/settings', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id }),
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      revert();
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  function toggleAlertEmails() {
+    const next = !alertEmailsEnabled;
+    setAlertEmailsEnabled(next);
+    patchSetting('alertEmailsEnabled', next, () => setAlertEmailsEnabled(!next));
+  }
+
+  function toggleAlertPersonalization() {
+    const next = !alertNamePersonalization;
+    setAlertNamePersonalization(next);
+    patchSetting('alertNamePersonalization', next, () => setAlertNamePersonalization(!next));
+  }
+
+  // Unlike the two toggles above, this isn't just a PATCH — pushEnabled
+  // lives inside privacyPrefs (not a top-level field patchSetting() can
+  // write directly), and turning it on/off has a real browser-side effect
+  // via subscribeToPush()/unsubscribeFromPush() (src/lib/pushClient.ts).
+  // Order matters: subscribe/unsubscribe first, PATCH only on success —
+  // so the stored preference never claims "on" when there's no actual
+  // subscription behind it (e.g. the user denied the permission prompt).
+  async function togglePush() {
+    const next = !pushEnabled;
+    setSavingKey('pushEnabled');
+    try {
+      if (next) {
+        const ok = await subscribeToPush();
+        if (!ok) return; // permission denied / unsupported — leave the toggle off
+        setPushEnabled(true);
+      } else {
+        await unsubscribeFromPush();
+        setPushEnabled(false);
+      }
+      await fetch('/api/user/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privacyPrefs: { pushEnabled: next } }),
       });
     } catch {
-      // Re-fetch and re-map on failure to restore correct state
-      fetch('/api/emergency-contacts')
-        .then(r => r.json())
-        .then(({ contacts: data }) => {
-          setEmergencyContacts(
-            (data || []).map((c: any) => ({
-              id: c.id, name: c.name, relationship: c.relationship,
-              number: c.number, email: c.email || undefined,
-              isPrimary: c.priority === 1, priority: c.priority,
-            })),
-          );
-        });
+      setPushEnabled(!next);
+    } finally {
+      setSavingKey(null);
     }
-  };
+  }
 
-  const copyContactNumber = async (id: string, number: string) => {
-    try {
-      await navigator.clipboard.writeText(number);
-      setCopiedContactId(id);
-      setTimeout(() => setCopiedContactId(null), 2000);
-    } catch { /* ignore */ }
-  };
-
-  /* ── Copy Medical ID as plain text ──────────────────────── */
-  const copyMedicalId = async () => {
-    const ec = emergencyContacts[0];
-    const lines = [
-      `=== MEDICAL ID — ${userName} ===`,
-      `Blood Type:  ${health.bloodType}`,
-      `Age:         ${health.age > 0 ? `${health.age} years` : '—'}`,
-      `Height:      ${health.height}`,
-      `Weight:      ${health.weight}`,
-      `BMI:         ${health.bmi ?? '—'}`,
-      `Allergies:   ${allergies.map(a => a.name).join(', ') || 'None'}`,
-      `Medications: ${activeMeds.map(m => m.name).join(', ') || 'None'}`,
-      `Conditions:  ${conditions.map(c => c.name).join(', ') || 'None'}`,
-      ec ? `Emergency Contact: ${ec.name} — ${ec.number}` : '',
-      `Generated: ${new Date().toLocaleString()}`,
-    ].filter(Boolean).join('\n');
-    try {
-      await navigator.clipboard.writeText(lines);
-      setCopiedMedId(true);
-      setTimeout(() => setCopiedMedId(false), 2500);
-    } catch { /* ignore */ }
-  };
-
-  const removeSavedFacility = async (facilityId: string) => {
-    await fetch('/api/saved-facilities', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ facilityId }),
-    });
-    setFacilities(prev => prev.filter(f => f.facilityId !== facilityId));
-  };
-
-  const saveHealth = async () => {
-    const weightKg = editHealthForm.weight.replace(/[^0-9.]/g, '') || undefined;
-    const heightCm = editHealthForm.height.replace(/[^0-9.]/g, '') || undefined;
-
-    await fetch('/api/health-profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bloodType:   editHealthForm.bloodType || undefined,
-        dateOfBirth: editHealthForm.dob       || undefined,
-        weightKg,
-        heightCm,
-        gender:      editHealthForm.gender    || undefined,
-      }),
-    });
-
-    // Reload from DB to get computed BMI
-    const { profile } = await fetch('/api/health-profile').then(r => r.json());
-    if (profile) {
-      const age = profile.dateOfBirth
-        ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-        : 0;
-      setHealth(prev => ({
-        ...prev,
-        bloodType: profile.bloodType || prev.bloodType,
-        age,
-        weight: profile.weightKg ? `${profile.weightKg} kg` : prev.weight,
-        height: profile.heightCm ? `${profile.heightCm} cm` : prev.height,
-        bmi:    profile.bmi,
-        gender: profile.gender || prev.gender,
-      }));
+  async function handleLanguageChange(next: Language) {
+    setLanguage(next);
+    if (session?.user?.email) {
+      fetch('/api/user/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: next }),
+      }).catch(() => {});
     }
-    setModal(null);
-  };
+  }
 
-  const activeMeds = meds.filter(m => m.active);
+  /* ── Change password (inline, uses the in-session endpoint) ───────── */
+  const [showPwPanel, setShowPwPanel] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwBanner, setPwBanner] = useState<Banner | null>(null);
 
-  /* ── Notification panel logic ─────────────────────────────── */
+  const pwReqsMet = PW_REQS.map(r => r.test(newPw));
+  const pwAllMet = pwReqsMet.every(Boolean);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!currentPw || !pwAllMet) return;
+    setPwSaving(true);
+    setPwBanner(null);
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not change password.');
+      setPwBanner({ kind: 'success', message: 'Password updated.' });
+      setCurrentPw('');
+      setNewPw('');
+      setTimeout(() => setShowPwPanel(false), 1200);
+    } catch (err: any) {
+      setPwBanner({ kind: 'error', message: err.message || 'Could not change password.' });
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  /* ── Legal modal ──────────────────────────────────────────────────── */
+  const [legalModal, setLegalModal] = useState<LegalModalType | null>(null);
+
+  /* ── Saved Facilities ──────────────────────────────────────────────── */
+  const [savedFacilities, setSavedFacilities] = useState<SavedFacilityItem[] | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+
   useEffect(() => {
-    if (!showNotifPanel) return;
-    const handler = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (
-        notifPanelRef.current && !notifPanelRef.current.contains(t) &&
-        notifBellRef.current  && !notifBellRef.current.contains(t)  &&
-        notifMobRef.current   && !notifMobRef.current.contains(t)
-      ) setShowNotifPanel(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showNotifPanel]);
+    if (status !== 'authenticated') return;
+    let cancelled = false;
+    fetch('/api/saved-facilities')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setSavedFacilities(d.facilities ?? []); })
+      .catch(() => { if (!cancelled) setSavedFacilities([]); });
 
-  type NotifItem = {
-    id: string;
-    icon: React.ComponentType<{ size: number }>;
-    color: 'teal' | 'amber' | 'red' | 'mint' | 'violet';
-    title: string;
-    body: string;
-    action?: () => void;
-  };
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { if (!cancelled) setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+        () => {},
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+      );
+    }
+    return () => { cancelled = true; };
+  }, [status]);
 
-  const notifications = React.useMemo((): NotifItem[] => {
-    const list: NotifItem[] = [];
+  async function removeSavedFacility(facilityId: string) {
+    const prev = savedFacilities;
+    setSavedFacilities(cur => (cur ?? []).filter(f => f.facilityId !== facilityId));
+    try {
+      const res = await fetch('/api/saved-facilities', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facilityId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setSavedFacilities(prev); // roll back
+    }
+  }
 
-    // Profile incomplete
-    if (health.bloodType === 'Not set')
-      list.push({ id: 'blood', icon: Droplets, color: 'red',
-        title: 'Blood type not set',
-        body: 'Add your blood type — critical for emergencies and Medical ID.',
-        action: () => setModal('editHealth') });
+  function openDirections(lat: number, lng: number) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank', 'noopener,noreferrer');
+  }
 
-    if (!health.dob || health.age === 0)
-      list.push({ id: 'dob', icon: Calendar, color: 'amber',
-        title: 'Date of birth missing',
-        body: 'Required to calculate your age and BMI accurately.',
-        action: () => setModal('editHealth') });
+  /* ── Activity History ──────────────────────────────────────────────── */
+  const [activities, setActivities] = useState<ActivityItem[] | null>(null);
+  const [activitiesTotal, setActivitiesTotal] = useState(0);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
 
-    if (health.weight === 'Not set' || health.height === 'Not set')
-      list.push({ id: 'biometrics', icon: Weight, color: 'amber',
-        title: 'Height or weight not set',
-        body: 'Needed to calculate your BMI health score.',
-        action: () => setModal('editHealth') });
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let cancelled = false;
+    fetch('/api/activities?limit=10')
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        setActivities(d.activities ?? []);
+        setActivitiesTotal(d.total ?? (d.activities ?? []).length);
+      })
+      .catch(() => { if (!cancelled) setActivities([]); });
+    return () => { cancelled = true; };
+  }, [status]);
 
-    if (!health.gender && !isLoadingProfile)
-      list.push({ id: 'gender', icon: User, color: 'amber',
-        title: 'Gender not recorded',
-        body: 'Your gender helps personalise health recommendations and Medical ID accuracy.',
-        action: () => setModal('editHealth') });
+  async function handleClearHistory() {
+    setClearingHistory(true);
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      });
+      if (res.ok) {
+        setActivities([]);
+        setActivitiesTotal(0);
+      }
+    } catch {
+      // no-op — banner-free per spec, button just stays as-is on failure
+    } finally {
+      setClearingHistory(false);
+      setShowClearConfirm(false);
+    }
+  }
 
-    // Emergency contacts
-    if (!isLoadingContacts && emergencyContacts.length === 0)
-      list.push({ id: 'contacts', icon: Phone, color: 'red',
-        title: 'No emergency contacts',
-        body: 'Add at least one contact so they can be reached in an emergency.',
-        action: () => setModal('emergencyContacts') });
-    else if (!isLoadingContacts && emergencyContacts.every(c => !(c as any).email))
-      list.push({ id: 'contact-email', icon: Bell, color: 'amber',
-        title: 'Emergency contacts have no email',
-        body: 'Add email addresses so they receive SOS alerts automatically.',
-        action: () => router.push('/emergency') });
-
-    // Medical data
-    if (allergies.length === 0)
-      list.push({ id: 'allergies', icon: AlertTriangle, color: 'amber',
-        title: 'No allergies recorded',
-        body: 'Record known allergies so first responders and doctors can act safely.',
-        action: () => setModal('allergies') });
-
-    if (activeMeds.length === 0)
-      list.push({ id: 'meds', icon: Pill, color: 'amber',
-        title: 'No active medications',
-        body: 'Add current medications to your profile for accurate health tracking.',
-        action: () => setModal('meds') });
-
-    // Active unmanaged conditions
-    const activeConditions = conditions.filter(c => c.status === 'active');
-    if (activeConditions.length > 0)
-      list.push({ id: 'active-conditions', icon: Activity, color: 'red',
-        title: `${activeConditions.length} active condition${activeConditions.length > 1 ? 's' : ''} unmanaged`,
-        body: `${activeConditions.map(c => c.name).join(', ')} — consider discussing a treatment plan with your doctor.`,
-        action: () => setModal('conditions') });
-
-    // No saved facilities
-    if (!isLoadingProfile && facilities.length === 0)
-      list.push({ id: 'no-facilities', icon: MapPin, color: 'amber',
-        title: 'No saved facilities',
-        body: 'Bookmark a nearby hospital or clinic so you can find it quickly in an emergency.',
-        action: () => router.push('/facilities') });
-
-    // No symptom history
-    if (!isLoadingProfile && sessions.length === 0)
-      list.push({ id: 'no-sessions', icon: ClipboardList, color: 'teal',
-        title: 'No symptom checks yet',
-        body: 'Use the AI symptom checker to get personalised health insights and build your history.',
-        action: () => router.push('/symptom-checker') });
-
-    // All clear positive state
-    if (health.bloodType !== 'Not set' && health.weight !== 'Not set' && health.height !== 'Not set'
-        && emergencyContacts.length > 0 && allergies.length > 0 && activeConditions.length === 0)
-      list.push({ id: 'complete', icon: CheckCircle, color: 'mint',
-        title: 'Profile looks great!',
-        body: 'Your health profile is well filled — keep it up to date for best results.' });
-
-    if (list.length === 0)
-      list.push({ id: 'empty', icon: CheckCircle, color: 'mint',
-        title: 'All caught up!',
-        body: 'No profile actions needed right now.' });
-
-    return list;
-  }, [health, emergencyContacts, isLoadingContacts, allergies, activeMeds, conditions, facilities, sessions, isLoadingProfile, router]);
-
-  const hasUnread = notifications.some(n => n.id !== 'empty' && n.id !== 'complete') && !notifsRead;
-  const toggleNotifPanel = () => { setShowNotifPanel(p => !p); setNotifsRead(true); };
+  async function handleSignOut() {
+    try { await signOut({ callbackUrl: '/', redirect: true }); }
+    catch (e) { console.error(e); }
+  }
 
   if (status === 'loading') return (
     <div className="hc-loading">
@@ -698,1051 +677,778 @@ const ProfileContent = () => {
   );
   if (status === 'unauthenticated') return null;
 
-  /* ── RENDER ─────────────────────────────────────────────── */
+  const userImage = avatarUrl || session?.user?.image || null;
+  const userEmail = session?.user?.email || '';
+  const userInitials = (session?.user?.name || 'HC')
+    .split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+
   return (
     <DashboardLayout activeTab="/profile" className="hc-layout--has-mob-topbar">
 
-      {/* ── Desktop topbar ─────────────────────────────────── */}
-      <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
-          <div className="db-topbar__search">
-          <button
-            className="db-topbar__search-icon-btn"
-            type="button"
-            aria-label="Search facilities"
-            onClick={handleSearchSubmit}
-          >
-            <Search size={15} />
-          </button>
-          <input
-            ref={facilitySearchRef}
-            className="db-topbar__search-input"
-            type="search"
-            placeholder="Search facilities..."
-            value={facilityQuery}
-            onChange={e => setFacilityQuery(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            aria-label="Search facilities"
-          />
-          {facilityQuery.trim() && (
-            <button
-              className="db-topbar__search-submit"
-              type="button"
-              aria-label="Go"
-              onClick={handleSearchSubmit}
-            >
-              Go
-            </button>
-          )}
+      {/* ── Fixed background layer — pattern + tint stay pinned to the
+           viewport while everything else scrolls over it. A real
+           position:fixed element, not background-attachment:fixed,
+           since that CSS property is unreliably ignored on iOS Safari.
+           Same fix as the Emergency page's .em-bg-fixed. ── */}
+      <div className="pr-bg-fixed" aria-hidden="true" />
+
+      {/* ══ STICKY DESKTOP TOP BAR ═══════════════════════════════════ */}
+      <div className="db-topbar">
+        <div className="dbh-topbar-brand">
+          <HCLogo size={26} />
+          <span className="dbh-topbar-brand__text">HealthConnect</span>
         </div>
         <div className="db-topbar__right">
-                  <div className="db-topbar__live"><span className="db-topbar__live-dot" />Live</div>
-                  <button className="db-topbar__icon-btn" type="button" onClick={toggleDarkMode} aria-label="Toggle theme">
-                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-                  </button>
-                  <button ref={notifBellRef} className="db-topbar__icon-btn db-topbar__notif" type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
-                    <Bell size={18} />{hasUnread && <span className="db-topbar__notif-dot" />}
-                  </button>
-                  <button className="db-topbar__user" type="button" onClick={() => router.push('/profile')} title="Go to Profile & Settings">
-                    <div className="db-topbar__user-avatar">
-                        {userImage
-                          ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
-                          : userInitials}
-                      </div>
-                    <div className="db-topbar__user-info">
-                      <span className="db-topbar__user-name">{userName}</span>
-                      <span className="db-topbar__user-id">HC-{userEmail.slice(0,5).toUpperCase()}</span>
-                    </div>
-                  </button>
-                </div>
+          <button className="db-topbar__icon-btn" type="button" onClick={toggleDarkMode} aria-label="Toggle theme">
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <NotificationBell
+            className="db-topbar__icon-btn db-topbar__notif"
+            dotClassName="db-topbar__notif-dot"
+            aria-label="Notifications"
+          />
+        </div>
       </div>
 
-      {/* ── Notification panel ─────────────────────────────────── */}
-      {showNotifPanel && (
-        <>
-          <div className="db-notif-panel" ref={notifPanelRef} role="dialog" aria-label="Notifications">
-            <div className="db-notif-panel__header">
-              <span className="db-notif-panel__title">Notifications</span>
-              {notifications.some(n => n.id !== 'empty' && n.id !== 'complete') && (
-                <span className="db-notif-panel__count">
-                  {notifications.filter(n => n.id !== 'empty' && n.id !== 'complete').length}
-                </span>
-              )}
-              <button className="db-notif-panel__close" onClick={() => setShowNotifPanel(false)} type="button" aria-label="Close">
-                <X size={15} />
-              </button>
-            </div>
-            <div className="db-notif-panel__list">
-              {notifications.map(n => {
-                const Icon = n.icon;
-                return (
-                  <button key={n.id} className={`db-notif-item db-notif-item--${n.color}`}
-                    onClick={() => { setShowNotifPanel(false); n.action?.(); }}
-                    type="button" disabled={!n.action}>
-                    <div className={`db-notif-item__icon db-notif-item__icon--${n.color}`}><Icon size={14} /></div>
-                    <div className="db-notif-item__body">
-                      <p className="db-notif-item__title">{n.title}</p>
-                      <p className="db-notif-item__body-text">{n.body}</p>
-                    </div>
-                    {n.action && <ChevronRight size={13} className="db-notif-item__arrow" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="db-notif-overlay" onClick={() => setShowNotifPanel(false)} />
-        </>
-      )}
-
-      {/* ── Mobile topbar ──────────────────────────────────── */}
+      {/* ══ MOBILE TOP BAR ═══════════════════════════════════════════ */}
       <div className="mob-topbar">
         <div className="mob-topbar__left">
           <HCLogo size={30} />
           <span className="mob-topbar__logo-text">HealthConnect</span>
         </div>
         <div className="mob-topbar__right">
-          <button className="mob-topbar__btn" type="button" onClick={toggleDarkMode}>
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          <button ref={notifMobRef} className="mob-topbar__btn mob-topbar__bell" type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
-            <Bell size={18} />{hasUnread && <span className="mob-topbar__bell-dot" />}
-          </button>
-          <button className="mob-topbar__avatar-btn" type="button">
-            <div className="mob-topbar__avatar">
-              {userImage ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" /> : userInitials}
-            </div>
-          </button>
+          <MobTopbarMenu />
         </div>
       </div>
 
-      {/* ── Mobile bottom nav ──────────────────────────────── */}
-      <nav className="mob-tab-bar" aria-label="Main navigation">
-        <div className="mob-tab-bar__inner">
-          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button" aria-label="Home">
-            <span className="mob-tab-btn__icon"><Heart size={20} /></span>Home
-          </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button" aria-label="Find facilities">
-            <span className="mob-tab-btn__icon"><MapPin size={20} /></span>Find
-          </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button" aria-label="Symptom Checker">
-            <span className="mob-tab-btn__icon"><Bot size={20} /></span>Check
-          </button>
-          <button className="mob-tab-btn mob-tab-btn--sos" onClick={() => router.push('/emergency')} type="button" aria-label="Emergency">
-            <span className="mob-tab-sos-icon"><Phone size={20} /></span>SOS
-          </button>
-          <button className="mob-tab-btn active" onClick={() => router.push('/profile')} type="button" aria-current="page" aria-label="Profile">
-            <span className="mob-tab-btn__icon"><User size={20} /></span>Profile
-          </button>
-        </div>
-      </nav>
+      <MobTabBar currentPath="/profile" />
 
-      {/* ══════════════════════════════════════════════════════
-          MAIN PAGE
-      ══════════════════════════════════════════════════════ */}
-      <div className="db-page pr-page">
-
-        {/* ── Page header ─────────────────────────────────── */}
-        <div className="pr-page-header">
-          <div>
-            <h1 className="pr-page-header__title">Health Profile</h1>
-            <p className="pr-page-header__sub">Your complete health record — always private, always accessible</p>
-          </div>
-          <div className="pr-page-header__actions">
-            <button className="pr-btn pr-btn--ghost" type="button" onClick={() => setModal('medicalId')}>
-              <BookOpen size={14} /> Medical ID
-            </button>
-            <button className="pr-btn pr-btn--primary" type="button" onClick={() => setIsEditing(true)}>
-              <Edit2 size={14} /> Edit Profile
-            </button>
-          </div>
+      <div className="pfs-page">
+        <div className="pfs-page-head">
+          <h1 className="pfs-page-title">Profile &amp; Settings</h1>
+          <p className="pfs-page-sub">Your details, and how the app looks and notifies you.</p>
         </div>
 
-        {/* ── Notifications ───────────────────────────────── */}
-        {saveSuccess && (
-          <div className="pr-alert pr-alert--success"><Check size={16} /> Profile updated successfully!</div>
-        )}
-        {saveError && (
-          <div className="pr-alert pr-alert--error"><AlertCircle size={16} /> {saveError}</div>
-        )}
+        {/* ══════════════════ SECTION 1 — MY PROFILE ══════════════════ */}
+        <form className="pfs-profile-form" onSubmit={handleSaveProfile}>
+          <div className="pfs-card pfs-identity">
+            <h2 className="pfs-card__title">My Profile</h2>
+            <p className="pfs-card__sub">Your name and contact details.</p>
 
-        {/* ── Identity card ───────────────────────────────── */}
-        <div className={`pr-identity${isEditing ? ' pr-identity--editing' : ''}`}>
-          {/* Avatar */}
-          <div className="pr-identity__avatar-wrap">
-            <div className="pr-identity__avatar" onClick={() => isEditing && fileInputRef.current?.click()}>
-              {imagePreview
-                ? <img src={imagePreview} alt={userName} referrerPolicy="no-referrer" />
-                : getInitials(userName)}
-              {isEditing && (
-                <div className="pr-identity__avatar-overlay"><Camera size={22} /></div>
-              )}
+            <div className="pfs-identity-panel">
+              <div className="pfs-identity-panel__deco" aria-hidden="true">
+                <span className="pfs-identity-panel__circle pfs-identity-panel__circle--1" />
+                <span className="pfs-identity-panel__circle pfs-identity-panel__circle--2" />
+                <span className="pfs-identity-panel__circle pfs-identity-panel__circle--3" />
+              </div>
+
+              <span className="pfs-identity-panel__eyebrow">Signed in as</span>
+
+              <div className="pfs-identity-panel__body">
+                <div className="pfs-avatar-wrap">
+                  <button
+                    type="button"
+                    className="pfs-avatar-btn"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    aria-label="Change profile photo"
+                  >
+                    <div className={`pfs-avatar${avatarUploading ? ' pfs-avatar--loading' : ''}`}>
+                      {userImage ? <img src={userImage} alt={name || ''} referrerPolicy="no-referrer" /> : userInitials}
+                    </div>
+                    <span className="pfs-avatar-edit">
+                      {avatarUploading ? <Loader2 size={12} className="pfs-spin" /> : <Camera size={12} />}
+                    </span>
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleAvatarChange}
+                  />
+                </div>
+                <div className="pfs-identity-panel__text">
+                  <div className="pfs-identity-panel__name">{name || 'Your name'}</div>
+                  <div className="pfs-identity-panel__email">{userEmail}</div>
+                </div>
+              </div>
             </div>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
-            {isEditing && (
-              <p className="pr-identity__avatar-hint" onClick={() => fileInputRef.current?.click()}>
-                Tap or click to upload a photo
-              </p>
-            )}
-          </div>
 
-          {/* Info */}
-          <div className="pr-identity__info">
-            {isEditing ? (
+            <div className="pfs-field">
+              <label className="pfs-label" htmlFor="pfs-name">Full name</label>
               <input
-                className="pr-identity__name-input"
-                value={formData.name}
-                onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                placeholder="Full name"
-                autoFocus
+                id="pfs-name"
+                className="pfs-input"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                disabled={!profileLoaded}
+                maxLength={80}
+                required
               />
-            ) : (
-              <h2 className="pr-identity__name">{userName}</h2>
-            )}
-            <p className="pr-identity__meta">HC-{userEmail.slice(0,5).toUpperCase()} · Member since {health.memberSince}</p>
-            <div className="pr-identity__tags">
-              <span className="pr-tag pr-tag--red">{health.bloodType} Blood Type</span>
-              {conditions.map(c => (
-                <span key={c.id} className={`pr-tag ${STATUS_COLOR[c.status]}`}>{c.name} — {c.status}</span>
-              ))}
-              {health.age > 0 && <span className="pr-tag pr-tag--amber">{health.age} years</span>}
             </div>
           </div>
 
-          {/* Edit/Mobile action */}
-          <div className="pr-identity__actions">
-            {isEditing ? (
-              <>
-                <button className="pr-btn pr-btn--ghost pr-btn--sm" onClick={handleCancel} disabled={isSaving} type="button">
-                  <X size={14} /> Cancel
-                </button>
-                <button className="pr-btn pr-btn--primary pr-btn--sm" onClick={handleSave} disabled={isSaving} type="button">
-                  {isSaving ? <Loader2 size={14} className="pr-spin" /> : <Save size={14} />}
-                  {isSaving ? 'Saving…' : 'Save'}
-                </button>
-              </>
-            ) : (
-              <button className="pr-btn pr-btn--ghost pr-btn--sm pr-mob-edit" onClick={() => setIsEditing(true)} type="button">
-                <Edit2 size={14} /> Edit
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Stats row ───────────────────────────────────── */}
-        <div className="pr-stats">
-          {[
-            { icon: Droplets, label: 'BLOOD TYPE', value: health.bloodType,  color: 'red'   },
-            { icon: Calendar, label: 'AGE',         value: health.age > 0 ? String(health.age) : '—', color: 'teal'  },
-            { icon: Weight,   label: 'WEIGHT',      value: health.weight,    color: 'violet' },
-            { icon: Activity, label: 'BMI',          value: health.bmi ? String(health.bmi) : '—', color: 'teal' },
-          ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className={`pr-stat pr-stat--${color}`}>
-              <Icon size={18} className="pr-stat__icon" />
-              <div className="pr-stat__val">{value}</div>
-              <div className="pr-stat__label">{label}</div>
+          {profileBanner && (
+            <div className={`pfs-banner pfs-banner--${profileBanner.kind}`}>
+              {profileBanner.kind === 'success' ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
+              <span>{profileBanner.message}</span>
             </div>
-          ))}
-        </div>
+          )}
+          {profileError && (
+            <div className="pfs-banner pfs-banner--error">
+              <XCircle size={15} /><span>{profileError}</span>
+            </div>
+          )}
 
-        {/* ── Medical ID banner ───────────────────────────── */}
-        <button className="pr-medid-banner" onClick={() => setModal('medicalId')} type="button">
-          <div className="pr-medid-banner__icon">
-            <BookOpen size={20} />
+          <div className="pfs-form-actions">
+            <button className="pfs-btn pfs-btn--primary" type="submit" disabled={savingProfile || !profileLoaded}>
+              {savingProfile ? <Loader2 size={15} className="pfs-spin" /> : <Save size={15} />}
+              Save changes
+            </button>
           </div>
-          <div className="pr-medid-banner__body">
-            <p className="pr-medid-banner__title">Medical ID — Always Accessible</p>
-            <p className="pr-medid-banner__sub">Available offline · For first responders · Tap to view or share</p>
+        </form>
+
+        {/* ══════════════════ SECTION — MEDICAL ID ══════════════════ */}
+        <div className={`pfs-card pfs-medid-card${medIdExpanded ? ' pfs-medid-card--expanded' : ''}`} id="medical-id" ref={medicalIdRef}>
+          <button
+            type="button"
+            className="pfs-medid-toggle"
+            onClick={() => setMedIdExpanded(v => !v)}
+            aria-expanded={medIdExpanded}
+            aria-controls="medical-id-body"
+          >
+            <span className="pfs-medid-toggle__icon"><ClipboardList size={18} /></span>
+            <span className="pfs-medid-toggle__text">
+              <span className="pfs-card__title pfs-card__title--as-span">Medical ID</span>
+              <span className="pfs-card__sub pfs-card__sub--tight pfs-card__sub--as-span">
+                {medIdExpanded
+                  ? "Shown to clinics and responders. Only add things that would change how you're treated."
+                  : (nhisExpiryInfo.status === 'expired' || nhisExpiryInfo.status === 'expiring')
+                    ? `⚠ ${nhisExpiryInfo.estimated ? 'Your NHIS card may have' : 'Your NHIS card'} ${
+                        nhisExpiryInfo.status === 'expired'
+                          ? 'expired'
+                          : nhisExpiryInfo.daysLeft === 0
+                            ? 'renews today'
+                            : nhisExpiryInfo.daysLeft === 1
+                              ? 'renews tomorrow'
+                              : `renews in ${nhisExpiryInfo.daysLeft} days`
+                      }. Tap to renew.`
+                    : "So clinics and responders know how to treat you, even if you can't speak."}
+              </span>
+            </span>
+            <ChevronRight size={18} className="pfs-medid-toggle__chevron" />
+          </button>
+
+          {medIdExpanded && (
+          <div id="medical-id-body" className="pfs-medid-body">
+          {medIdBanner && (
+            <div className={`pfs-banner pfs-banner--${medIdBanner.kind}`}>
+              {medIdBanner.kind === 'success' ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
+              <span>{medIdBanner.message}</span>
+            </div>
+          )}
+
+          {/* Blood type */}
+          <div className="pfs-medid-panel pfs-medid-panel--blood">
+            <div className="pfs-medid-panel__head">
+              <span className="pfs-medid-panel__icon"><Droplet size={15} /></span>
+              <span className="pfs-medid-panel__text">
+                <span className="pfs-medid-panel__title">Blood type</span>
+                <span className="pfs-medid-panel__sub">Guides transfusion decisions if you need one urgently.</span>
+              </span>
+              <select
+                id="pfs-blood-type"
+                aria-label="Blood type"
+                className="pfs-input pfs-input--select pfs-medid-panel__select"
+                value={bloodType}
+                disabled={!medIdLoaded || savingBloodType}
+                onChange={e => handleSaveBloodType(e.target.value)}
+              >
+                <option value="">Not set</option>
+                {['O+','O-','A+','A-','B+','B-','AB+','AB-'].map(bt => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
+              </select>
+              {savingBloodType && <Loader2 size={14} className="pfs-spin pfs-medid-panel__spinner" />}
+            </div>
           </div>
-          <ChevronRight size={18} className="pr-medid-banner__arrow" />
-        </button>
-        
-{/* ── View Activities Banner ──────────────────────────────── */}
-<button
-  className="pr-activity-banner"
-  onClick={() => router.push('/dashboard/activities')}
-  type="button"
->
-  <div className="pr-activity-banner__icon">
-    <Activity size={20} />
-  </div>
-  <div className="pr-activity-banner__body">
-    <p className="pr-activity-banner__title">Activity History</p>
-    <p className="pr-activity-banner__sub">
-      {recentActivityCount > 0
-        ? `${recentActivityCount} recent health interactions — tap to view all`
-        : 'View your full history of health interactions'}
-    </p>
-  </div>
-  <ChevronRight size={18} className="pr-activity-banner__arrow" />
-</button>
-        {/* ── Health Records Grid ─────────────────────────── */}
-        {isLoadingProfile ? (
-          <div className="pr-loading">
-            <div className="hc-loading__dots"><span /><span /><span /></div>
-            <p>Loading your health profile…</p>
-          </div>
-        ) : (
-        <div className="pr-grid">
 
           {/* Allergies */}
-          <button className="pr-card" onClick={() => setModal('allergies')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--amber"><AlertTriangle size={16} /></div>
-              <span className="pr-card__title">Allergies</span>
-              <span className="pr-card__count">{allergies.length} entries</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
+          <div className="pfs-medid-panel pfs-medid-panel--allergy">
+            <div className="pfs-medid-panel__head">
+              <span className="pfs-medid-panel__icon"><AlertTriangle size={15} /></span>
+              <span className="pfs-medid-panel__text">
+                <span className="pfs-medid-panel__title">Allergies</span>
+                <span className="pfs-medid-panel__sub">Flags reactions before you're given medication or treatment.</span>
+              </span>
             </div>
-            <div className="pr-card__tags">
-              {allergies.map(a => <span key={a.id} className={`pr-tag ${SEVERITY_COLOR[a.severity]}`}>{a.name}</span>)}
-            </div>
-          </button>
 
-          {/* Medications */}
-          <button className="pr-card" onClick={() => setModal('meds')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--red"><Pill size={16} /></div>
-              <span className="pr-card__title">Medications</span>
-              <span className="pr-card__count">{activeMeds.length} active</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
+            {allergies.length === 0 && medIdLoaded && (
+              <p className="pfs-medid-empty">No allergies added.</p>
+            )}
+            {allergies.map(a => (
+              <div key={a.id} className="pfs-medid-row">
+                <span className={`pfs-medid-tag pfs-medid-tag--${a.severity}`}>{a.severity}</span>
+                <span className="pfs-medid-row__name">{a.name}</span>
+                <button
+                  type="button"
+                  className="pfs-medid-row__remove"
+                  aria-label={`Remove ${a.name}`}
+                  onClick={() => handleDeleteAllergy(a.id)}
+                  disabled={deletingAllergyId === a.id}
+                >
+                  {deletingAllergyId === a.id ? <Loader2 size={13} className="pfs-spin" /> : <X size={13} />}
+                </button>
+              </div>
+            ))}
+            <div className="pfs-medid-add-row">
+              <input
+                className="pfs-input"
+                type="text"
+                placeholder="e.g. Penicillin"
+                value={newAllergyName}
+                onChange={e => setNewAllergyName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddAllergy(); } }}
+              />
+              <select
+                className="pfs-input pfs-input--select pfs-input--narrow"
+                value={newAllergySeverity}
+                onChange={e => setNewAllergySeverity(e.target.value)}
+              >
+                <option value="mild">Mild</option>
+                <option value="moderate">Moderate</option>
+                <option value="severe">Severe</option>
+              </select>
+              <button
+                type="button"
+                className="pfs-btn pfs-btn--ghost pfs-medid-add-btn"
+                onClick={handleAddAllergy}
+                disabled={savingAllergy || !newAllergyName.trim()}
+              >
+                {savingAllergy ? <Loader2 size={14} className="pfs-spin" /> : <Plus size={14} />}
+              </button>
             </div>
-            <div className="pr-card__tags">
-              {activeMeds.map(m => <span key={m.id} className="pr-tag pr-tag--teal">{m.name}</span>)}
-            </div>
-          </button>
+          </div>
 
           {/* Conditions */}
-          <button className="pr-card" onClick={() => setModal('conditions')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--violet"><Stethoscope size={16} /></div>
-              <span className="pr-card__title">Conditions</span>
-              <span className="pr-card__count">{conditions.length} {conditions.length === 1 ? 'entry' : 'entries'}</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
-            </div>
-            <div className="pr-card__tags">
-              {conditions.map(c => <span key={c.id} className={`pr-tag ${STATUS_COLOR[c.status]}`}>{c.name} — {c.status}</span>)}
-            </div>
-          </button>
-
-          {/* Symptom History */}
-          <button className="pr-card" onClick={() => setModal('sessions')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--teal"><ClipboardList size={16} /></div>
-              <span className="pr-card__title">Symptom History</span>
-              <span className="pr-card__count">{sessions.length} sessions</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
-            </div>
-            <div className="pr-card__tags">
-              {sessions.slice(0, 2).map(s => (
-                <span key={s.id} className="pr-tag pr-tag--ghost">{s.date}: {s.symptoms.slice(0,2).join(', ')}</span>
-              ))}
-            </div>
-          </button>
-
-          {/* Saved Facilities */}
-          <button className="pr-card" onClick={() => setModal('facilities')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--amber"><BookmarkCheck size={16} /></div>
-              <span className="pr-card__title">Saved Facilities</span>
-              <span className="pr-card__count">{facilities.length} saved</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
-            </div>
-            <div className="pr-card__tags">
-              {facilities.slice(0, 3).map(f => (
-                <span key={f.id} className="pr-tag pr-tag--ghost">
-                  {f.name}{f.city ? ` · ${f.city}` : ''}
-                </span>
-              ))}
-              {facilities.length === 0 && (
-                <span className="pr-tag pr-tag--ghost" style={{ opacity: 0.5 }}>No saved facilities yet — tap to add</span>
-              )}
-            </div>
-          </button>
-
-          {/* Family Profiles */}
-          <button className="pr-card" onClick={() => setModal('family')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--green"><Users size={16} /></div>
-              <span className="pr-card__title">Family Profiles</span>
-              <span className="pr-card__count">Add member</span>
-              <ChevronRight size={15} className="pr-card__arrow" />
-            </div>
-            <div className="pr-card__tags">
-              {family.map(f => <span key={f.id} className="pr-tag pr-tag--ghost">{f.name} · {f.relation}</span>)}
-            </div>
-          </button>
-
-          {/* Emergency Contacts */}
-          <button className="pr-card pr-card--sos" onClick={() => setModal('emergencyContacts')} type="button">
-            <div className="pr-card__header">
-              <div className="pr-card__icon pr-card__icon--red"><Phone size={16} /></div>
-              <span className="pr-card__title">Emergency Contacts</span>
-              <span className="pr-card__count">
-                {isLoadingContacts ? '…' : `${emergencyContacts.length} saved`}
+          <div className="pfs-medid-panel pfs-medid-panel--condition">
+            <div className="pfs-medid-panel__head">
+              <span className="pfs-medid-panel__icon"><Stethoscope size={15} /></span>
+              <span className="pfs-medid-panel__text">
+                <span className="pfs-medid-panel__title">Conditions</span>
+                <span className="pfs-medid-panel__sub">Gives context responders need for the right care, fast.</span>
               </span>
-              <ChevronRight size={15} className="pr-card__arrow" />
             </div>
-            <div className="pr-card__tags">
-              {emergencyContacts.length > 0
-                ? emergencyContacts.slice(0, 3).map(c => (
-                    <span key={c.id} className={`pr-tag ${c.isPrimary ? 'pr-tag--red' : 'pr-tag--ghost'}`}>
-                      {c.name}{c.isPrimary ? ' · Primary' : ''}
-                    </span>
-                  ))
-                : <span className="pr-tag pr-tag--ghost" style={{ opacity: 0.5 }}>No contacts yet — tap to add</span>
-              }
+
+            {conditions.length === 0 && medIdLoaded && (
+              <p className="pfs-medid-empty">No conditions added.</p>
+            )}
+            {conditions.map(c => (
+              <div key={c.id} className="pfs-medid-row">
+                <span className={`pfs-medid-tag pfs-medid-tag--status-${c.status}`}>{c.status}</span>
+                <span className="pfs-medid-row__name">{c.name}</span>
+                <button
+                  type="button"
+                  className="pfs-medid-row__remove"
+                  aria-label={`Remove ${c.name}`}
+                  onClick={() => handleDeleteCondition(c.id)}
+                  disabled={deletingConditionId === c.id}
+                >
+                  {deletingConditionId === c.id ? <Loader2 size={13} className="pfs-spin" /> : <X size={13} />}
+                </button>
+              </div>
+            ))}
+            <div className="pfs-medid-add-row">
+              <input
+                className="pfs-input"
+                type="text"
+                placeholder="e.g. Asthma"
+                value={newConditionName}
+                onChange={e => setNewConditionName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCondition(); } }}
+              />
+              <select
+                className="pfs-input pfs-input--select pfs-input--narrow"
+                value={newConditionStatus}
+                onChange={e => setNewConditionStatus(e.target.value)}
+              >
+                <option value="managed">Managed</option>
+                <option value="active">Active</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <button
+                type="button"
+                className="pfs-btn pfs-btn--ghost pfs-medid-add-btn"
+                onClick={handleAddCondition}
+                disabled={savingCondition || !newConditionName.trim()}
+              >
+                {savingCondition ? <Loader2 size={14} className="pfs-spin" /> : <Plus size={14} />}
+              </button>
             </div>
-          </button>
+          </div>
+
+          {/* NHIS card */}
+          <div className="pfs-medid-panel pfs-medid-panel--nhis">
+            <div className="pfs-medid-panel__head">
+              <span className="pfs-medid-panel__icon"><Shield size={15} /></span>
+              <span className="pfs-medid-panel__text">
+                <span className="pfs-medid-panel__title">NHIS card</span>
+                <span className="pfs-medid-panel__sub">Lets facilities confirm your cover without you carrying the physical card.</span>
+              </span>
+            </div>
+
+            <div className="pfs-nhis-preview">
+              {nhisExpiryInfo.status !== 'none' && (
+                <span className={`pfs-nhis-expiry-badge pfs-nhis-expiry-badge--${nhisExpiryInfo.status}`}>
+                  {nhisExpiryInfo.label}
+                </span>
+              )}
+              <div className="pfs-nhis-preview__top">
+                <span className="pfs-nhis-preview__scheme">National Health Insurance Scheme</span>
+                <CreditCard size={16} className="pfs-nhis-preview__chip" />
+              </div>
+              <span className="pfs-nhis-preview__id">{nhisId || 'GH-•••• •••• ••'}</span>
+              <div className="pfs-nhis-preview__bottom">
+                <span>
+                  <span className="pfs-nhis-preview__label">Member</span>
+                  <span className="pfs-nhis-preview__value">{nhisMembershipType || '—'}</span>
+                </span>
+                <span>
+                  <span className="pfs-nhis-preview__label">Expires</span>
+                  <span className="pfs-nhis-preview__value">{nhisExpiryDate || '—'}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="pfs-field-row">
+              <div className="pfs-field">
+                <label className="pfs-label" htmlFor="pfs-nhis-id">NHIS ID</label>
+                <input id="pfs-nhis-id" className="pfs-input" type="text" value={nhisId} onChange={e => setNhisId(e.target.value)} placeholder="e.g. GH-1234567890" />
+              </div>
+              <div className="pfs-field">
+                <label className="pfs-label" htmlFor="pfs-nhis-type">Membership type</label>
+                <input id="pfs-nhis-type" className="pfs-input" type="text" value={nhisMembershipType} onChange={e => setNhisMembershipType(e.target.value)} placeholder="e.g. Adult" />
+              </div>
+            </div>
+            <div className="pfs-field-row">
+              <div className="pfs-field">
+                <label className="pfs-label" htmlFor="pfs-nhis-issued">Issued</label>
+                <input id="pfs-nhis-issued" className="pfs-input" type="date" value={nhisIssuedDate} onChange={e => setNhisIssuedDate(e.target.value)} />
+              </div>
+              <div className="pfs-field">
+                <label className="pfs-label" htmlFor="pfs-nhis-expiry">Expires</label>
+                <input id="pfs-nhis-expiry" className="pfs-input" type="date" value={nhisExpiryDate} onChange={e => setNhisExpiryDate(e.target.value)} />
+              </div>
+            </div>
+            <div className="pfs-field">
+              <label className="pfs-label" htmlFor="pfs-nhis-body">Issuing body</label>
+              <input id="pfs-nhis-body" className="pfs-input" type="text" value={nhisIssuingBody} onChange={e => setNhisIssuingBody(e.target.value)} placeholder="National Health Insurance Authority" />
+            </div>
+            <div className="pfs-form-actions">
+              <button className="pfs-btn pfs-btn--primary" type="button" onClick={handleSaveNhis} disabled={savingNhis}>
+                {savingNhis ? <Loader2 size={15} className="pfs-spin" /> : <Save size={15} />}
+                Save NHIS card
+              </button>
+            </div>
+          </div>
+          </div>
+          )}
         </div>
-        )} {/* end isLoadingProfile */}
 
-        {/* ── Account Settings section ─────────────────────── */}
-        <div className="pr-settings-section">
-          <h3 className="pr-settings-section__title">Account</h3>
-          <div className="pr-settings-list">
+        {/* ══════════════════ SECTION — SAVED FACILITIES ══════════════════ */}
+        <div className="pfs-card" id="saved-facilities">
+          <h2 className="pfs-card__title">Saved Facilities</h2>
+          <p className="pfs-card__sub">Facilities you've bookmarked for quick access.</p>
 
-            {/* Email (read-only) */}
-            <div className="pr-settings-item">
-              <div className="pr-settings-item__icon"><Mail size={16} /></div>
-              <div className="pr-settings-item__body">
-                <p className="pr-settings-item__label">Email Address</p>
-                <p className="pr-settings-item__val">{userEmail}</p>
+          {savedFacilities === null && (
+            <div className="pfs-empty">Loading…</div>
+          )}
+
+          {savedFacilities !== null && savedFacilities.length === 0 && (
+            <div className="pfs-empty">
+              You haven&apos;t saved any facilities yet. Tap the bookmark icon on any facility to save it here.
+            </div>
+          )}
+
+          {savedFacilities?.map((f, i) => {
+            const distanceKm = userCoords
+              ? calculateDistance(userCoords.lat, userCoords.lng, f.latitude, f.longitude)
+              : null;
+            return (
+              <div key={f.id} className={`pfs-saved-row${i === 0 ? ' pfs-saved-row--first' : ''}`}>
+                <div className="pfs-saved-row__top">
+                  <div className="pfs-saved-row__info">
+                    <span className="pfs-saved-row__name">{f.name}</span>
+                    <span className="pfs-saved-row__badges">
+                      <span className="pfs-saved-row__type">{f.type.replace(/_/g, ' ')}</span>
+                      {distanceKm !== null && (
+                        <span className="pfs-saved-row__distance"><MapPin size={11} /> {formatDistance(distanceKm)}</span>
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    className="pfs-saved-row__remove"
+                    type="button"
+                    aria-label={`Remove ${f.name} from saved`}
+                    onClick={() => removeSavedFacility(f.facilityId)}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+                <div className="pfs-saved-row__actions">
+                  {f.phone && (
+                    <a className="pfs-saved-row__btn" href={`tel:${f.phone}`}>
+                      <Phone size={13} /> Call
+                    </a>
+                  )}
+                  <button className="pfs-saved-row__btn" type="button" onClick={() => openDirections(f.latitude, f.longitude)}>
+                    <Navigation size={13} /> Directions
+                  </button>
+                </div>
               </div>
-              <span className="pr-settings-item__badge">Cannot change</span>
+            );
+          })}
+        </div>
+
+        {/* ══════════════════ SECTION — MY ACTIVITY ══════════════════ */}
+        <div className="pfs-card" id="my-activity">
+          <h2 className="pfs-card__title">My Activity</h2>
+          <p className="pfs-card__sub">Your recent searches, views, and emergency actions.</p>
+
+          {activities === null && (
+            <div className="pfs-empty">Loading…</div>
+          )}
+
+          {activities !== null && activities.length === 0 && (
+            <div className="pfs-empty">No activity yet — your searches and views will show up here.</div>
+          )}
+
+          {activities?.map(a => {
+            const Icon = activityIconFor(a.activityType);
+            return (
+              <div key={a.id} className="pfs-activity-row">
+                <div className="pfs-activity-row__icon"><Icon size={15} /></div>
+                <div className="pfs-activity-row__body">
+                  <p className="pfs-activity-row__title">{a.title}</p>
+                  {a.description && <p className="pfs-activity-row__desc">{a.description}</p>}
+                </div>
+                <span className="pfs-activity-row__time">{getRelativeTime(new Date(a.createdAt))}</span>
+              </div>
+            );
+          })}
+
+          {activities !== null && activities.length > 0 && (
+            <div className="pfs-activity-footer">
+              {activitiesTotal > activities.length && (
+                <button className="pfs-btn pfs-btn--ghost" type="button" onClick={() => router.push('/dashboard/activities')}>
+                  View all <ChevronRight size={14} />
+                </button>
+              )}
+              <button className="pfs-btn pfs-btn--danger" type="button" onClick={() => setShowClearConfirm(true)}>
+                <Trash2 size={14} /> Clear activity history
+              </button>
+            </div>
+          )}
+
+          {showClearConfirm && (
+            <div className="pfs-confirm-overlay" onClick={() => setShowClearConfirm(false)}>
+              <div className="pfs-confirm" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+                <div className="pfs-confirm__icon"><Trash2 size={18} /></div>
+                <h3 className="pfs-confirm__title">Clear activity history?</h3>
+                <p className="pfs-confirm__body">This removes all your activity history. This can&apos;t be undone.</p>
+                <div className="pfs-confirm__actions">
+                  <button className="pfs-btn pfs-btn--ghost pfs-btn--full" type="button" onClick={() => setShowClearConfirm(false)}>
+                    Cancel
+                  </button>
+                  <button className="pfs-btn pfs-btn--danger pfs-btn--full" type="button" onClick={handleClearHistory} disabled={clearingHistory}>
+                    {clearingHistory ? <Loader2 size={14} className="pfs-spin" /> : <Trash2 size={14} />}
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ══════════════════ SECTION 2 — APP SETTINGS ════════════════ */}
+        <div className="pfs-card" id="app-settings">
+          <h2 className="pfs-card__title">App Settings</h2>
+          <p className="pfs-card__sub">Display, language, notifications, and account.</p>
+
+          {/* ── Display ─────────────────────────────────────────── */}
+          <div className="pfs-group pfs-group--display">
+            <h3 className="pfs-group__title"><span className="pfs-group__icon"><Palette size={14} /></span> Display</h3>
+
+            <div className="pfs-row">
+              <div className="pfs-row__text">
+                <span className="pfs-row__label">Dark Mode</span>
+              </div>
+              <button
+                className={`pfs-toggle${isDarkMode ? ' pfs-toggle--on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={isDarkMode}
+                aria-label="Toggle dark mode"
+                onClick={toggleDarkMode}
+              >
+                <span className="pfs-toggle__thumb" />
+              </button>
             </div>
 
-            {/* Dark mode */}
-            <div className="pr-settings-item pr-settings-item--clickable" onClick={toggleDarkMode}>
-              <div className="pr-settings-item__icon">{isDarkMode ? <Moon size={16} /> : <Sun size={16} />}</div>
-              <div className="pr-settings-item__body">
-                <p className="pr-settings-item__label">{isDarkMode ? 'Dark Mode' : 'Light Mode'}</p>
-                <p className="pr-settings-item__val">Tap to toggle theme</p>
+            <div className="pfs-row" style={{ display: 'block' }}>
+              <div className="pfs-row__text" style={{ marginBottom: 10 }}>
+                <span className="pfs-row__label">Text Size</span>
               </div>
-              <div className={`pr-toggle${isDarkMode ? ' pr-toggle--on' : ''}`}>
-                <div className="pr-toggle__knob" />
+              <div className="pfs-seg">
+                {FONT_SIZE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`pfs-seg__btn${fontSize === opt.value ? ' pfs-seg__btn--active' : ''}`}
+                    onClick={() => setFontSize(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Notifications */}
-            <div className="pr-settings-item pr-settings-item--clickable">
-              <div className="pr-settings-item__icon"><Bell size={16} /></div>
-              <div className="pr-settings-item__body">
-                <p className="pr-settings-item__label">Notifications</p>
-                <p className="pr-settings-item__val">Health alerts, appointment reminders</p>
+            <div className="pfs-row" style={{ display: 'block' }}>
+              <div className="pfs-row__text" style={{ marginBottom: 10 }}>
+                <span className="pfs-row__label"><Type size={13} style={{ verticalAlign: -2, marginRight: 4 }} />Text Style</span>
               </div>
-              <ChevronRight size={16} className="pr-settings-item__arrow" />
+              <div className="pfs-font-grid">
+                {FONT_STYLE_OPTIONS.map(opt => {
+                  const active = fontStyle === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`pfs-font-card${active ? ' pfs-font-card--active' : ''}`}
+                      onClick={() => setFontStyle(opt.value)}
+                    >
+                      <span className="pfs-font-card__top">
+                        <span className="pfs-font-card__glyph" style={opt.family ? { fontFamily: opt.family } : undefined}>Aa</span>
+                        <span className="pfs-font-card__label">
+                          {opt.label}
+                          {active && <Check size={11} className="pfs-font-card__check" />}
+                        </span>
+                      </span>
+                      <span className="pfs-font-card__preview" style={opt.family ? { fontFamily: opt.family } : undefined}>
+                        {FONT_PREVIEW_TEXT}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Language ─────────────────────────────────────────── */}
+          <div className="pfs-group pfs-group--language">
+            <h3 className="pfs-group__title"><span className="pfs-group__icon"><Globe size={14} /></span> Language</h3>
+            <div className="pfs-seg pfs-seg--2">
+              <button
+                type="button"
+                className={`pfs-seg__btn${language === 'en' ? ' pfs-seg__btn--active' : ''}`}
+                onClick={() => handleLanguageChange('en')}
+              >
+                English
+              </button>
+              <button
+                type="button"
+                className={`pfs-seg__btn${language === 'tw' ? ' pfs-seg__btn--active' : ''}`}
+                onClick={() => handleLanguageChange('tw')}
+              >
+                Twi
+              </button>
+            </div>
+          </div>
+
+          {/* ── Notifications ────────────────────────────────────── */}
+          <div className="pfs-group pfs-group--notifications">
+            <h3 className="pfs-group__title"><span className="pfs-group__icon"><Bell size={14} /></span> Notifications</h3>
+
+            <div className="pfs-row">
+              <div className="pfs-row__text">
+                <span className="pfs-row__label">Health Alert Emails</span>
+                <span className="pfs-row__desc">Public health, facility, and calendar alerts by email.</span>
+              </div>
+              <button
+                className={`pfs-toggle${alertEmailsEnabled ? ' pfs-toggle--on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={alertEmailsEnabled}
+                aria-label="Toggle health alert emails"
+                onClick={toggleAlertEmails}
+                disabled={savingKey === 'alertEmailsEnabled'}
+              >
+                <span className="pfs-toggle__thumb" />
+              </button>
             </div>
 
-            {/* Privacy */}
-            <div className="pr-settings-item pr-settings-item--clickable">
-              <div className="pr-settings-item__icon"><Lock size={16} /></div>
-              <div className="pr-settings-item__body">
-                <p className="pr-settings-item__label">Privacy & Security</p>
-                <p className="pr-settings-item__val">Data sharing, 2FA, session management</p>
+            <div className={`pfs-row${!alertEmailsEnabled ? ' pfs-row--disabled' : ''}`}>
+              <div className="pfs-row__text">
+                <span className="pfs-row__label">Welcome me by name in alerts</span>
+                <span className="pfs-row__desc">"Hi {name.split(' ')[0] || 'there'}," instead of a generic greeting.</span>
               </div>
-              <ChevronRight size={16} className="pr-settings-item__arrow" />
+              <button
+                className={`pfs-toggle${alertNamePersonalization ? ' pfs-toggle--on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={alertNamePersonalization}
+                aria-label="Toggle name personalisation in alert emails"
+                onClick={toggleAlertPersonalization}
+                disabled={savingKey === 'alertNamePersonalization' || !alertEmailsEnabled}
+              >
+                <span className="pfs-toggle__thumb" />
+              </button>
             </div>
 
-            {/* Sign out */}
-            <div className="pr-settings-item pr-settings-item--danger pr-settings-item--clickable"
-              onClick={() => signOut({ callbackUrl: '/', redirect: true })}>
-              <div className="pr-settings-item__icon"><LogOut size={16} /></div>
-              <div className="pr-settings-item__body">
-                <p className="pr-settings-item__label">Sign Out</p>
-                <p className="pr-settings-item__val">Signed in as {userName}</p>
+            <div className={`pfs-row${!pushSupported ? ' pfs-row--disabled' : ''}`}>
+              <div className="pfs-row__text">
+                <span className="pfs-row__label">Push notifications</span>
+                <span className="pfs-row__desc">
+                  {pushSupported
+                    ? 'Health alerts on this device, even when the app is closed.'
+                    : "This browser doesn't support push notifications."}
+                </span>
               </div>
-              <ChevronRight size={16} className="pr-settings-item__arrow" />
+              <button
+                className={`pfs-toggle${pushEnabled ? ' pfs-toggle--on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={pushEnabled}
+                aria-label="Toggle push notifications"
+                onClick={togglePush}
+                disabled={savingKey === 'pushEnabled' || !pushSupported}
+              >
+                <span className="pfs-toggle__thumb" />
+              </button>
             </div>
+          </div>
+
+          {/* ── Account ──────────────────────────────────────────── */}
+          <div className="pfs-group pfs-group--account">
+            <h3 className="pfs-group__title"><span className="pfs-group__icon"><Mail size={14} /></span> Account</h3>
+
+            <div className="pfs-row">
+              <div className="pfs-row__text">
+                <span className="pfs-row__label">Email</span>
+              </div>
+              <span className="pfs-row__value">{userEmail}</span>
+            </div>
+
+            {hasPassword ? (
+              <>
+                <button className="pfs-row pfs-row--link" type="button" onClick={() => setShowPwPanel(p => !p)}>
+                  <span className="pfs-row__text">
+                    <span className="pfs-row__label"><Lock size={13} style={{ verticalAlign: -2, marginRight: 4 }} />Change password</span>
+                  </span>
+                  <ChevronRight size={16} className="pfs-row__chevron" />
+                </button>
+
+                {showPwPanel && (
+                  <form className="pfs-inline-panel" onSubmit={handleChangePassword}>
+                    {pwBanner && (
+                      <div className={`pfs-banner pfs-banner--${pwBanner.kind}`} style={{ marginBottom: 12 }}>
+                        {pwBanner.kind === 'success' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                        <span>{pwBanner.message}</span>
+                      </div>
+                    )}
+                    <div className="pfs-field">
+                      <label className="pfs-label" htmlFor="pfs-current-pw">Current password</label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          id="pfs-current-pw"
+                          className="pfs-input"
+                          type={showCurrentPw ? 'text' : 'password'}
+                          value={currentPw}
+                          onChange={e => setCurrentPw(e.target.value)}
+                          style={{ paddingRight: 40 }}
+                          autoComplete="current-password"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPw(v => !v)}
+                          aria-label={showCurrentPw ? 'Hide password' : 'Show password'}
+                          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--hc-text3)', cursor: 'pointer', padding: 4 }}
+                        >
+                          {showCurrentPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="pfs-field">
+                      <label className="pfs-label" htmlFor="pfs-new-pw">New password</label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          id="pfs-new-pw"
+                          className="pfs-input"
+                          type={showNewPw ? 'text' : 'password'}
+                          value={newPw}
+                          onChange={e => setNewPw(e.target.value)}
+                          style={{ paddingRight: 40 }}
+                          autoComplete="new-password"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPw(v => !v)}
+                          aria-label={showNewPw ? 'Hide password' : 'Show password'}
+                          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--hc-text3)', cursor: 'pointer', padding: 4 }}
+                        >
+                          {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                      {newPw.length > 0 && (
+                        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {PW_REQS.map((r, i) => (
+                            <span key={r.label} style={{ fontSize: 11.5, color: pwReqsMet[i] ? 'var(--hc-teal)' : 'var(--hc-text3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <Check size={11} style={{ opacity: pwReqsMet[i] ? 1 : 0.3 }} /> {r.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button className="pfs-btn pfs-btn--primary pfs-btn--full" type="submit" disabled={pwSaving || !currentPw || !pwAllMet}>
+                      {pwSaving ? <Loader2 size={15} className="pfs-spin" /> : <Lock size={15} />}
+                      Update password
+                    </button>
+                  </form>
+                )}
+              </>
+            ) : (
+              <div className="pfs-row">
+                <span className="pfs-row__desc">Signed in with Google — no password to change.</span>
+              </div>
+            )}
+
+            <div style={{ marginTop: 14 }}>
+              <button className="pfs-btn pfs-btn--ghost pfs-btn--full" type="button" onClick={handleSignOut}>
+                <LogOut size={15} /> Sign out
+              </button>
+            </div>
+          </div>
+
+          {/* ── Legal ────────────────────────────────────────────── */}
+          <div className="pfs-group pfs-group--legal">
+            <h3 className="pfs-group__title"><span className="pfs-group__icon"><Lock size={14} /></span> Legal</h3>
+            <button className="pfs-row pfs-row--link" type="button" onClick={() => setLegalModal('privacy')}>
+              <span className="pfs-row__label">Privacy Policy</span>
+              <ChevronRight size={16} className="pfs-row__chevron" />
+            </button>
+            <button className="pfs-row pfs-row--link" type="button" onClick={() => setLegalModal('terms')}>
+              <span className="pfs-row__label">Terms of Use</span>
+              <ChevronRight size={16} className="pfs-row__chevron" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          MODALS
-      ══════════════════════════════════════════════════════ */}
-      {modal && (
-        <div className="pr-modal-overlay" onClick={() => setModal(null)}>
-          <div className="pr-modal" onClick={e => e.stopPropagation()}>
-
-            {/* ── Medical ID ─────────────────────────────── */}
-            {modal === 'medicalId' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--violet"><BookOpen size={18} /></div>
-                  <div>
-                    <h3 className="pr-modal__title">Medical ID</h3>
-                    <p className="pr-modal__sub">Available offline · Tap copy to share</p>
-                  </div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-
-                {/* First-responder instruction banner */}
-                <div className="pr-medid-responder-banner">
-                  <span className="pr-medid-responder-banner__emoji">🚑</span>
-                  <div>
-                    <p className="pr-medid-responder-banner__title">For First Responders</p>
-                    <p className="pr-medid-responder-banner__sub">Show this screen or tap Copy to share via message</p>
-                  </div>
-                </div>
-
-                <div className="pr-modal__body">
-                  <div className="pr-medid-card">
-                    {[
-                      { label: 'Name',        val: userName },
-                      { label: 'Blood Type',  val: health.bloodType,  highlight: 'red'  },
-                      { label: 'Age',         val: health.age > 0 ? `${health.age} years` : '—' },
-                      { label: 'Height',      val: health.height },
-                      { label: 'Weight',      val: health.weight },
-                      { label: 'BMI',         val: health.bmi ? String(health.bmi) : '—' },
-                      { label: 'Allergies',   val: allergies.map(a => a.name).join(', ') || 'None', highlight: 'amber' },
-                      { label: 'Medications', val: activeMeds.map(m => m.name).join(', ') || 'None' },
-                      { label: 'Conditions',  val: conditions.map(c => c.name).join(', ') || 'None' },
-                      { label: 'Contact',     val: emergencyContacts[0] ? `${emergencyContacts[0].name} · ${emergencyContacts[0].number}` : 'Not set' },
-                    ].map(({ label, val, highlight }) => (
-                      <div key={label} className="pr-medid-row">
-                        <span className="pr-medid-row__key">{label}</span>
-                        <span className={`pr-medid-row__val${highlight ? ` pr-medid-row__val--${highlight}` : ''}`}>{val}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="pr-medid-actions">
-                    <button
-                      className={`pr-medid-actions__copy${copiedMedId ? ' pr-medid-actions__copy--ok' : ''}`}
-                      onClick={copyMedicalId} type="button"
-                    >
-                      {copiedMedId
-                        ? <><Check size={14} /> Copied!</>
-                        : <><Copy size={14} /> Copy Card</>
-                      }
-                    </button>
-                    <button className="pr-medid-actions__edit" type="button" onClick={() => setModal('editHealth')}>
-                      <Edit2 size={14} /> Edit Info
-                    </button>
-                  </div>
-                  <p className="pr-medid-actions__hint">
-                    Copy pastes a plain-text summary — paste into WhatsApp, SMS, or any message app
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* ── Edit Health ────────────────────────────── */}
-            {modal === 'editHealth' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--teal"><Activity size={18} /></div>
-                  <div><h3 className="pr-modal__title">Edit Health Info</h3><p className="pr-modal__sub">Your vitals &amp; measurements</p></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-edit-health-grid">
-                    <div className="pr-form-row">
-                      <label className="pr-form-label">Blood Type</label>
-                      <input className="pr-form-input" value={String(editHealthForm.bloodType)} placeholder="e.g. O+"
-                        onChange={e => setEditHealthForm(p => ({ ...p, bloodType: e.target.value }))} />
-                    </div>
-                    <div className="pr-form-row">
-                      <label className="pr-form-label">Gender</label>
-                      <select className="pr-form-select pr-form-select--full" value={editHealthForm.gender}
-                        onChange={e => setEditHealthForm(p => ({ ...p, gender: e.target.value }))}>
-                        <option value="">Select gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                        <option value="Prefer not to say">Prefer not to say</option>
-                      </select>
-                    </div>
-                    <div className="pr-form-row pr-form-row--full">
-                      <label className="pr-form-label">Date of Birth</label>
-                      <input className="pr-form-input" type="date" value={String(editHealthForm.dob)}
-                        onChange={e => setEditHealthForm(p => ({ ...p, dob: e.target.value }))} />
-                    </div>
-                    <div className="pr-form-row">
-                      <label className="pr-form-label">Weight (kg)</label>
-                      <input className="pr-form-input" value={String(editHealthForm.weight)} placeholder="e.g. 62"
-                        onChange={e => setEditHealthForm(p => ({ ...p, weight: e.target.value }))} />
-                    </div>
-                    <div className="pr-form-row">
-                      <label className="pr-form-label">Height (cm)</label>
-                      <input className="pr-form-input" value={String(editHealthForm.height)} placeholder="e.g. 170"
-                        onChange={e => setEditHealthForm(p => ({ ...p, height: e.target.value }))} />
-                    </div>
-                  </div>
-
-                  {/* Read-only linked rows for allergies, meds & conditions */}
-                  <div className="pr-edit-health-info">
-                    <div className="pr-edit-health-info__row" onClick={() => setModal('allergies')}>
-                      <div className="pr-edit-health-info__icon pr-card__icon--amber"><AlertTriangle size={14} /></div>
-                      <div className="pr-edit-health-info__body">
-                        <span className="pr-edit-health-info__label">Allergies</span>
-                        <span className="pr-edit-health-info__val">
-                          {allergies.length > 0 ? allergies.map(a => a.name).join(', ') : 'None recorded'}
-                        </span>
-                      </div>
-                      <ChevronRight size={14} className="pr-edit-health-info__arrow" />
-                    </div>
-                    <div className="pr-edit-health-info__row" onClick={() => setModal('meds')}>
-                      <div className="pr-edit-health-info__icon pr-card__icon--red"><Pill size={14} /></div>
-                      <div className="pr-edit-health-info__body">
-                        <span className="pr-edit-health-info__label">Medications</span>
-                        <span className="pr-edit-health-info__val">
-                          {activeMeds.length > 0 ? `${activeMeds.length} active medication${activeMeds.length !== 1 ? 's' : ''}` : 'None recorded'}
-                        </span>
-                      </div>
-                      <ChevronRight size={14} className="pr-edit-health-info__arrow" />
-                    </div>
-                    <div className="pr-edit-health-info__row" onClick={() => setModal('conditions')}>
-                      <div className="pr-edit-health-info__icon pr-card__icon--violet"><Stethoscope size={14} /></div>
-                      <div className="pr-edit-health-info__body">
-                        <span className="pr-edit-health-info__label">Conditions</span>
-                        <span className="pr-edit-health-info__val">
-                          {conditions.length > 0 ? conditions.map(c => c.name).join(', ') : 'None recorded'}
-                        </span>
-                      </div>
-                      <ChevronRight size={14} className="pr-edit-health-info__arrow" />
-                    </div>
-                  </div>
-
-                  <button className="pr-modal__save" onClick={saveHealth} type="button">
-                    <Save size={14} /> Save Changes
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* ── Allergies ──────────────────────────────── */}
-            {modal === 'allergies' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--amber"><AlertTriangle size={18} /></div>
-                  <div><h3 className="pr-modal__title">Allergies</h3><p className="pr-modal__sub">{allergies.length} entries</p></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-list">
-                    {allergies.map(a => (
-                      <div key={a.id} className="pr-list-item">
-                        <span className={`pr-tag ${SEVERITY_COLOR[a.severity]}`}>{a.name}</span>
-                        <span className="pr-list-item__meta">{a.severity}</span>
-                        <button className="pr-list-item__remove" onClick={() => removeAllergy(a.id)} type="button"><X size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pr-add-row">
-                    <input className="pr-form-input" placeholder="Allergy name" value={newAllergy.name}
-                      onChange={e => setNewAllergy(p => ({ ...p, name: e.target.value }))} />
-                    <select className="pr-form-select" value={newAllergy.severity}
-                      onChange={e => setNewAllergy(p => ({ ...p, severity: e.target.value as any }))}>
-                      <option value="mild">Mild</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="severe">Severe</option>
-                    </select>
-                    <button className="pr-add-btn" onClick={addAllergy} type="button"><Plus size={16} /></button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── Medications ────────────────────────────── */}
-            {modal === 'meds' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--red"><Pill size={18} /></div>
-                  <div><h3 className="pr-modal__title">Medications</h3><p className="pr-modal__sub">{activeMeds.length} active</p></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-list">
-                    {meds.map(m => (
-                      <div key={m.id} className="pr-list-item pr-list-item--med">
-                        <div className="pr-list-item__med-info">
-                          <span className="pr-list-item__med-name">{m.name}</span>
-                          <span className="pr-list-item__med-meta">{m.dose} · {m.frequency}</span>
-                        </div>
-                        {m.active && <span className="pr-tag pr-tag--teal">Active</span>}
-                        <button className="pr-list-item__remove" onClick={() => removeMed(m.id)} type="button"><X size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pr-add-row pr-add-row--3">
-                    <input className="pr-form-input" placeholder="Medication name" value={newMed.name}
-                      onChange={e => setNewMed(p => ({ ...p, name: e.target.value }))} />
-                    <input className="pr-form-input" placeholder="Dose e.g. 500mg" value={newMed.dose}
-                      onChange={e => setNewMed(p => ({ ...p, dose: e.target.value }))} />
-                    <input className="pr-form-input" placeholder="Frequency" value={newMed.frequency}
-                      onChange={e => setNewMed(p => ({ ...p, frequency: e.target.value }))} />
-                    <button className="pr-add-btn" onClick={addMed} type="button"><Plus size={16} /></button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── Conditions ─────────────────────────────── */}
-            {modal === 'conditions' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--violet"><Stethoscope size={18} /></div>
-                  <div><h3 className="pr-modal__title">Conditions</h3></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-list">
-                    {conditions.map(c => (
-                      <div key={c.id} className="pr-list-item">
-                        <span className="pr-list-item__med-name">{c.name}</span>
-                        <span className={`pr-tag ${STATUS_COLOR[c.status]}`}>{c.status}</span>
-                        <button className="pr-list-item__remove" onClick={() => removeCondition(c.id)} type="button"><X size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pr-add-row">
-                    <input className="pr-form-input" placeholder="Condition name" value={newCondition.name}
-                      onChange={e => setNewCondition(p => ({ ...p, name: e.target.value }))} />
-                    <select className="pr-form-select" value={newCondition.status}
-                      onChange={e => setNewCondition(p => ({ ...p, status: e.target.value as any }))}>
-                      <option value="managed">Managed</option>
-                      <option value="active">Active</option>
-                      <option value="resolved">Resolved</option>
-                    </select>
-                    <button className="pr-add-btn" onClick={addCondition} type="button"><Plus size={16} /></button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── Symptom History ────────────────────────── */}
-            {modal === 'sessions' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--teal"><ClipboardList size={18} /></div>
-                  <div><h3 className="pr-modal__title">Symptom History</h3><p className="pr-modal__sub">{sessions.length} sessions</p></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-list">
-                    {sessions.map(s => (
-                      <div key={s.id} className="pr-session-item">
-                        <div className="pr-session-item__date">{s.date}</div>
-                        <div className="pr-session-item__symptoms">
-                          {s.symptoms.map(sym => <span key={sym} className="pr-tag pr-tag--ghost">{sym}</span>)}
-                        </div>
-                        <div className="pr-session-item__result">→ {s.result}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="pr-modal__action" onClick={() => router.push('/symptom-checker')} type="button">
-                    <Zap size={14} /> Start New Check
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* ── Saved Facilities ───────────────────────── */}
-            {modal === 'facilities' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--amber"><BookmarkCheck size={18} /></div>
-                  <div>
-                    <h3 className="pr-modal__title">Saved Facilities</h3>
-                    <p className="pr-modal__sub">{facilities.length} saved</p>
-                  </div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  {facilities.length === 0 ? (
-                    <div className="pr-empty-state">
-                      <MapPin size={32} className="pr-empty-state__icon" />
-                      <p className="pr-empty-state__text">No saved facilities yet</p>
-                      <button className="pr-modal__action" onClick={() => { setModal(null); router.push('/facilities'); }} type="button">
-                        <MapPin size={14} /> Find Facilities
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="pr-fac-list">
-                        {facilities.map(f => (
-                          <div key={f.id} className="pr-fac-item">
-                            <div className={`pr-fac-item__dot pr-fac-item__dot--${f.type}`} />
-                            <div className="pr-fac-item__info">
-                              <span className="pr-fac-item__name">{f.name}</span>
-                              <span className="pr-fac-item__meta">
-                                {f.type.replace('_', ' ')}
-                                {f.city ? ` · ${f.city}` : ''}
-                                {f.distance ? ` · ${f.distance.toFixed(1)} km` : ''}
-                              </span>
-                              {f.emergencyServices && (
-                                <span className="pr-tag pr-tag--red pr-fac-item__badge">24/7 Emergency</span>
-                              )}
-                            </div>
-                            <div className="pr-fac-item__actions">
-                              <button
-                                className="pr-fac-item__btn pr-fac-item__btn--dir"
-                                title="Get directions"
-                                type="button"
-                                onClick={() => {
-                                  const url = `https://www.google.com/maps/search/${f.latitude},${f.longitude}`;
-                                  window.open(url, '_blank');
-                                }}
-                              >
-                                <Navigation size={14} />
-                              </button>
-                              <button
-                                className="pr-fac-item__btn pr-fac-item__btn--remove"
-                                title="Remove"
-                                type="button"
-                                onClick={() => removeSavedFacility(f.facilityId)}
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <button className="pr-modal__action" onClick={() => { setModal(null); router.push('/facilities'); }} type="button">
-                        <MapPin size={14} /> Find More Facilities
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* ── Family Profiles ────────────────────────── */}
-            {modal === 'family' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--green"><Users size={18} /></div>
-                  <div><h3 className="pr-modal__title">Family Profiles</h3></div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-                  <div className="pr-list">
-                    {family.map(f => (
-                      <div key={f.id} className="pr-list-item">
-                        <div className="pr-list-item__fam-avatar">{getInitials(f.name)}</div>
-                        <div className="pr-list-item__fac-info">
-                          <span className="pr-list-item__med-name">{f.name}</span>
-                          <span className="pr-list-item__med-meta">{f.relation} · {f.age} yrs</span>
-                        </div>
-                        <button className="pr-list-item__remove" onClick={() => removeFamilyMember(f.id)} type="button"><X size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pr-add-row pr-add-row--3">
-                    <input className="pr-form-input" placeholder="Name" value={newFamilyMember.name}
-                      onChange={e => setNewFamilyMember(p => ({ ...p, name: e.target.value }))} />
-                    <input className="pr-form-input" placeholder="Relation" value={newFamilyMember.relation}
-                      onChange={e => setNewFamilyMember(p => ({ ...p, relation: e.target.value }))} />
-                    <input className="pr-form-input" placeholder="Age" value={newFamilyMember.age}
-                      onChange={e => setNewFamilyMember(p => ({ ...p, age: e.target.value }))} />
-                    <button className="pr-add-btn" onClick={addFamilyMember} type="button"><Plus size={16} /></button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── Emergency Contacts ─────────────────────── */}
-            {modal === 'emergencyContacts' && (
-              <>
-                <div className="pr-modal__header">
-                  <div className="pr-modal__header-icon pr-modal__header-icon--red"><Phone size={18} /></div>
-                  <div>
-                    <h3 className="pr-modal__title">Emergency Contacts</h3>
-                    <p className="pr-modal__sub">
-                      {isLoadingContacts ? 'Loading…' : `${emergencyContacts.length} contact${emergencyContacts.length !== 1 ? 's' : ''} saved`}
-                    </p>
-                  </div>
-                  <button className="pr-modal__close" onClick={() => setModal(null)} type="button"><X size={18} /></button>
-                </div>
-                <div className="pr-modal__body">
-
-                  {/* Success toast */}
-                  {contactSaveSuccess && (
-                    <div className="pr-alert pr-alert--success" style={{ margin: '0 0 14px' }}>
-                      <Check size={14} /> Contact saved successfully
-                    </div>
-                  )}
-
-                  {/* Loading */}
-                  {isLoadingContacts ? (
-                    <div className="pr-loading" style={{ padding: '32px 16px', margin: 0 }}>
-                      <div className="hc-loading__dots"><span /><span /><span /></div>
-                      <p>Loading contacts…</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Contacts list */}
-                      {emergencyContacts.length === 0 && !showAddContact ? (
-                        <div className="pr-empty-state">
-                          <Phone size={28} className="pr-empty-state__icon" />
-                          <p className="pr-empty-state__text">No emergency contacts yet</p>
-                          <p style={{ fontSize: 12, color: 'var(--hc-text2)', margin: '0 0 14px', textAlign: 'center' }}>
-                            Add a contact so they receive SOS alerts when you need help
-                          </p>
-                          <button className="pr-modal__action" onClick={() => setShowAddContact(true)} type="button">
-                            <Plus size={14} /> Add First Contact
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="pr-list">
-                          {emergencyContacts.map(c => (
-                            <div key={c.id} className={`pr-ec-item${c.isPrimary ? ' pr-ec-item--primary' : ''}`}>
-
-                              {/* Inline edit form */}
-                              {editingEcId === c.id ? (
-                                <div className="pr-ec-edit-form">
-                                  {editEcError && (
-                                    <p className="pr-ec-add__error"><AlertCircle size={12} /> {editEcError}</p>
-                                  )}
-                                  <div className="pr-form-row">
-                                    <label className="pr-form-label">Full Name *</label>
-                                    <input className="pr-form-input" placeholder="e.g. Ama Mensah"
-                                      value={editEcForm.name} onChange={e => setEditEcForm(p => ({ ...p, name: e.target.value }))} />
-                                  </div>
-                                  <div className="pr-form-row">
-                                    <label className="pr-form-label">Relationship</label>
-                                    <input className="pr-form-input" placeholder="e.g. Sister, Mother"
-                                      value={editEcForm.relationship} onChange={e => setEditEcForm(p => ({ ...p, relationship: e.target.value }))} />
-                                  </div>
-                                  <div className="pr-form-row">
-                                    <label className="pr-form-label">Phone Number *</label>
-                                    <input className="pr-form-input" placeholder="+233XXXXXXXXX" type="tel"
-                                      value={editEcForm.number} onChange={e => setEditEcForm(p => ({ ...p, number: e.target.value }))} />
-                                  </div>
-                                  <div className="pr-form-row">
-                                    <label className="pr-form-label">Email <span className="pr-form-label__hint">for SOS alerts</span></label>
-                                    <input className="pr-form-input" placeholder="e.g. ama@gmail.com" type="email"
-                                      value={editEcForm.email} onChange={e => setEditEcForm(p => ({ ...p, email: e.target.value }))} />
-                                  </div>
-                                  <div className="pr-ec-add__btns">
-                                    <button className="pr-btn pr-btn--ghost pr-btn--sm"
-                                      onClick={() => { setEditingEcId(null); setEditEcError(''); }} type="button">
-                                      <X size={13} /> Cancel
-                                    </button>
-                                    <button className="pr-modal__save" style={{ marginTop: 0, flex: 1 }}
-                                      onClick={handleSaveEc} disabled={savingEc} type="button">
-                                      {savingEc ? <Loader2 size={14} className="pr-spin" /> : <Check size={14} />}
-                                      {savingEc ? 'Saving…' : 'Save Changes'}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="pr-ec-item__avatar">{c.name.slice(0, 2).toUpperCase()}</div>
-                                  <div className="pr-ec-item__body">
-                                    <div className="pr-ec-item__name-row">
-                                      <span className="pr-ec-item__name-text">{c.name}</span>
-                                      {c.isPrimary && <span className="pr-ec-item__badge">Primary</span>}
-                                    </div>
-                                    <div className="pr-ec-item__meta">{c.relationship} · {c.number}</div>
-                                    {c.email
-                                      ? <div className="pr-ec-item__email pr-ec-item__email--set">✉ {c.email}</div>
-                                      : <div className="pr-ec-item__email pr-ec-item__email--missing">⚠ No email — won't receive SOS alerts</div>
-                                    }
-                                  </div>
-                                  <div className="pr-ec-item__actions">
-                                    <button className="pr-ec-item__copy" title="Copy number"
-                                      onClick={() => copyContactNumber(c.id, c.number)} type="button">
-                                      {copiedContactId === c.id ? <Check size={13} /> : <Copy size={13} />}
-                                    </button>
-                                    <a href={`tel:${c.number}`} className="pr-ec-item__call">
-                                      <Phone size={13} /> Call
-                                    </a>
-                                    <button className="pr-ec-item__edit-btn" onClick={() => startEditEc(c)}
-                                      type="button" title="Edit contact">
-                                      <Edit2 size={12} />
-                                    </button>
-                                    <button className="pr-list-item__remove" onClick={() => removeEmergencyContact(c.id)}
-                                      type="button" title="Remove">
-                                      <X size={13} />
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          ))}
-
-                          {/* Nudge when any contact is missing email */}
-                          {emergencyContacts.some(c => !c.email) && !editingEcId && (
-                            <div className="pr-ec-email-nudge">
-                              <AlertCircle size={13} />
-                              <span>
-                                {emergencyContacts.filter(c => !c.email).length === 1
-                                  ? '1 contact is missing an email'
-                                  : `${emergencyContacts.filter(c => !c.email).length} contacts are missing an email`
-                                } — tap <strong>Edit</strong> to add it so they receive SOS alerts automatically.
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Inline add form */}
-                      {showAddContact ? (
-                        <div className="pr-ec-add">
-                          {contactAddError && (
-                            <p className="pr-ec-add__error"><AlertCircle size={12} /> {contactAddError}</p>
-                          )}
-                          <div className="pr-form-row">
-                            <label className="pr-form-label">Full Name *</label>
-                            <input className="pr-form-input" placeholder="e.g. Ama Mensah"
-                              value={newContact.name}
-                              onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} />
-                          </div>
-                          <div className="pr-form-row">
-                            <label className="pr-form-label">Relationship</label>
-                            <input className="pr-form-input" placeholder="e.g. Sister, Mother, Doctor"
-                              value={newContact.relationship}
-                              onChange={e => setNewContact(p => ({ ...p, relationship: e.target.value }))} />
-                          </div>
-                          <div className="pr-form-row">
-                            <label className="pr-form-label">Phone Number *</label>
-                            <input className="pr-form-input" placeholder="+233XXXXXXXXX or 0XXXXXXXXX" type="tel"
-                              value={newContact.number}
-                              onChange={e => setNewContact(p => ({ ...p, number: e.target.value }))} />
-                          </div>
-                          <div className="pr-form-row">
-                            <label className="pr-form-label">Email <span className="pr-form-label__hint">for SOS alerts</span></label>
-                            <input className="pr-form-input" placeholder="e.g. ama@gmail.com" type="email"
-                              value={newContact.email}
-                              onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} />
-                          </div>
-                          <div className="pr-ec-add__btns">
-                            <button className="pr-btn pr-btn--ghost pr-btn--sm"
-                              onClick={() => { setShowAddContact(false); setContactAddError(''); }} type="button">
-                              <X size={13} /> Cancel
-                            </button>
-                            <button className="pr-modal__save" style={{ marginTop: 0, flex: 1 }}
-                              onClick={handleAddContact} disabled={addingContact} type="button">
-                              {addingContact ? <Loader2 size={14} className="pr-spin" /> : <Check size={14} />}
-                              {addingContact ? 'Saving…' : 'Save Contact'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button className="pr-modal__action" style={{ marginTop: emergencyContacts.length ? 12 : 0 }}
-                          onClick={() => { setShowAddContact(true); setContactAddError(''); }} type="button">
-                          <Plus size={14} /> Add Contact
-                        </button>
-                      )}
-
-                      {/* Link to full emergency page */}
-                      <button className="pr-modal__action" style={{ marginTop: 10, opacity: 0.7 }}
-                        onClick={() => { setModal(null); router.push('/emergency'); }} type="button">
-                        <Phone size={14} /> Open Emergency Hub
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-          </div>
-        </div>
-      )}
-
+      {legalModal && <LegalModal type={legalModal} isDark={isDarkMode} onClose={() => setLegalModal(null)} />}
     </DashboardLayout>
   );
-};
-
-export default ProfileContent;
+}

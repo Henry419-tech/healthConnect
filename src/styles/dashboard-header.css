@@ -97,37 +97,6 @@ html.dark-mode {
 }
 .hc-layout__main--collapsed { margin-left: var(--hc-sidebar-w-collapsed); }
 .hc-layout__content { flex: 1; }
-/* ── Viewport-locked layout variant (symptom-checker chat page) ─────
-   Applied when page adds hc-layout--locked class.
-   Gives the flex chain a defined height so flex:1 children resolve
-   their heights correctly. Without height:100vh on the root, all
-   flex:1 descendants collapse to content height — causing the empty
-   space below the chat input bar.
-   This class is ONLY on the symptom-checker page, so it cannot affect
-   emergency, profile, facilities or any other body-scroll page.
-   ──────────────────────────────────────────────────────────────────── */
-.hc-layout--locked {
-  height: 100svh;
-  overflow: hidden;
-}
-.hc-layout--locked .hc-layout__main {
-  overflow: hidden;
-  height: 100%;
-  /* Zero out padding injected by the @media(≤1024px) block above.
-     That block adds padding-top:56px + padding-bottom:64px for the
-     generic hc-topbar/hc-bottom-nav. On locked pages those bars are
-     hidden and sc-page manages its own spacing — the extra padding
-     pushes sc-page's content off-screen causing the bottom gap. */
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-.hc-layout--locked .hc-layout__content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
 
 .hc-layout__main::before {
   content: '';
@@ -303,67 +272,89 @@ html.dark-mode .hc-sidebar {
   flex: 1;
   padding: 12px 10px;
   display: flex; flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 .hc-sidebar__nav::-webkit-scrollbar { display: none; }
 
 .hc-sidebar__nav-label {
-  font-size: 9px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase;
   color: var(--hc-text3);
-  padding: 0 10px 8px;
+  padding: 12px 12px 5px;
   white-space: nowrap;
+  opacity: 0.7;
 }
 
 .hc-sidebar__nav-item {
   position: relative;
   display: flex; align-items: center;
-  gap: 11px;
-  padding: 11px 12px;
-  border-radius: 12px;
-  border: 1px solid transparent;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
   background: none;
-  color: var(--hc-text);        /* ← was hc-text2; full text colour for contrast */
-  font-family: inherit; font-size: 13px; font-weight: 600;  /* ← was 500 */
+  color: var(--hc-text2);
+  font-family: inherit; font-size: 13.5px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
   text-align: left; width: 100%;
-  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  transition: background 0.15s, color 0.15s;
   overflow: hidden;
   min-width: 0;
+  letter-spacing: -0.1px;
 }
 .hc-sidebar__nav-item:hover {
-  background: var(--hc-nav-hover-bg);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--hc-text);
 }
-/* Extra contrast boost in light mode where background image is behind the sidebar */
-html:not(.dark-mode) .hc-sidebar__nav-item {
-  color: #1e293b;   /* slate-800 — deep and readable over white/light glass */
-  text-shadow: 0 0 1px rgba(255,255,255,0.6);
+.hc-sidebar__nav-item:hover svg {
+  opacity: 1;
 }
-html:not(.dark-mode) .hc-sidebar__nav-item:hover {
-  color: #0f172a;
-}
-.hc-sidebar__nav-item--active {
-  background: var(--hc-nav-active-bg);
-  border-color: color-mix(in srgb, var(--hc-teal) 30%, transparent);
-  color: var(--hc-nav-active-color);
-  font-weight: 700;
-  box-shadow: inset 0 0 0 0 transparent;
+html.dark-mode .hc-sidebar__nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--hc-text);
 }
 
-/* Active left-edge glow bar */
+/* Inactive icon: slightly dimmed */
+.hc-sidebar__nav-item svg {
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+/* Active item — clean highlight, not a heavy pill */
+.hc-sidebar__nav-item--active {
+  background: rgba(14, 165, 233, 0.09);
+  color: #0284c7;
+  font-weight: 600;
+}
+.hc-sidebar__nav-item--active svg {
+  opacity: 1;
+  color: #0284c7;
+}
+html.dark-mode .hc-sidebar__nav-item--active {
+  background: rgba(0, 210, 255, 0.10);
+  color: var(--hc-teal);
+}
+html.dark-mode .hc-sidebar__nav-item--active svg {
+  color: var(--hc-teal);
+}
+
+/* Active left-edge indicator bar */
 .hc-sidebar__nav-indicator {
   position: absolute; left: 0; top: 50%;
   transform: translateY(-50%);
   width: 3px; height: 0;
   border-radius: 0 3px 3px 0;
-  background: var(--hc-teal);
-  box-shadow: 0 0 8px var(--hc-teal);
-  transition: height 0.18s var(--hc-ease);
+  background: #0284c7;
+  transition: height 0.2s var(--hc-ease);
 }
-.hc-sidebar__nav-item--active .hc-sidebar__nav-indicator { height: 22px; }
+.hc-sidebar__nav-item--active .hc-sidebar__nav-indicator { height: 16px; }
+html.dark-mode .hc-sidebar__nav-item--active .hc-sidebar__nav-indicator {
+  background: var(--hc-teal);
+  box-shadow: 0 0 6px rgba(0, 210, 255, 0.5);
+}
 
 /* ── Bottom section ─────────────────────────────────────────── */
 .hc-sidebar__bottom {
@@ -394,9 +385,21 @@ html:not(.dark-mode) .hc-sidebar__nav-item:hover {
   border: 1px solid var(--hc-border);
   margin-top: 4px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.hc-sidebar__user:hover { border-color: color-mix(in srgb, var(--hc-teal) 25%, transparent); }
+.hc-sidebar__user:hover {
+  border-color: rgba(0, 210, 255, 0.30);
+  box-shadow: 0 2px 12px rgba(0, 210, 255, 0.08);
+}
+html.dark-mode .hc-sidebar__user {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(0, 210, 255, 0.10);
+}
+html:not(.dark-mode) .hc-sidebar__user {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+}
 
 .hc-sidebar__user-avatar {
   width: 34px; height: 34px; flex-shrink: 0;
@@ -657,23 +660,12 @@ html.dark-mode .hc-sidebar::after {
   padding: 11px 0;
 }
 
-/* Active nav: stronger background in light mode */
-html:not(.dark-mode) .hc-sidebar__nav-item--active {
-  background: color-mix(in srgb, var(--hc-teal) 10%, white);
-}
-
 /* Nav section divider */
 .hc-sidebar__nav-divider {
   height: 1px;
   background: var(--hc-border2);
   margin: 8px 10px;
   border: none;
-}
-
-/* Nav icon accent on active */
-.hc-sidebar__nav-item--active svg {
-  color: var(--hc-teal);
-  filter: drop-shadow(0 0 4px var(--hc-teal-glow));
 }
 /* ════════════════════════════════════════════════════════════════
    MOB-* DEFAULTS — must be top-level (outside any @media) so they
@@ -684,22 +676,25 @@ html:not(.dark-mode) .hc-sidebar__nav-item--active {
 .mob-only    { display: none; }
 
 /* ════════════════════════════════════════════════════════════════
-   HAS-MOB-TOPBAR LAYOUT VARIANT
-   Dashboard page passes className="hc-layout--has-mob-topbar".
-   On mobile: hide the generic hc-topbar/hc-bottom-nav, show the
-   dashboard's custom mob-topbar and mob-tab-bar instead.
+   MOB-TOPBAR / MOB-TAB-BAR
+   Several pages (profile, vitals, cycle, documents, facilities,
+   emergency, settings, etc.) render their own mob-topbar + mob-tab-bar
+   in JSX, distinct from the shared hc-topbar/hc-bottom-nav from
+   DashboardHeader.
+   These defaults ensure mob-* are hidden on pages that don't use them.
 ════════════════════════════════════════════════════════════════ */
-@media (max-width: 1024px) {
-  .hc-layout--has-mob-topbar .hc-topbar     { display: none !important; }
-  .hc-layout--has-mob-topbar .hc-bottom-nav { display: none !important; }
-  .hc-layout--has-mob-topbar .hc-layout__main {
+@media (max-width: 640px) {
+  /* Hard-refresh hydration: mob-topbar/mob-tab-bar live in page-level
+     JSX, so :has() matches from first paint before per-page CSS
+     takes over with !important. */
+  body:has(.mob-topbar) .mob-topbar  { display: flex; }
+  body:has(.mob-topbar) .mob-tab-bar { display: flex; }
+  body:has(.mob-topbar) .hc-topbar     { display: none; }
+  body:has(.mob-topbar) .hc-bottom-nav { display: none; }
+  body:has(.mob-topbar) .hc-layout__main {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
   }
-}
-@media (max-width: 640px) {
-  .hc-layout--has-mob-topbar .mob-topbar  { display: flex !important; }
-  .hc-layout--has-mob-topbar .mob-tab-bar { display: block !important; }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -736,7 +731,7 @@ html.dark-mode .mob-topbar {
 }
 
 .mob-topbar__left {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 4px;
   flex-shrink: 0;
 }
 .mob-topbar__logo-icon {
@@ -746,7 +741,7 @@ html.dark-mode .mob-topbar {
 .mob-topbar__logo-text {
   font-size: 16px; font-weight: 900; letter-spacing: -0.5px;
   font-family: 'Outfit', 'Inter', sans-serif;
-  background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 47%, var(--hc-text) 47%);
+  background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 47%, var(--hc-text) 47%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -918,13 +913,13 @@ html.dark-mode .mob-tab-btn.active .mob-tab-btn__icon {
 /* Remove old top-bar indicator — bubble replaces it */
 .mob-tab-btn.active::after { display: none; }
 
-/* ── SOS button — grey by default, red only on emergency page ── */
-.mob-tab-btn--sos { color: var(--hc-text3) !important; }
-.mob-tab-btn--sos.active { color: var(--hc-red) !important; }
-.mob-tab-btn--sos.active::after { display: none !important; }
+/* ── Emergency tab — grey by default, red only on emergency page ── */
+.mob-tab-btn--emergency { color: var(--hc-text3) !important; }
+.mob-tab-btn--emergency.active { color: var(--hc-red) !important; }
+.mob-tab-btn--emergency.active::after { display: none !important; }
 
-/* SOS icon wrapper — plain relative container for the red dot */
-.mob-tab-sos-icon {
+/* Emergency icon wrapper — plain relative container */
+.mob-tab-emergency-icon {
   position: relative;
   display: flex;
   align-items: center;
@@ -935,24 +930,6 @@ html.dark-mode .mob-tab-btn.active .mob-tab-btn__icon {
   border-radius: 0;
   box-shadow: none;
   color: inherit;
-}
-/* Red notification dot — top-right of phone icon */
-.mob-tab-sos-icon::after {
-  content: '';
-  position: absolute;
-  top: -2px; right: -3px;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--hc-red, #ef4444);
-  border: 1.5px solid var(--hc-surface);
-  box-shadow: 0 0 5px rgba(239,68,68,0.55);
-  pointer-events: none;
-}
-html.dark-mode .mob-tab-sos-icon::after {
-  border-color: rgba(7,24,40,0.96);
-}
-html:not(.dark-mode) .mob-tab-sos-icon::after {
-  border-color: #ffffff;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1071,35 +1048,24 @@ html:not(.dark-mode) .mob-tab-sos-icon::after {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   SOS TAB BUTTON — plain icon + red dot, all pages (≤640px)
+   EMERGENCY TAB BUTTON — plain icon, all pages (≤640px)
    The global definition above already handles this. The media
    query block below just reinforces dark/light border colours.
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
-  .mob-tab-btn--sos { color: var(--hc-text3) !important; }
-  .mob-tab-btn--sos.active { color: var(--hc-red, #ef4444) !important; }
-  .mob-tab-btn--sos.active::after { display: none !important; }
+  .mob-tab-btn--emergency { color: var(--hc-text3) !important; }
+  .mob-tab-btn--emergency.active { color: var(--hc-red, #ef4444) !important; }
+  .mob-tab-btn--emergency.active::after { display: none !important; }
 
-  .mob-tab-sos-icon {
+  .mob-tab-emergency-icon {
     position: relative;
     display: flex; align-items: center; justify-content: center;
     width: 22px; height: 22px;
     background: none; border-radius: 0; box-shadow: none; color: inherit;
   }
-  .mob-tab-sos-icon::after {
-    content: ''; position: absolute;
-    top: -2px; right: -3px;
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--hc-red, #ef4444);
-    border: 1.5px solid var(--hc-surface);
-    box-shadow: 0 0 5px rgba(239,68,68,0.55);
-    pointer-events: none;
-  }
-  html.dark-mode .mob-tab-sos-icon::after { border-color: rgba(7,24,40,0.96); }
-  html:not(.dark-mode) .mob-tab-sos-icon::after { border-color: #ffffff; }
 
   /* sc-mob-tab-bar same treatment — grey by default */
-  .sc-mob-tab-bar .mob-tab-btn--sos { color: var(--hc-text3) !important; }
+  .sc-mob-tab-bar .mob-tab-btn--emergency { color: var(--hc-text3) !important; }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1213,3 +1179,191 @@ html:not(.dark-mode) .hc-loading__name {
 }
 html:not(.dark-mode) .hc-loading__sub  { color: #0891b2; }
 html:not(.dark-mode) .hc-loading__dots span { background: #0891b2; }
+
+/* ════════════════════════════════════════════════════════════════
+   SECONDARY NAV — Health Records group and sub-items
+   Sidebar (collapsed + expanded) and mobile drawer variants.
+════════════════════════════════════════════════════════════════ */
+
+/* Group wrapper — adds top spacing to visually separate from main nav */
+.hc-sidebar__nav-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hc-border2);
+}
+
+/* Group label — same style as the "Main Menu" label but with a different tone */
+.hc-sidebar__nav-label--group {
+  display: block;
+  padding-bottom: 6px;
+}
+
+/* Secondary nav item — slightly smaller, indented, muted until active */
+.hc-sidebar__nav-item--secondary {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 9px 12px 9px 20px;  /* extra left indent */
+  color: var(--hc-text2);
+}
+html:not(.dark-mode) .hc-sidebar__nav-item--secondary {
+  color: #475569;
+}
+.hc-sidebar__nav-item--secondary:hover {
+  color: var(--hc-text);
+}
+html:not(.dark-mode) .hc-sidebar__nav-item--secondary:hover {
+  color: #0f172a;
+}
+/* When active, inherits full active style from --active modifier */
+.hc-sidebar__nav-item--secondary.hc-sidebar__nav-item--active {
+  font-weight: 700;
+  color: var(--hc-nav-active-color);
+}
+
+/* Collapsed sidebar — secondary items are icon-only like primaries */
+.hc-sidebar--collapsed .hc-sidebar__nav-item--secondary {
+  padding: 11px 12px;
+  justify-content: center;
+}
+.hc-sidebar--collapsed .hc-sidebar__nav-group {
+  padding-top: 8px;
+}
+
+/* ── Mobile drawer group ──────────────────────────────────── */
+.hc-drawer__nav-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--hc-border2);
+}
+
+.hc-drawer__nav-group-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--hc-text3);
+  padding: 4px 14px 6px;
+  white-space: nowrap;
+}
+
+/* Secondary item in drawer — slightly indented + muted */
+.hc-drawer__nav-item--secondary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hc-text2);
+  padding-left: 22px;
+}
+.hc-drawer__nav-item--secondary:hover {
+  color: var(--hc-text);
+}
+.hc-drawer__nav-item--secondary.hc-drawer__nav-item--active {
+  font-weight: 700;
+  color: var(--hc-nav-active-color);
+}
+/* ── Gender-gated nav items (cycle tracker — gender not yet set) ── */
+.hc-sidebar__nav-item--muted,
+.hc-drawer__nav-item--muted {
+  opacity: 0.55;
+  font-style: italic;
+}
+.hc-sidebar__nav-item--muted:hover,
+.hc-drawer__nav-item--muted:hover {
+  opacity: 0.8;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NAV BADGE — compact pill label (e.g. on the Emergency item)
+════════════════════════════════════════════════════════════════ */
+.hc-sidebar__nav-badge,
+.hc-drawer__nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 100px;
+  line-height: 1.6;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--hc-red);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  transition: background 0.18s, border-color 0.18s;
+}
+
+/* Emergency nav item — emergency-tinted icon */
+.hc-sidebar__nav-item--emergency svg,
+.hc-drawer__nav-item--emergency svg {
+  color: var(--hc-red);
+}
+
+.hc-sidebar__nav-item--emergency:hover .hc-sidebar__nav-badge,
+.hc-drawer__nav-item--emergency:hover .hc-drawer__nav-badge {
+  background: rgba(239, 68, 68, 0.20);
+  border-color: rgba(239, 68, 68, 0.40);
+}
+
+/* Active Emergency item: keep icon red, don't override with teal */
+.hc-sidebar__nav-item--emergency.hc-sidebar__nav-item--active svg {
+  color: var(--hc-red);
+}
+.hc-sidebar__nav-item--emergency.hc-sidebar__nav-item--active {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--hc-red);
+}
+html:not(.dark-mode) .hc-sidebar__nav-item--emergency.hc-sidebar__nav-item--active {
+  background: rgba(239, 68, 68, 0.07);
+  color: #dc2626;
+}
+.hc-sidebar__nav-item--emergency.hc-sidebar__nav-item--active .hc-sidebar__nav-indicator {
+  background: var(--hc-red);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SIDEBAR LOGO — refined branding area
+════════════════════════════════════════════════════════════════ */
+.hc-sidebar__logo {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--hc-teal) 4%, var(--hc-surface)),
+    transparent
+  );
+}
+
+.hc-sidebar__logo-title {
+  color: var(--hc-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+html.dark-mode .hc-sidebar__logo-title {
+  color: #e8f4ff;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NAV SECTION LABEL — cleaner group headers
+════════════════════════════════════════════════════════════════ */
+.hc-sidebar__nav-label--group {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--hc-border2);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   COLLAPSED SIDEBAR — icon-only tooltip enhancement
+════════════════════════════════════════════════════════════════ */
+.hc-sidebar--collapsed .hc-sidebar__nav-item .hc-sidebar__nav-badge {
+  display: none;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TOP BAR — clean frosted appearance
+════════════════════════════════════════════════════════════════ */
+.hc-topbar {
+  box-shadow: 0 1px 0 var(--hc-border), 0 2px 12px rgba(0,0,0,0.04);
+}
+html.dark-mode .hc-topbar {
+  background: rgba(7, 24, 40, 0.85);
+  box-shadow: 0 1px 0 rgba(0,210,255,0.10), 0 2px 20px rgba(0,0,0,0.30);
+}

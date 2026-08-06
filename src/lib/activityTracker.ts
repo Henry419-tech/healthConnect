@@ -1,6 +1,5 @@
 export const activityTypes = {
   FACILITY_FOUND: 'facility_found',
-  SYMPTOM_CHECKED: 'symptom_checked',
   EMERGENCY_ACCESSED: 'emergency_accessed',
   FIRST_AID_VIEWED: 'first_aid_viewed'
 } as const;

@@ -1,40 +1,67 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import DashboardLayout from '@/components/DashboardLayout';
+import NotificationBell from '@/components/NotificationBell';
+import { useRegisterNotifications } from '@/contexts/NotificationsContext';
+import type { AppNotification } from '@/lib/notifications/types';
+import FindCareToggle from '@/components/FindCareToggle';
 import { trackActivity, activityTypes } from '@/lib/activityTracker';
+import DashbordFooter from '@/components/DashboardFooter';
+import { FACILITY_TYPE_OPTIONS, DEFAULT_FACILITY_TYPE_SLUGS, type FacilityTypeOption } from '@/lib/constants';
+import { formatDistance } from '@/lib/utils';
+import '@/styles/dashboard-header.css';
+import '@/styles/dashboard.css';
+import '@/styles/profile.css';
 import '@/styles/facilities.css';
 import '@/styles/facilities-mobile.css';
-import '@/styles/dashboard.css';
+import '@/styles/dashboard-mobile.css';
+import '@/styles/find-care-toggle.css';
+import '@/styles/find-care-results.css';
+import '@/styles/find-care-results-mobile.css';
+import MobTabBar from '@/components/MobTabBar';
+const MobTopbarMenu = dynamic(() => import('@/components/MobTopbarMenu'), { ssr: false });
+import '@/styles/footer.css';
 import { 
   Search, MapPin, Phone, Clock, Star, Heart, Hospital, Pill, 
   Stethoscope, Map, List, Locate, Navigation, AlertCircle, 
-  Filter, ChevronDown, ChevronRight, Info, Loader2, RefreshCw, Bell, User,
-  Check, X, Moon, Sun, Crosshair, Bot, Globe, Bookmark, BookmarkCheck
+  Filter, ChevronDown, ChevronRight, Info, Loader2, RefreshCw, User,
+  Check, X, Moon, Sun, Crosshair, Globe, Bookmark, BookmarkCheck,
+  Syringe, Watch, Droplets, FileText,
+  Smile, Eye, Ear, Microscope, Baby, Brain, Building2,
+  ArrowLeft, MessageCircle, ExternalLink, PhoneCall
 } from 'lucide-react';
 
+/* ── Icon map for FACILITY_TYPE_OPTIONS.icon strings — mirrors /find-care/results ── */
+const TYPE_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  Hospital, Stethoscope, Smile, Eye, Ear, Pill, Microscope, Baby, Brain, Building2,
+};
+
 // Type definitions
+// `type` is one of the FACILITY_TYPE_OPTIONS slugs (hospital, clinic, dentist,
+// eye_clinic, ent_clinic, pharmacy, laboratory, maternity, mental_health).
+// rating/reviews/services/specializations/insurance were always fabricated
+// placeholder data and have been removed; `nhis` replaces `insurance` with a
+// real confirmed/likely/none signal derived from OSM tags (see detectNhis).
 interface Facility {
   id: string;
   name: string;
-  type: 'hospital' | 'clinic' | 'pharmacy' | 'health_center';
+  type: string;
+  typeLabel: string;
   address: string;
   city: string;
   region: string;
   distance: number;
-  rating: number;
-  reviews: number;
   phone: string;
   hours: string;
-  services: string[];
   coordinates: [number, number];
   emergencyServices: boolean;
-  insurance: string[];
-  specializations?: string[];
+  nhis: 'confirmed' | 'likely' | 'none';
   website?: string;
 }
 
@@ -45,17 +72,6 @@ interface LocationInfo {
   accuracy?: number;
 }
 
-// Deterministic pseudo-random from a string seed — xorshift32 variant
-function seededRandom(seed: string): number {
-  let h = 2166136261; // FNV offset basis
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = (Math.imul(h, 16777619)) >>> 0; // FNV-1a multiply, keep unsigned 32-bit
-  }
-  // xorshift to scatter the bits further
-  h ^= h >>> 13; h = (Math.imul(h, 0x5bd1e995)) >>> 0; h ^= h >>> 15;
-  return h / 4294967295;
-}
 
 // ── Opening-hours parser for common OSM formats ──────────────────
 // Handles: "24/7", "Mo-Fr 08:00-17:00", "Mo-Sa 08:00-18:00; Su 09:00-13:00",
@@ -137,6 +153,66 @@ function getOpenStatus(hours: string, emergencyServices: boolean): { label: stri
   return parseOsmHours(hours);
 }
 
+// ── Shared facility-type + NHIS logic — ported from find-care/results ────
+// so both BROWSE and RESULTS states classify OSM elements identically and
+// /facilities can fully replace /find-care/results (Phase 1 parity target).
+
+// Which FACILITY_TYPE_OPTIONS entry does this element's tags match?
+function resolveFacilityType(tags: Record<string, string>): FacilityTypeOption | null {
+  for (const t of FACILITY_TYPE_OPTIONS) {
+    for (const tag of t.tags) {
+      const val = tags[tag.key];
+      if (!val) continue;
+      if (tag.regex ? new RegExp(tag.value, 'i').test(val) : val === tag.value) return t;
+    }
+  }
+  return null;
+}
+
+// NHIS acceptance isn't a standard OSM key. We surface what the data can
+// actually support: an explicit insurance tag naming NHIS ("confirmed"),
+// or a government/public operator ("likely" — Ghana's NHIS network is
+// built on public facilities) — otherwise "none".
+function detectNhis(tags: Record<string, string>): 'confirmed' | 'likely' | 'none' {
+  const insuranceText = [tags.insurance, tags['healthcare:insurance'], tags['payment:nhis']]
+    .filter(Boolean).join(' ').toLowerCase();
+  if (insuranceText.includes('nhis')) return 'confirmed';
+
+  const operatorText = [tags.operator, tags['operator:type']].filter(Boolean).join(' ').toLowerCase();
+  if (
+    operatorText.includes('government') || operatorText.includes('public') ||
+    operatorText.includes('ghana health service') || operatorText.includes('municipal') ||
+    operatorText.includes('district assembly')
+  ) {
+    return 'likely';
+  }
+  return 'none';
+}
+
+// Builds an Overpass QL query unioning every tag matcher for the given
+// facility types — used by RESULTS STATE (ported from find-care/results).
+function buildTypedOverpassQuery(types: FacilityTypeOption[], lat: number, lng: number, radiusM: number): string {
+  const clauses: string[] = [];
+  for (const t of types) {
+    for (const tag of t.tags) {
+      clauses.push(
+        tag.regex
+          ? `node["${tag.key}"~"${tag.value}",i](around:${radiusM},${lat},${lng});`
+          : `node["${tag.key}"="${tag.value}"](around:${radiusM},${lat},${lng});`
+      );
+    }
+  }
+  return `[out:json][timeout:25];(${clauses.join('')});out center body;`;
+}
+
+// Normalizes Ghana numbers to a wa.me-friendly international format.
+function toWhatsAppLink(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('233')) return `https://wa.me/${digits}`;
+  if (digits.startsWith('0') && digits.length === 10) return `https://wa.me/233${digits.slice(1)}`;
+  return `https://wa.me/${digits}`;
+}
+
 // Dynamically import MapContainer
 const MapContainer = dynamic(() => import('./MapContainer'), { 
   ssr: false,
@@ -193,59 +269,113 @@ const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="loc-banner">
+    <div className="lba">
+      {/* Decorative bg */}
+      <div className="lba__bg-rings" aria-hidden="true">
+        <span className="lba__ring lba__ring--1" />
+        <span className="lba__ring lba__ring--2" />
+        <span className="lba__ring lba__ring--3" />
+      </div>
+      <div className="lba__glow" aria-hidden="true" />
+
       {/* Close */}
-      <button className="loc-banner__close" onClick={handleDismiss} aria-label="Dismiss" type="button">
-        <X size={16} />
+      <button className="lba__close" onClick={handleDismiss} aria-label="Dismiss" type="button">
+        <X size={14} />
       </button>
 
-      {/* Icon + heading */}
-      <div className="loc-banner__top">
-        <div className="loc-banner__icon-wrap">
-          <MapPin size={22} />
-        </div>
-        <div className="loc-banner__heading">
-          <h3 className="loc-banner__title">Enable Location Access</h3>
-          <p className="loc-banner__sub">Find healthcare facilities closest to you</p>
-        </div>
-      </div>
+      <div className="lba__inner">
+        {/* ── Left content ── */}
+        <div className="lba__content">
+          {/* Header */}
+          <div className="lba__head">
+            <div className="lba__icon-wrap">
+              <MapPin size={24} />
+            </div>
+            <div>
+              <div className="lba__eyebrow">Location access</div>
+              <h3 className="lba__title">Find care near you</h3>
+              <p className="lba__sub">
+                See hospitals, clinics and pharmacies within walking or driving distance.
+              </p>
+            </div>
+          </div>
 
-      {/* Benefits row */}
-      <div className="loc-banner__benefits">
-        {[
-          { icon: <Navigation size={13} />, text: 'Accurate distances' },
-          { icon: <MapPin size={13} />,     text: 'Nearby facilities'  },
-          { icon: <Check size={13} />,       text: 'Real-time results' },
-          { icon: <Phone size={13} />,       text: 'Emergency services' },
-        ].map(({ icon, text }) => (
-          <span key={text} className="loc-banner__benefit">
-            {icon}{text}
-          </span>
-        ))}
-      </div>
+          {/* Benefit chips */}
+          <div className="lba__benefits">
+            {([
+              { icon: <Sun size={12} />,        text: 'Accurate distances' },
+              { icon: <MapPin size={12} />,      text: 'Nearby facilities'  },
+              { icon: <Check size={12} />,       text: 'Real-time results'  },
+              { icon: <Phone size={12} />,       text: 'Emergency services' },
+            ] as { icon: React.ReactNode; text: string }[]).map(({ icon, text }) => (
+              <span key={text} className="lba__chip">{icon}{text}</span>
+            ))}
+          </div>
 
-      {/* Actions */}
-      <div className="loc-banner__actions">
-        <button
-          className="loc-banner__btn-primary"
-          onClick={onEnableLocation}
-          disabled={isLoading}
-          type="button"
-        >
-          {isLoading ? (
-            <><Loader2 size={16} className="spin" />Locating…</>
-          ) : (
-            <><Crosshair size={16} />Enable GPS</>
-          )}
-        </button>
-        <button
-          className="loc-banner__btn-ghost"
-          onClick={handleDismiss}
-          disabled={isLoading}
-          type="button"
-        >
-          Maybe later
-        </button>
+          {/* Actions */}
+          <div className="lba__actions">
+            <button
+              className="lba__btn-primary"
+              onClick={onEnableLocation}
+              disabled={isLoading}
+              type="button"
+            >
+              {isLoading
+                ? <><Loader2 size={15} className="spin" />Locating…</>
+                : <><Crosshair size={15} />Enable GPS</>}
+            </button>
+            <button
+              className="lba__btn-ghost"
+              onClick={handleDismiss}
+              disabled={isLoading}
+              type="button"
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+
+        {/* ── Right visual panel ── */}
+        <div className="lba__visual" aria-hidden="true">
+          <svg className="lba__map-svg" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Grid */}
+            {[40,80,120].map(v => (
+              <g key={v}>
+                <line x1="0" y1={v} x2="160" y2={v} stroke="var(--lba-grid)" strokeWidth="1"/>
+                <line x1={v} y1="0" x2={v} y2="160" stroke="var(--lba-grid)" strokeWidth="1"/>
+              </g>
+            ))}
+            {/* Roads */}
+            <path d="M0 75 Q40 70 80 80 Q120 90 160 82" stroke="var(--lba-road-main)" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M0 110 Q60 105 80 80 Q95 62 160 58" stroke="var(--lba-road-sec)" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M65 0 Q72 40 80 80 Q88 118 92 160" stroke="var(--lba-road-sec)" strokeWidth="2" strokeLinecap="round"/>
+            {/* Blocks */}
+            {([
+              [10,50,22,16],[38,30,18,22],[96,48,24,18],[126,30,20,28],
+              [10,120,28,18],[100,95,20,22],[128,90,24,30]
+            ] as number[][]).map(([x,y,w,h],i) => (
+              <rect key={i} x={x} y={y} width={w} height={h} rx="3"
+                fill="var(--lba-block-fill)" stroke="var(--lba-block-stroke)" strokeWidth="0.8"/>
+            ))}
+            {/* Ping rings */}
+            <circle cx="80" cy="80" r="6" fill="none" stroke="var(--lba-ping)" strokeWidth="1">
+              <animate attributeName="r" values="6;24" dur="2.2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.5;0" dur="2.2s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="80" cy="80" r="6" fill="none" stroke="var(--lba-ping)" strokeWidth="1.5">
+              <animate attributeName="r" values="6;16" dur="2.2s" begin="0.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;0" dur="2.2s" begin="0.6s" repeatCount="indefinite"/>
+            </circle>
+            {/* Center dot */}
+            <circle cx="80" cy="80" r="5" fill="var(--lba-dot)"/>
+            <circle cx="80" cy="80" r="2.5" fill="#fff"/>
+            {/* Blur overlay with question mark */}
+            <circle cx="80" cy="80" r="36" fill="var(--lba-overlay)"/>
+            <text x="80" y="89" textAnchor="middle"
+              fontFamily="Outfit,sans-serif" fontSize="30" fontWeight="700"
+              fill="var(--lba-question)">?</text>
+          </svg>
+        </div>
       </div>
     </div>
   );
@@ -265,42 +395,86 @@ const LocationConfirmation: React.FC<LocationConfirmationProps> = ({
   onRefresh,
   isRefreshing
 }) => {
+  const isGps  = locationInfo?.accuracy != null && locationInfo.accuracy < 100;
+  const isGood = locationInfo?.accuracy != null && locationInfo.accuracy < 2000;
+  // Logarithmic bar: maps real GPS range (1m–50000m) to 0–100%
+  // log(1)=0 → 100%, log(50000)≈10.8 → 0%
+  const barPct = locationInfo?.accuracy
+    ? Math.max(4, Math.min(100, Math.round(100 - (Math.log(locationInfo.accuracy) / Math.log(50000)) * 100)))
+    : 55;
+  // Signal bars 1–4 derived from bar percentage
+  const sigBars = Math.max(1, Math.min(4, Math.ceil(barPct / 25)));
+
+  const cityLabel = locationInfo?.city && locationInfo?.region
+    ? `${locationInfo.city}, ${locationInfo.region}`
+    : null;
+  const coordLabel = `${Math.abs(location[0]).toFixed(4)}° ${location[0] >= 0 ? 'N' : 'S'}, ${Math.abs(location[1]).toFixed(4)}° ${location[1] >= 0 ? 'E' : 'W'}`;
+
   return (
-    <div className="loc-confirmation">
-      {/* Status dot + icon */}
-      <div className="loc-confirmation__icon">
-        <MapPin size={18} />
-        <span className="loc-confirmation__pulse" />
+    <div className={`loc-card${isGood ? '' : ' loc-card--weak'}`}>
+      {/* Radar rings */}
+      <div className="loc-card__rings" aria-hidden="true">
+        <span className="loc-card__ring" />
+        <span className="loc-card__ring" />
+        <span className="loc-card__ring" />
+      </div>
+      {/* Ambient glow blob */}
+      <div className="loc-card__blob" aria-hidden="true" />
+
+      {/* Pin icon with live dot */}
+      <div className="loc-card__pin" aria-hidden="true">
+        <MapPin size={22} />
+        <span className="loc-card__live-dot" />
       </div>
 
-      {/* Info */}
-      <div className="loc-confirmation__body">
-        <p className="loc-confirmation__title">Your location detected</p>
-        <p className="loc-confirmation__detail">
-          {locationInfo?.city && locationInfo?.region
-            ? `${locationInfo.city}, ${locationInfo.region}`
-            : `${location[0].toFixed(4)}°N, ${Math.abs(location[1]).toFixed(4)}°W`}
+      {/* Body */}
+      <div className="loc-card__body">
+        <div className="loc-card__status">
+          <span className="loc-card__status-dot" />
+          Location locked
+        </div>
+        <p className="loc-card__city">
+          {cityLabel ?? coordLabel}
         </p>
-        {locationInfo?.accuracy && (
-          <p className={`loc-confirmation__acc${locationInfo.accuracy < 100 ? ' loc-confirmation__acc--good' : ' loc-confirmation__acc--low'}`}>
-            Accuracy: ±{Math.round(locationInfo.accuracy)}m
-            {locationInfo.accuracy < 100 ? ' · GPS' : ' · Network'}
-          </p>
-        )}
+        <p className="loc-card__coords">{coordLabel}</p>
+
+        {/* Accuracy row */}
+        <div className="loc-card__acc-row">
+          <span className="loc-card__acc-label">Accuracy</span>
+          <div className="loc-card__acc-track">
+            <span
+              className={`loc-card__acc-fill${isGood ? '' : ' loc-card__acc-fill--weak'}`}
+              style={{ width: `${barPct}%` }}
+            />
+          </div>
+          {locationInfo?.accuracy && (
+            <span className={`loc-card__acc-val${isGood ? '' : ' loc-card__acc-val--weak'}`}>
+              ±{Math.round(locationInfo.accuracy)}m
+            </span>
+          )}
+          {/* Signal strength bars */}
+          <div className="loc-card__signal" aria-label={`Signal: ${sigBars} of 4 bars`}>
+            {[1,2,3,4].map(b => (
+              <span key={b} className={`loc-card__sig-bar loc-card__sig-bar--${b}${b <= sigBars ? ' active' : ''}`} />
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Refresh button — functional, clearly labelled */}
-      <button
-        className="loc-confirmation__refresh"
-        onClick={onRefresh}
-        disabled={isRefreshing}
-        title="Refresh location"
-        type="button"
-        aria-label="Refresh location"
-      >
-        <RefreshCw size={15} className={isRefreshing ? 'spin' : ''} />
-        <span>{isRefreshing ? 'Updating…' : 'Refresh'}</span>
-      </button>
+      {/* Right actions */}
+      <div className="loc-card__actions">
+        <span className="loc-card__method">{isGps ? 'GPS' : 'Network'}</span>
+        <button
+          className="loc-card__refresh"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          type="button"
+          aria-label="Refresh location"
+        >
+          <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />
+          <span>{isRefreshing ? 'Updating…' : 'Refresh'}</span>
+        </button>
+      </div>
     </div>
   );
 };
@@ -363,7 +537,7 @@ const SavedFacilitiesBar: React.FC<SavedFacilitiesBarProps> = ({
             <div className={`saved-chip__dot saved-chip__dot--${facility.type}`} />
             <div className="saved-chip__info">
               <span className="saved-chip__name">{facility.name}</span>
-              <span className="saved-chip__meta">{facility.distance.toFixed(1)} km · {facility.type.replace('_', ' ')}</span>
+              <span className="saved-chip__meta">{facility.distance.toFixed(1)} km · {facility.typeLabel}</span>
             </div>
             <div className="saved-chip__actions">
               <button
@@ -411,21 +585,123 @@ function DynamicFacilityFinderInner() {
   
   const searchParams = useSearchParams();
 
+  // ── RESULTS STATE detection ──────────────────────────────────────
+  // Landed via a /find-care symptom/type search (?type=&lat=&lng=) or the
+  // dashboard's NHIS-facilities link (?nhis=true, no type, maybe no
+  // lat/lng if GPS wasn't granted yet) → header morphs into the filtered-
+  // results header and this becomes the sole replacement for
+  // /find-care/results. Landed on bare /facilities (bottom nav) → none of
+  // these params are present → BROWSE STATE, unchanged.
+  const [isResultsMode] = useState(() =>
+    !!(searchParams?.get('type') || searchParams?.get('nhis') ||
+       (searchParams?.get('lat') && searchParams?.get('lng')))
+  );
+  const [resultsSeed] = useState(() => ({
+    lat: parseFloat(searchParams?.get('lat') ?? ''),
+    lng: parseFloat(searchParams?.get('lng') ?? ''),
+    // GPS accuracy (metres) of the fix find-care used to build this URL.
+    // find-care only takes a single getCurrentPosition() reading — often
+    // the least accurate fix a device returns, since the chipset hasn't
+    // converged yet — so a coarse fix here can genuinely place the user
+    // outside a real facility's radius. NaN when absent (older links,
+    // dashboard's NHIS link) so the missing-accuracy branch below always
+    // treats it as "coarse, refine to be safe" rather than silently
+    // trusting an unknown fix.
+    acc:  parseFloat(searchParams?.get('acc')  ?? ''),
+    nhis: searchParams?.get('nhis') === 'true',
+  }));
+
+  // RESULTS STATE back navigation — same ?from= pattern as
+  // dashboard/activities: honor an explicit ?from= (set by /find-care and
+  // /emergency, the two entry points into RESULTS STATE) so the user lands
+  // back where they actually started, not always /find-care. Falls back to
+  // browser history, then /find-care as the last resort (e.g. deep link).
+  const handleResultsBack = useCallback(() => {
+    const from = searchParams?.get('from');
+    if (from) {
+      router.push(from);
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/find-care');
+    }
+  }, [router, searchParams]);
+
+  // Desktop-only label text for the button above — mobile uses the
+  // results title instead (see mob-topbar__title), so this doesn't need
+  // to be shown there.
+  const RESULTS_BACK_LABELS: Record<string, string> = {
+    '/find-care': 'Back to Find Care',
+    '/emergency': 'Back to Emergency',
+  };
+  const resultsBackLabel = RESULTS_BACK_LABELS[searchParams?.get('from') ?? ''] ?? 'Back to Find Care';
+
   // State management — seed search from ?q= URL param if present
   const [searchQuery, setSearchQuery] = useState(() => searchParams?.get('q') ?? '');
   const [searchActive, setSearchActive] = useState(false);
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [selectedType, setSelectedType] = useState('all');
-  const [selectedRadius, setSelectedRadius] = useState('10000');
+  const [selectedType, setSelectedType] = useState(() => searchParams?.get('type') ?? 'all');
+  // RESULTS STATE defaults to a 15km radius (parity with find-care/results);
+  // BROWSE STATE keeps its existing 10km default.
+  const [selectedRadius, setSelectedRadius] = useState(() => isResultsMode ? '15000' : '10000');
+  // ── RESULTS-STATE-only filters (ported from find-care/results) ──────
+  const [nhisOnly, setNhisOnly] = useState(() => resultsSeed.nhis);
+  const [districtQuery, setDistrictQuery] = useState('');
+  // filteredFacilities (below) feeds MapContainer's facilities prop, which
+  // tears down and rebuilds every marker on change — debounce the two
+  // free-text inputs that drive it so fast typing doesn't rebuild the
+  // (up to 100) markers on every keystroke. The input fields themselves
+  // stay bound to the instant searchQuery/districtQuery state so typing
+  // still feels responsive; only the expensive downstream filter/map
+  // update waits for a pause.
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  const [debouncedDistrictQuery, setDebouncedDistrictQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDistrictQuery(districtQuery), 300);
+    return () => clearTimeout(t);
+  }, [districtQuery]);
   const [sortBy, setSortBy] = useState('distance');
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
+  // Separate from selectedFacility — persists after modal closes so map stays focused
+  const [mapFocusFacility, setMapFocusFacility] = useState<Facility | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locationInfo, setLocationInfo] = useState<LocationInfo | undefined>();
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationPermission, setLocationPermission] = useState<'granted' | 'prompt' | 'denied' | 'unknown'>('unknown');
   const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
+  // Results mode kicks off a fetch immediately on mount ONLY when the URL
+  // already carries lat/lng (find-care already had GPS granted). In that
+  // case seed this true so the first paint shows the loading pill instead
+  // of a flash of the "No matches yet" empty state (see isLoadingFacilities
+  // seeding note below for the full explanation). When coords are absent,
+  // the mount effect calls getCurrentLocation() instead — which only
+  // starts a fetch once GPS resolves — so seeding true here would instead
+  // leave the pill stuck on "Looking for care near you…" forever if the
+  // user denies the permission prompt. isLoadingLocation (not this flag)
+  // already covers that in-between waiting period.
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(
+    isResultsMode && !Number.isNaN(resultsSeed.lat) && !Number.isNaN(resultsSeed.lng)
+  );
+  // True for the life of the silent GPS-accuracy-refinement watch kicked
+  // off by getCurrentLocation() when the first fix is coarse (>500m). A
+  // fetch already resolved against that coarse fix can look like a
+  // complete, trustworthy answer (zero results = "not found") even though
+  // a better coordinate -- and possibly a different answer -- is already
+  // known to be on the way. isLoadingOrRefining below folds this into
+  // every place that decides whether to show a *final* empty state, so
+  // "not found" is never shown and then silently reversed once
+  // refinement lands.
+  const [isRefiningLocation, setIsRefiningLocation] = useState(false);
+  // Single source of truth for "don't show a final answer yet" -- use
+  // this, not isLoadingFacilities directly, anywhere that decides whether
+  // to render a definitive empty/no-results state.
+  const isLoadingOrRefining = isLoadingFacilities || isRefiningLocation;
   const [isFromCache, setIsFromCache] = useState(false); // true while showing cached data during bg refresh
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -433,17 +709,22 @@ function DynamicFacilityFinderInner() {
   const [savedFacilityIds, setSavedFacilityIds] = useState<Set<string>>(new Set());
   const [isSavingFacility, setIsSavingFacility] = useState(false);
 
-  /* ── Notification panel ────────────────────────────────────── */
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
-  const [notifsRead,     setNotifsRead]     = useState(false);
-  const notifMobRef   = useRef<HTMLButtonElement>(null);
-  const notifPanelRef = useRef<HTMLDivElement>(null);
-  
-  // Mobile navigation state
-  const [activeBottomTab, setActiveBottomTab] = useState<string>('facilities');
-
   // Ref for smooth scrolling
-  const mapViewRef    = useRef<HTMLDivElement>(null);
+  const mapViewRef       = useRef<HTMLDivElement>(null);
+  // Scroll target for the auto-scroll-on-first-results behaviour below —
+  // this is the search bar + filter chips section specifically, not the
+  // map further down, so the landed view matches "search bar right below
+  // the top bar, map visible beneath it" rather than jumping past the
+  // search/filter controls entirely.
+  const searchControlsRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToResultsRef = useRef(false);
+  // True once MapContainer's onReady fires — i.e. markers are actually
+  // placed, not just that `facilities` has data. MapContainer is a
+  // client-only, dynamically-loaded component with its own Leaflet init
+  // sequence, decoupled from the Overpass fetch — `facilities` can be
+  // populated (isLoadingFacilities already false) while the map itself is
+  // still setting up, so this is the signal that closes that gap.
+  const [mapReady, setMapReady] = useState(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const isFetchingRef = useRef(false); // prevents double-fetch from radius effect + location
 
@@ -494,21 +775,119 @@ function DynamicFacilityFinderInner() {
     }
   }, [status, router]);
 
-  // On mount: if ?q param was passed, clear it from the URL (keep the UI clean)
-  // but keep the searchQuery state so filtering works immediately.
+  // On mount: seed from ?q= and/or ?type= URL params, then clean the URL.
   useEffect(() => {
-    const q = searchParams?.get('q') ?? null;
-    if (q) {
-      // Replace URL without the param so back-button works cleanly
+    const q    = searchParams?.get('q')    ?? null;
+    const type = searchParams?.get('type') ?? null;
+    if (q || type) {
       window.history.replaceState({}, '', '/facilities');
-      setSearchQuery(q);
+      if (q)    { setSearchQuery(q); setSearchDropdownOpen(true); }
+      if (type) setSelectedType(type);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // RESULTS STATE: seed location directly from the URL's lat/lng when
+  // present (find-care already had GPS granted before navigating here —
+  // full parity with find-care/results' urlLat/urlLng fast path, never
+  // re-requesting GPS in that case). When coordinates are absent (e.g. the
+  // dashboard's NHIS link before GPS is granted), auto-request location
+  // immediately instead of waiting for a banner click — find-care/results
+  // does the same (its `requestLocation()` fires as soon as status is
+  // 'unset', not gated behind a click).
+  useEffect(() => {
+    if (!isResultsMode) return;
+    setShowLocationBanner(false);
+    if (!Number.isNaN(resultsSeed.lat) && !Number.isNaN(resultsSeed.lng)) {
+      setUserLocation([resultsSeed.lat, resultsSeed.lng]);
+      setLocationPermission('granted');
+      isFetchingRef.current = false;
+      fetchNearbyFacilities(resultsSeed.lat, resultsSeed.lng, parseInt(selectedRadius));
+      // find-care's fix was a single getCurrentPosition() reading — treat
+      // an unknown accuracy (older links) the same as a coarse one, since
+      // there's no basis to trust it as final either way.
+      startAccuracyRefinement(Number.isNaN(resultsSeed.acc) ? Infinity : resultsSeed.acc, parseInt(selectedRadius));
+    } else {
+      getCurrentLocation(); // resolves GPS itself, then fetches — see getCurrentLocation
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-scroll once results are actually ready — lands the search/filter
+  // bar just below the top bar with the map/list visible beneath it,
+  // rather than leaving the page wherever it happened to be scrolled
+  // (typically still up at the now-empty hero/back-button area). Fires
+  // exactly once per page load: covers BOTH ways this page starts —
+  // the URL-seeded fast path above (find-care already had GPS granted)
+  // and the slower GPS-resolves-here path inside getCurrentLocation —
+  // since both eventually converge on isLoadingFacilities flipping to
+  // false with userLocation set. Guarded so it never re-fires on later
+  // radius/type/filter changes, which shouldn't yank the viewport.
+  //
+  // Also waits for mapReady when viewMode is 'map' (the default): the
+  // Overpass fetch finishing (isLoadingFacilities → false) only means the
+  // *data* exists, not that the map has actually placed markers for it —
+  // MapContainer loads and initializes Leaflet on its own, separate
+  // timeline. Without this, the scroll could fire and reveal a map that's
+  // still mid-setup, which is the "scroll happens before the facility is
+  // generated" bug — the whole point of scrolling down is to hand control
+  // back once there's something real to look at.
+  useEffect(() => {
+    if (hasScrolledToResultsRef.current) return;
+    if (isLoadingFacilities || !userLocation) return;
+    if (viewMode === 'map' && !mapReady) return;
+    hasScrolledToResultsRef.current = true;
+    const timer = setTimeout(() => {
+      searchControlsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isLoadingFacilities, userLocation, viewMode, mapReady]);
+
+  // RESULTS STATE: re-run the type-scoped Overpass query when the type
+  // filter changes after the initial load (handled above / by
+  // getCurrentLocation). Uses whichever userLocation is current, whether it
+  // came from the URL seed or GPS.
+  const isFirstTypeRender = useRef(true);
+  useEffect(() => {
+    if (!isResultsMode) return;
+    if (isFirstTypeRender.current) { isFirstTypeRender.current = false; return; }
+    if (!userLocation) return;
+    isFetchingRef.current = false;
+    fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType]);
+
+  // RESULTS STATE: change the type filter with the loading flag flipped in
+  // the SAME state update, not one tick later. `filteredFacilities` (below)
+  // filters `facilities` by `f.type === selectedType` client-side — so the
+  // instant selectedType changes, that memo re-evaluates against whatever
+  // `facilities` currently holds, which is still the PREVIOUS type's data
+  // (the new type-scoped fetch hasn't run yet; it's kicked off by the
+  // effect above, which only fires *after* this render commits and paints).
+  // Old-type facilities all fail `f.type === selectedType` against the new
+  // type, so filteredFacilities briefly goes to zero — and since
+  // isLoadingFacilities was still false from the previous, already-settled
+  // search, isLoadingOrRefining was false too, so that single render
+  // painted a real "No {type} found" (list pill, map popup, and results
+  // count) before the effect above even started fetching. Plain
+  // setSelectedType(slug) hits this on every type-pill tap. Batching
+  // setIsLoadingFacilities(true) into the same event handler closes the
+  // gap: isLoadingOrRefining is already true by the time this render's
+  // filteredFacilities would've been zero, so the loading pill shows
+  // instead — exactly like a fresh search, which this effectively is.
+  // BROWSE STATE deliberately skipped: it has every type pre-loaded and
+  // never refetches on a type change (see the effect above), so forcing
+  // a loading flag there would show a pill nothing ever clears.
+  const selectResultsType = useCallback((slug: string) => {
+    if (isResultsMode) setIsLoadingFacilities(true);
+    setSelectedType(slug);
+  }, [isResultsMode]);
+
   // On mount: if geolocation permission is already granted, auto-fetch without showing banner
+  // (BROWSE STATE only — RESULTS STATE already has its location from the URL)
   useEffect(() => {
     if (status !== 'authenticated') return;
+    if (isResultsMode) return;
     if (!navigator.permissions) return;
     navigator.permissions.query({ name: 'geolocation' }).then((result) => {
       setLocationPermission(result.state as 'granted' | 'prompt' | 'denied');
@@ -519,7 +898,7 @@ function DynamicFacilityFinderInner() {
       }
     }).catch(() => { setLocationPermission('unknown'); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, isResultsMode]);
 
   // Auto switch to map view when location is obtained (only on first location get)
   const hasAutoSwitchedRef = useRef(false);
@@ -606,29 +985,32 @@ function DynamicFacilityFinderInner() {
   }, [savedFacilityIds]);
 
   const getFacilityIconComponent = useCallback((type: string) => {
-    switch (type) {
-      case 'hospital': return Hospital;
-      case 'pharmacy': return Pill;
-      case 'clinic': return Stethoscope;
-      case 'health_center': return Heart;
-      default: return Hospital;
-    }
+    const opt = FACILITY_TYPE_OPTIONS.find(t => t.slug === type);
+    return (opt && TYPE_ICONS[opt.icon]) || Building2;
   }, []);
 
   // Handle facility selection with tracking
   const handleFacilitySelect = useCallback(async (facility: Facility) => {
     setSelectedFacility(facility);
-    
+    setMapFocusFacility(facility); // persists after modal closes
+    // Switch to map view and close search dropdown so the pin is visible
+    setViewMode('map');
+    setSearchDropdownOpen(false);
+    setSearchQuery('');
+
     // Track this activity
     try {
       await trackActivity(
         activityTypes.FACILITY_FOUND,
         `Found ${facility.name}`,
-        `${facility.type.replace('_', ' ')} • ${facility.distance.toFixed(1)} km away`,
+        `${facility.typeLabel} • ${facility.distance.toFixed(1)} km away`,
         {
           facilityId: facility.id,
           facilityName: facility.name,
           facilityType: facility.type,
+          type: facility.type,
+          lat: facility.coordinates[0],
+          lng: facility.coordinates[1],
           distance: facility.distance,
           city: facility.city,
           region: facility.region,
@@ -715,17 +1097,33 @@ function DynamicFacilityFinderInner() {
 
   // Fetch facilities
   const fetchNearbyFacilities = useCallback(async (lat: number, lng: number, radius: number = 10000, resolvedLocation?: LocationInfo) => {
+    // Guard against concurrent fetches (e.g. radius effect + location effect
+    // firing together). Checked BEFORE touching fetchAbortRef: callers that
+    // want to force a supersede (radius change, retry buttons, etc.) reset
+    // isFetchingRef.current = false themselves right before calling, so
+    // they still get through this check. If we instead created a new
+    // AbortController and reassigned fetchAbortRef.current first (as this
+    // used to do) and only checked the guard afterwards, a bail-out call
+    // would leave fetchAbortRef pointing at a controller nothing ever used
+    // — orphaning whatever controller the still-in-flight call is actually
+    // using. On unmount, the cleanup effect aborts via fetchAbortRef, so it
+    // would abort that unused controller instead of the real one, and the
+    // genuinely in-flight fetch would keep running (and could still call
+    // setState) after the component is gone.
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     // Abort any in-flight request before starting a new one
     fetchAbortRef.current?.abort();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
 
-    // Guard against concurrent fetches (e.g. radius effect + location effect firing together)
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
-
     // ── Show cached results instantly while fresh data loads ──────
-    const cached = readCache(lat, lng, radius);
+    // RESULTS STATE queries are type-scoped (hospital-only, dentist-only,
+    // etc.) but the cache key is only lat/lng/radius — reusing it across
+    // modes/types would serve a stale, incomplete subset. BROWSE STATE
+    // caching is unchanged. (find-care/results itself has no caching.)
+    const cached = isResultsMode ? null : readCache(lat, lng, radius);
     if (cached && cached.length > 0) {
       setFacilities(cached);
       setIsFromCache(true);
@@ -736,11 +1134,27 @@ function DynamicFacilityFinderInner() {
 
     try {
       let allFacilities: Facility[] = [];
-      
+
+      // RESULTS STATE: types come from the FACILITY_TYPE_OPTIONS-driven
+      // selectedType filter ('all' → the default hospital/clinic/pharmacy
+      // set, matching find-care/results' typeSlug === '' behaviour).
+      const activeTypes: FacilityTypeOption[] = isResultsMode
+        ? (selectedType !== 'all'
+            ? FACILITY_TYPE_OPTIONS.filter(t => t.slug === selectedType)
+            : FACILITY_TYPE_OPTIONS.filter(t => (DEFAULT_FACILITY_TYPE_SLUGS as readonly string[]).includes(t.slug)))
+        : FACILITY_TYPE_OPTIONS;
+
       // Fetch from Overpass API (OpenStreetMap)
       try {
-        // nwr = node|way|relation shorthand; out center body gives coords for ways/relations too
-        const overpassQuery = `
+        // RESULTS STATE — ported query-builder from find-care/results, driven
+        // by FACILITY_TYPE_OPTIONS so it correctly handles regex specialty tags
+        // (ENT/maternity/mental-health). BROWSE STATE keeps its own broader,
+        // hand-tuned amenity list (nwr = node|way|relation; out center body
+        // gives coords for ways/relations too) plus shop=optician so eye-care
+        // facilities can now be classified into the eye_clinic slug.
+        const overpassQuery = isResultsMode
+          ? buildTypedOverpassQuery(activeTypes, lat, lng, radius)
+          : `
           [out:json][timeout:60];
           (
             nwr["amenity"="hospital"](around:${radius},${lat},${lng});
@@ -751,6 +1165,7 @@ function DynamicFacilityFinderInner() {
             nwr["amenity"="laboratory"](around:${radius},${lat},${lng});
             nwr["amenity"="nursing_home"](around:${radius},${lat},${lng});
             nwr["amenity"="social_facility"]["social_facility"="nursing_home"](around:${radius},${lat},${lng});
+            nwr["shop"="optician"](around:${radius},${lat},${lng});
             nwr["healthcare"](around:${radius},${lat},${lng});
             nwr["healthcare:speciality"](around:${radius},${lat},${lng});
           );
@@ -764,15 +1179,41 @@ function DynamicFacilityFinderInner() {
           'https://overpass.openstreetmap.ru/api/interpreter',
         ];
 
+        // Wraps fetch() with its OWN hard deadline (via a local
+        // AbortController) while still honoring the outer `controller`
+        // (the one that cancels this whole fetchNearbyFacilities call on
+        // unmount/a newer search). Neither the proxy call nor the direct-
+        // mirror fallback below used to have any timeout at all — if a
+        // connection just hung instead of failing outright, the browser's
+        // own default TCP/HTTP timeout (which can be minutes, not
+        // seconds) was the only thing that would ever move things along.
+        // That compounded with the old sequential-mirror server route to
+        // produce the multi-minute waits this used to have.
+        const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number): Promise<Response> => {
+          const localController = new AbortController();
+          const onOuterAbort = () => localController.abort();
+          controller.signal.addEventListener('abort', onOuterAbort);
+          const timer = setTimeout(() => localController.abort(), timeoutMs);
+          try {
+            return await fetch(url, { ...options, signal: localController.signal });
+          } finally {
+            clearTimeout(timer);
+            controller.signal.removeEventListener('abort', onOuterAbort);
+          }
+        };
+
         const fetchWithRetry = async (): Promise<any> => {
           // ── 1. Always try the server-side proxy first ──────────────
+          // It already races all 5 mirrors internally now (see
+          // /api/overpass/route.ts), bounded to ~22s worst case — this
+          // just gives it a little headroom above that instead of no
+          // ceiling at all.
           try {
-            const proxyResp = await fetch('/api/overpass', {
+            const proxyResp = await fetchWithTimeout('/api/overpass', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ query: overpassQuery }),
-              signal: controller.signal,
-            });
+            }, 28_000);
             if (proxyResp.ok) {
               const data = await proxyResp.json();
               // Only treat as success if we actually got elements array
@@ -785,39 +1226,34 @@ function DynamicFacilityFinderInner() {
               }
             }
           } catch (e: any) {
-            if (e?.name === 'AbortError') throw e;
-            // Proxy unreachable — try direct mirrors
+            if (controller.signal.aborted) throw e; // real cancellation — stop entirely
+            // otherwise: our own 28s timeout, or a network error — fall through
           }
 
           // ── 2. Browser direct fallback ──────────────────────────────
+          // Last resort if the proxy's own 5-mirror race came back empty
+          // — covers the case where the SERVER's outbound network
+          // specifically is the problem (e.g. its IP got rate-limited)
+          // even though the user's own connection is fine. Kept lean —
+          // one attempt per mirror, hard-timed — since the proxy already
+          // did the thorough retrying; this doesn't need to repeat that.
           for (const mirror of DIRECT_MIRRORS) {
-            for (let attempt = 0; attempt < 2; attempt++) {
-              try {
-                const resp = await fetch(mirror, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Accept': 'application/json',
-                  },
-                  body: `data=${encodeURIComponent(overpassQuery)}`,
-                  signal: controller.signal,
-                });
-                if (resp.status === 429) {
-                  if (attempt === 0) {
-                    await new Promise(r => setTimeout(r, 3000));
-                    continue;
-                  }
-                  break;
-                }
-                if (resp.ok) {
-                  const data = await resp.json();
-                  if (data && Array.isArray(data.elements)) return data;
-                }
-                break;
-              } catch (e: any) {
-                if (e?.name === 'AbortError') throw e;
-                break;
+            try {
+              const resp = await fetchWithTimeout(mirror, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                },
+                body: `data=${encodeURIComponent(overpassQuery)}`,
+              }, 8_000);
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data && Array.isArray(data.elements)) return data;
               }
+            } catch (e: any) {
+              if (controller.signal.aborted) throw e; // real cancellation — stop entirely
+              // otherwise: this mirror's own timeout/network error — try the next one
             }
           }
 
@@ -865,69 +1301,21 @@ function DynamicFacilityFinderInner() {
                 if (/^\d+$/.test(name)) return;  // purely numeric name
                 if (['unnamed', 'unknown', 'n/a', 'na'].includes(name.toLowerCase())) return;
                 
-                const amenity = element.tags.amenity || element.tags.healthcare || 'clinic';
                 const distance = calculateDistance(lat, lng, coords[0], coords[1]);
-                
+
                 if (distance > radius / 1000) return;
-                
-                let type: 'hospital' | 'clinic' | 'pharmacy' | 'health_center' = 'clinic';
-                const hc = element.tags.healthcare || '';
-                if (amenity === 'hospital' || hc === 'hospital') {
-                  type = 'hospital';
-                } else if (amenity === 'pharmacy' || hc === 'pharmacy') {
-                  type = 'pharmacy';
-                } else if (
-                  hc === 'centre' || hc === 'center' || hc === 'health_centre' ||
-                  hc === 'community_health_centre' || hc === 'health_post' ||
-                  amenity === 'health_post'
-                ) {
-                  type = 'health_center';
-                } else if (
-                  amenity === 'doctors' || amenity === 'clinic' ||
-                  amenity === 'dentist' || amenity === 'laboratory' ||
-                  amenity === 'nursing_home' ||
-                  hc === 'doctor' || hc === 'general_practitioner' ||
-                  hc === 'outpatient' || hc === 'clinic' ||
-                  hc === 'dentist' || hc === 'laboratory' ||
-                  hc === 'maternity' || hc === 'blood_bank' ||
-                  hc === 'optometrist' || hc === 'physiotherapist'
-                ) {
-                  type = 'clinic';
-                }
-                
-                const services: string[] = [];
-                if (element.tags.emergency === 'yes') services.push('Emergency Care');
-                if (element.tags['healthcare:speciality']) {
-                  const specialties = element.tags['healthcare:speciality'].split(';')
-                    .map((s: string) => s.trim())
-                    .filter((s: string) => s.length > 0);
-                  services.push(...specialties.slice(0, 5));
-                }
-                
-                // Add amenity-specific defaults when OSM doesn't provide speciality tags
-                if (amenity === 'dentist' || hc === 'dentist') {
-                  if (!services.includes('Dentistry')) services.push('Dentistry', 'Oral Health', 'Dental Consultations');
-                } else if (amenity === 'laboratory' || hc === 'laboratory') {
-                  if (!services.includes('Laboratory')) services.push('Laboratory Tests', 'Diagnostics', 'Blood Tests');
-                } else if (hc === 'maternity') {
-                  if (!services.includes('Maternity')) services.push('Maternity Care', 'Antenatal', 'Delivery Services');
-                } else if (hc === 'optometrist') {
-                  if (!services.includes('Optometry')) services.push('Eye Care', 'Vision Tests', 'Optometry');
-                } else if (hc === 'physiotherapist') {
-                  if (!services.includes('Physiotherapy')) services.push('Physiotherapy', 'Rehabilitation');
-                }
-                if (services.length < 2) {
-                  if (type === 'hospital') {
-                    services.push('Inpatient Care', 'General Medicine', 'Outpatient Care');
-                  } else if (type === 'pharmacy') {
-                    services.push('Prescriptions', 'OTC Medications', 'Health Consultations');
-                  } else if (type === 'clinic') {
-                    services.push('Outpatient Care', 'Consultations', 'Basic Treatment');
-                  } else if (type === 'health_center') {
-                    services.push('Primary Care', 'Preventive Services', 'Basic Treatment');
-                  }
-                }
-                
+
+                // Classify against the 9-type FACILITY_TYPE_OPTIONS taxonomy —
+                // shared with RESULTS STATE / find-care/results. Elements that
+                // don't match any of the 9 official types (e.g. a bare
+                // nursing_home with no other healthcare tag) are dropped,
+                // same as find-care/results — see Phase 1 summary for this
+                // BROWSE-STATE behaviour change (previously bucketed as
+                // 'health_center', which is no longer one of the 9 types).
+                const matchedType = resolveFacilityType(element.tags);
+                if (!matchedType) return;
+                const type = matchedType.slug;
+
                 let address = '';
                 if (element.tags['addr:full']) {
                   address = element.tags['addr:full'];
@@ -957,36 +1345,24 @@ function DynamicFacilityFinderInner() {
                                '';   // filled in below
                 
                 const osmId = `osm_${element.type}_${element.id}`;
-                const rng1 = seededRandom(osmId + '_rating');
-                const rng2 = seededRandom(osmId + '_reviews');
                 allFacilities.push({
                   id: osmId,
                   name,
                   type,
+                  typeLabel: matchedType.label,
                   address,
                   city,
                   region,
                   distance,
-                  rating: parseFloat((3.5 + rng1 * 1.5).toFixed(1)),
-                  reviews: 20 + Math.floor(rng2 * 280),
                   phone: (() => {
                     const raw = element.tags.phone || element.tags['contact:phone'] || element.tags['phone:mobile'] || element.tags['contact:mobile'] || '';
                     // Normalise: keep +, digits, spaces, dashes only
                     return raw.replace(/[^+0-9\s\-]/g, '').trim();
                   })(),
                   hours: element.tags.opening_hours || (type === 'hospital' && element.tags.emergency === 'yes' ? '24/7' : 'Call for hours'),
-                  services: services.slice(0, 8),
                   coordinates: coords as [number, number],
                   emergencyServices: element.tags.emergency === 'yes' || element.tags['emergency_service'] === 'yes',
-                  insurance: (() => {
-                    const ins: string[] = [];
-                    const nhisTag = element.tags['healthcare:insurance'] || element.tags['payment:nhis'];
-                    if (nhisTag === 'yes' || nhisTag === 'only' || nhisTag == null) ins.push('NHIS');
-                    if (element.tags['payment:private_insurance'] === 'yes' || nhisTag == null) ins.push('Private');
-                    if (element.tags['payment:cash'] !== 'no') ins.push('Cash');
-                    return ins.length > 0 ? ins : ['NHIS', 'Private', 'Cash'];
-                  })(),
-                  specializations: services.slice(0, 3),
+                  nhis: detectNhis(element.tags),
                   website: element.tags.website || element.tags['contact:website'] || element.tags.url
                 });
               } catch (elementError) {
@@ -997,7 +1373,43 @@ function DynamicFacilityFinderInner() {
       } catch (innerError) {
         console.warn('Error processing Overpass data:', innerError);
       }
-      
+
+      // Merge in admin-verified DB facilities (Phase 9) — these exist to
+      // cover gaps in OSM's Ghana coverage, especially eye_clinic /
+      // ent_clinic / laboratory / maternity (thin because they depend on
+      // the sparse free-text healthcare:speciality OSM tag — see the
+      // constants.ts comment on FACILITY_TYPE_OPTIONS). Fetched separately
+      // from Overpass rather than folded into fetchWithRetry() above:
+      // this is our own DB, so it doesn't need the mirror-fallback chain
+      // and a failure here shouldn't block OSM results from showing.
+      // Runs for both BROWSE and RESULTS states; RESULTS passes `type` so
+      // the DB query stays scoped the same way the Overpass query is.
+      try {
+        const verifiedParams = new URLSearchParams({
+          lat: String(lat),
+          lng: String(lng),
+          radius: String(radius),
+        });
+        if (isResultsMode && selectedType !== 'all') {
+          verifiedParams.set('type', selectedType);
+        }
+        const verifiedResp = await fetch(`/api/facilities/verified?${verifiedParams.toString()}`, {
+          signal: controller.signal,
+        });
+        if (verifiedResp.ok) {
+          const verifiedData = await verifiedResp.json();
+          if (Array.isArray(verifiedData?.facilities)) {
+            allFacilities = allFacilities.concat(verifiedData.facilities);
+          }
+        } else {
+          console.warn('[facilities] /api/facilities/verified returned', verifiedResp.status);
+        }
+      } catch (verifiedError: any) {
+        if (verifiedError?.name === 'AbortError') throw verifiedError;
+        // DB facilities are additive — OSM results still show on failure.
+        console.warn('Error fetching verified DB facilities:', verifiedError);
+      }
+
       // Back-fill blank city / region with the user's detected location
       //  (most Ghana OSM nodes are tagged without addr:city)
       if (allFacilities.length > 0) {
@@ -1038,9 +1450,16 @@ function DynamicFacilityFinderInner() {
       setIsFromCache(false);
 
       // Write fresh results to cache for instant display on next visit
-      if (limited.length > 0) writeCache(lat, lng, radius, limited);
+      // (BROWSE STATE only — see the read-side comment above)
+      if (!isResultsMode && limited.length > 0) writeCache(lat, lng, radius, limited);
       
     } catch (error) {
+      // A call whose controller has since been replaced (aborted by a
+      // newer call, not a real failure of this one) was superseded, not
+      // genuinely erroring — let the newer, still-in-flight call own the
+      // outcome instead of stomping its eventual result with this stale
+      // one's error state.
+      if (fetchAbortRef.current !== controller) return;
       console.error('Error fetching facilities:', error);
       // Only clear facilities if we have no cached data showing
       if (!isFromCache) {
@@ -1051,14 +1470,84 @@ function DynamicFacilityFinderInner() {
         setError('Could not refresh facilities. Showing cached results.');
       }
     } finally {
-      isFetchingRef.current = false;
-      setIsFromCache(false);
-      setIsLoadingFacilities(false);
+      // Same guard: only the still-current call may clear the shared
+      // loading/guard state. Concretely, this happens on every fresh
+      // results-page mount in dev — React 18 StrictMode double-invokes the
+      // mount effect with no cleanup function to cancel the first
+      // invocation's work, so that first call's controller gets aborted by
+      // the second's `fetchAbortRef.current?.abort()`. Without this guard,
+      // the first (now-stale) call's finally still runs unconditionally,
+      // flipping isLoadingFacilities back to false — and isFetchingRef's
+      // guard back open — while the second, real call is still mid-fetch.
+      // isLoadingOrRefining reads false for a beat with facilities still
+      // empty, so the page paints a real "No {type} found" before the
+      // fetch that would have actually answered the question has finished.
+      if (fetchAbortRef.current === controller) {
+        isFetchingRef.current = false;
+        setIsFromCache(false);
+        setIsLoadingFacilities(false);
+      }
     }
-  }, [calculateDistance, readCache, writeCache]);
+  }, [calculateDistance, readCache, writeCache, isResultsMode, selectedType]);
 
   // Get current location with high accuracy
+  const resetMapFocus = useCallback(() => {
+    setMapFocusFacility(null);
+  }, []);
+
+  // Silent background watch for a better GPS fix, used whenever the
+  // location currently driving the search is coarse (>500m accuracy, or
+  // unknown). isRefiningLocation stays true for the whole watch so
+  // isLoadingOrRefining keeps the empty/"not found" states from rendering
+  // against a fix that might still improve — see isLoadingOrRefining above.
+  // Originally only ran inside getCurrentLocation() (BROWSE STATE / no-URL
+  // RESULTS STATE), which meant the URL-seeded RESULTS STATE path (coords
+  // handed off from find-care) never got this safety net at all: find-care
+  // takes a single getCurrentPosition() reading — often a device's least
+  // accurate fix, since the chipset hasn't converged yet — and a coarse
+  // fix there can genuinely land outside a real nearby facility's radius.
+  // That fetch would complete "successfully" with zero results and the
+  // page would declare a false negative it could have silently corrected.
+  // Cleared on every exit path: the update arrives, arrives but isn't
+  // meaningfully better, or the watch itself errors/times out. Guarded by
+  // refiningWatchIdRef against a second, duplicate watch starting while one
+  // is already active — same mechanism as fetchAbortRef above: if this ever
+  // gets called twice in quick succession for the same mount (StrictMode's
+  // dev-only double-invoke of the mount effect), an unguarded second watch
+  // would mean two watches racing, and whichever settles first clears the
+  // shared isRefiningLocation to false — potentially while the *other*
+  // watch, the one actually likely to find the better fix, is still going.
+  const refiningWatchIdRef = useRef<number | null>(null);
+  const startAccuracyRefinement = useCallback((initialAccuracy: number, radius: number) => {
+    if (!navigator.geolocation) return;
+    if (initialAccuracy <= 500) return;
+    if (refiningWatchIdRef.current !== null) return; // already refining — don't start a second watch
+    let bestAccuracy = initialAccuracy;
+    setIsRefiningLocation(true);
+    const watchId = navigator.geolocation.watchPosition(
+      (pos2) => {
+        if (pos2.coords.accuracy < bestAccuracy - 50) {
+          bestAccuracy = pos2.coords.accuracy;
+          const loc2: [number, number] = [pos2.coords.latitude, pos2.coords.longitude];
+          setUserLocation(loc2);
+          setLocationInfo(prev => (prev ? { ...prev, accuracy: pos2.coords.accuracy } : prev));
+          // Silent background re-fetch — reset guard before calling
+          isFetchingRef.current = false;
+          fetchNearbyFacilities(pos2.coords.latitude, pos2.coords.longitude, radius);
+        }
+        navigator.geolocation.clearWatch(watchId);
+        refiningWatchIdRef.current = null;
+        setIsRefiningLocation(false);
+      },
+      () => { navigator.geolocation.clearWatch(watchId); refiningWatchIdRef.current = null; setIsRefiningLocation(false); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+    refiningWatchIdRef.current = watchId;
+  }, [fetchNearbyFacilities]);
+
   const getCurrentLocation = useCallback(() => {
+    // Clicking Find Near Me / Refresh should return map to user's location
+    setMapFocusFacility(null);
     setIsLoadingLocation(true);
     setError(null);
     
@@ -1079,6 +1568,15 @@ function DynamicFacilityFinderInner() {
 
         setUserLocation(location);
         setLocationPermission('granted');
+        // Set this here, before reverseGeocode's await, not after — reverseGeocode
+        // is a real network call, and userLocation above is already set by the
+        // time it's in flight. Without this, there's a window where userLocation
+        // is truthy, facilities is still empty, and isLoadingFacilities hasn't
+        // been set yet (that used to happen inside fetchNearbyFacilities, called
+        // only after reverseGeocode resolves) — which is exactly the condition
+        // that renders the "No matches yet" empty state below instead of the
+        // "Looking for care near you…" loading pill.
+        setIsLoadingFacilities(true);
         const info = await reverseGeocode(latitude, longitude);
         setLocationInfo({ ...info, accuracy });
 
@@ -1089,31 +1587,12 @@ function DynamicFacilityFinderInner() {
 
         // Switch to map view
         setViewMode('map');
+        // (Scroll-to-results now handled by the unified effect below, which
+        // also covers the URL-seeded results path this call alone didn't.)
 
-        // Scroll to map view smoothly
-        setTimeout(() => {
-          mapViewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
-
-        // If accuracy > 500m, try a watch for a better GPS fix (silent background update)
-        if (accuracy > 500) {
-          const watchId = navigator.geolocation.watchPosition(
-            async (pos2) => {
-              if (pos2.coords.accuracy < bestAccuracy - 50) {
-                bestAccuracy = pos2.coords.accuracy;
-                const loc2: [number, number] = [pos2.coords.latitude, pos2.coords.longitude];
-                setUserLocation(loc2);
-                setLocationInfo(prev => ({ ...prev, accuracy: pos2.coords.accuracy }));
-                // Silent background re-fetch — reset guard before calling
-                isFetchingRef.current = false;
-                fetchNearbyFacilities(pos2.coords.latitude, pos2.coords.longitude, parseInt(selectedRadius));
-              }
-              navigator.geolocation.clearWatch(watchId);
-            },
-            () => navigator.geolocation.clearWatch(watchId),
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-          );
-        }
+        // If this first fix is coarse, refine it in the background rather
+        // than trusting it as final — see startAccuracyRefinement above.
+        startAccuracyRefinement(accuracy, parseInt(selectedRadius));
       },
       (error) => {
         console.error('Location error:', error.message);
@@ -1136,7 +1615,7 @@ function DynamicFacilityFinderInner() {
       },
       { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
     );
-  }, [selectedRadius, fetchNearbyFacilities, reverseGeocode]);
+  }, [selectedRadius, fetchNearbyFacilities, reverseGeocode, startAccuracyRefinement]);
 
   // Refetch when radius changes — skip on initial mount (location already fetches on mount)
   const isFirstRadiusRender = useRef(true);
@@ -1163,14 +1642,12 @@ function DynamicFacilityFinderInner() {
     if (!tokens.length) return 1;
     const fields = [
       { text: normaliseStr(facility.name),                          weight: 10 },
-      { text: normaliseStr(facility.type.replace(/_/g, ' ')),       weight:  6 },
+      { text: normaliseStr(facility.typeLabel),                      weight:  6 },
       { text: normaliseStr(facility.city),                           weight:  5 },
       { text: normaliseStr(facility.region),                         weight:  4 },
       { text: normaliseStr(facility.address),                        weight:  3 },
-      { text: facility.services.map(s => normaliseStr(s)).join(' '), weight:  4 },
-      { text: (facility.specializations ?? []).map(s => normaliseStr(s)).join(' '), weight: 3 },
       { text: facility.emergencyServices ? 'emergency 24 7 247' : '', weight: 5 },
-      { text: facility.insurance.map(s => normaliseStr(s)).join(' '), weight: 2 },
+      { text: facility.nhis !== 'none' ? 'nhis insurance' : '',       weight: 2 },
     ];
     let score = 0;
     for (const token of tokens) {
@@ -1187,19 +1664,156 @@ function DynamicFacilityFinderInner() {
     return score;
   };
 
-  const filteredFacilities = facilities
-    .map(f => ({ f, score: scoreMatch(f, searchQuery) }))
+  const filteredFacilities = useMemo(() => facilities
+    .map(f => ({ f, score: scoreMatch(f, debouncedSearchQuery) }))
     .filter(({ score, f }) => score > 0 && (selectedType === 'all' || f.type === selectedType))
+    // RESULTS-STATE-only filters (ported from find-care/results): the
+    // Overpass query is already type-scoped there, but district substring
+    // matching and the NHIS-only toggle are client-side, same as before.
+    .filter(({ f }) => !isResultsMode || !debouncedDistrictQuery.trim() || f.address.toLowerCase().includes(debouncedDistrictQuery.trim().toLowerCase()))
+    .filter(({ f }) => !isResultsMode || !nhisOnly || f.nhis !== 'none')
     .sort((a, b) => {
-      if (searchQuery.trim() && a.score !== b.score) return b.score - a.score;
+      if (debouncedSearchQuery.trim() && a.score !== b.score) return b.score - a.score;
       switch (sortBy) {
-        case 'rating':   return b.f.rating - a.f.rating;
         case 'name':     return a.f.name.localeCompare(b.f.name);
-        case 'reviews':  return b.f.reviews - a.f.reviews;
         default:         return a.f.distance - b.f.distance;
       }
     })
-    .map(({ f }) => f);
+    .map(({ f }) => f),
+  [facilities, debouncedSearchQuery, selectedType, sortBy, isResultsMode, debouncedDistrictQuery, nhisOnly]);
+
+  // RESULTS STATE zero/thin-results empty state — ported verbatim (label
+  // logic + recovery actions) from find-care/results.
+  const resultsRadiusKm = parseInt(selectedRadius) / 1000;
+  const resultsActiveLabel = selectedType !== 'all'
+    ? (FACILITY_TYPE_OPTIONS.find(t => t.slug === selectedType)?.label.toLowerCase() ?? 'facilities')
+    : 'facilities';
+  const RESULTS_RADIUS_OPTIONS_KM = [5, 10, 15, 20];
+
+  // RESULTS STATE header content — ported from find-care/results.
+  const resultsActiveTypeOpt = selectedType !== 'all' ? FACILITY_TYPE_OPTIONS.find(t => t.slug === selectedType) : undefined;
+  const resultsPageTitle = resultsActiveTypeOpt ? resultsActiveTypeOpt.label : 'Hospitals, clinics & pharmacies';
+  const ResultsHeaderIcon = resultsActiveTypeOpt ? (TYPE_ICONS[resultsActiveTypeOpt.icon] ?? Building2) : Building2;
+  const resultsLocationLabel = userLocation
+    ? 'Right where you are'
+    : locationPermission === 'denied'
+    ? 'Location unavailable — enable it to search nearby'
+    : 'Finding your location…';
+  const renderResultsEmptyState = () => (
+    !userLocation ? (
+      <div className="fcr-empty-state">
+        <Locate size={20} />
+        <h2 className="fcr-empty-state__title">
+          {locationPermission === 'denied' ? 'Location access needed' : 'Finding your location…'}
+        </h2>
+        <p className="fcr-empty-state__body">
+          {locationPermission === 'denied'
+            ? 'Enable location in your browser settings, then refresh the page to search nearby.'
+            : "We're locating you now — results will appear as soon as we have it."}
+        </p>
+        {locationPermission === 'denied' && (
+          <div className="fcr-empty-state__actions">
+            <button className="fcr-empty-state__btn" onClick={getCurrentLocation} type="button">
+              Try again
+            </button>
+          </div>
+        )}
+      </div>
+    ) : (
+    <div className="fcr-empty-state">
+      <MapPin size={20} />
+      <h2 className="fcr-empty-state__title">
+        No {resultsActiveLabel} found within {resultsRadiusKm} km
+      </h2>
+      <p className="fcr-empty-state__body">
+        Try widening your search, or start with a general hospital nearby — they can refer you to a specialist.
+      </p>
+      <div className="fcr-empty-state__actions">
+        {resultsRadiusKm < 20 && (
+          <button
+            className="fcr-empty-state__btn"
+            onClick={() => setSelectedRadius(String((RESULTS_RADIUS_OPTIONS_KM.find(k => k > resultsRadiusKm) ?? 20) * 1000))}
+            type="button"
+          >
+            Widen to {RESULTS_RADIUS_OPTIONS_KM.find(k => k > resultsRadiusKm) ?? 20} km
+          </button>
+        )}
+        {nhisOnly && (
+          <button className="fcr-empty-state__btn" onClick={() => setNhisOnly(false)} type="button">
+            Remove NHIS filter
+          </button>
+        )}
+        {selectedType !== 'all' && selectedType !== 'hospital' && (
+          <button className="fcr-empty-state__btn" onClick={() => selectResultsType('hospital')} type="button">
+            Try Hospital instead
+          </button>
+        )}
+      </div>
+    </div>
+    )
+  );
+
+  // ── BROWSE-mode "nothing found" content — single source of truth ────
+  // Previously re-derived independently in three places (the map-view
+  // sidebar, the full list view, and the compact map-overlay card below),
+  // and they'd quietly drifted apart: only the list view offered a
+  // "Try 50km" step beyond 20km, and the "enable location" copy differed
+  // slightly between sidebar and list. All three now read from here, so
+  // they can't disagree, and adding a future radius step is a one-line
+  // change instead of three. (RESULTS mode's equivalent, renderResultsEmptyState
+  // above, was already a single shared function — this brings BROWSE mode
+  // up to the same standard.)
+  type EmptyStateAction = { label: string; onClick: () => void; icon?: boolean };
+  const browseEmptyState = useMemo((): { headline: string; hint: string; actions: EmptyStateAction[] } | null => {
+    if (isResultsMode || isLoadingOrRefining || filteredFacilities.length > 0) return null;
+    if (!userLocation) {
+      const actions: EmptyStateAction[] = [{ label: 'Enable Location', onClick: getCurrentLocation, icon: true }];
+      return {
+        headline: 'No facilities found',
+        hint: 'Enable location to find facilities near you.',
+        actions,
+      };
+    }
+    const radiusKm = parseInt(selectedRadius) / 1000;
+    const actions: EmptyStateAction[] = [];
+    if (selectedRadius !== '20000') actions.push({ label: 'Try 20km radius', onClick: () => setSelectedRadius('20000') });
+    if (selectedRadius !== '50000') actions.push({ label: 'Try 50km radius', onClick: () => setSelectedRadius('50000') });
+    return {
+      headline: `No healthcare facilities found within ${radiusKm}km of your location.`,
+      hint: 'Try increasing the search radius or adjusting your filters.',
+      actions,
+    };
+  }, [isResultsMode, isLoadingOrRefining, filteredFacilities.length, userLocation, selectedRadius, getCurrentLocation]);
+
+  // Compact version of the empty-state messaging above, for the small
+  // card MapContainer overlays directly on the map itself (see isLoading/
+  // emptyState props there). Only one action fits in that space, so this
+  // picks the single most useful one rather than every option the fuller
+  // sidebar/list empty states offer. Mirrors those states' conditions
+  // exactly (isLoadingFacilities false, a real search happened, zero
+  // results, no fetch error) so the map and the list/sidebar never
+  // disagree about whether results exist.
+  const mapEmptyState = useMemo(() => {
+    if (isLoadingOrRefining || !userLocation || error || filteredFacilities.length > 0) return null;
+    if (isResultsMode) {
+      const nextRadiusKm = RESULTS_RADIUS_OPTIONS_KM.find(k => k > resultsRadiusKm);
+      return {
+        title: `No ${resultsActiveLabel} found within ${resultsRadiusKm} km`,
+        body: 'Try widening your search, or start with a general hospital nearby — they can refer you to a specialist.',
+        actionLabel: nextRadiusKm ? `Widen to ${nextRadiusKm} km` : undefined,
+        onAction: nextRadiusKm ? () => setSelectedRadius(String(nextRadiusKm * 1000)) : undefined,
+      };
+    }
+    // userLocation is already confirmed truthy by the guard above, so
+    // browseEmptyState is always in its "has location" shape here.
+    if (!browseEmptyState) return null;
+    return {
+      title: browseEmptyState.headline,
+      body: browseEmptyState.hint,
+      actionLabel: browseEmptyState.actions[0]?.label,
+      onAction: browseEmptyState.actions[0]?.onClick,
+    };
+  }, [isLoadingOrRefining, userLocation, error, filteredFacilities.length, isResultsMode, resultsRadiusKm, resultsActiveLabel, browseEmptyState]);
 
   // User info
   const userName: string = session?.user?.name || 'User';
@@ -1207,42 +1821,14 @@ function DynamicFacilityFinderInner() {
   const userImage: string | null = (session?.user as any)?.image || null;
   const userInitials: string = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
-  // Bottom navigation handler
-  const handleBottomNavClick = (path: string, tab: string) => {
-    setActiveBottomTab(tab);
-    router.push(path);
-  };
-
-  /* ── Notification panel logic ────────────────────────────────── */
-  useEffect(() => {
-    if (!showNotifPanel) return;
-    const handler = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (
-        notifPanelRef.current && !notifPanelRef.current.contains(t) &&
-        notifMobRef.current   && !notifMobRef.current.contains(t)
-      ) setShowNotifPanel(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showNotifPanel]);
-
-  type NotifItem = {
-    id: string;
-    icon: React.ComponentType<{ size: number }>;
-    color: 'teal' | 'amber' | 'red' | 'mint' | 'violet';
-    title: string;
-    body: string;
-    action?: () => void;
-  };
-
-  const notifications = React.useMemo((): NotifItem[] => {
-    const list: NotifItem[] = [];
+  const notifications = React.useMemo((): AppNotification[] => {
+    const nowIso = new Date().toISOString();
+    const list: AppNotification[] = [];
 
     // Location not granted — always first
     if (!userLocation && locationPermission !== 'granted') {
       list.push({
-        id: 'location',
+        id: 'location', scope: 'contextual', createdAt: nowIso,
         icon: locationPermission === 'denied' ? AlertCircle : Crosshair,
         color: locationPermission === 'denied' ? 'red' : 'amber',
         title: locationPermission === 'denied'
@@ -1251,25 +1837,25 @@ function DynamicFacilityFinderInner() {
         body: locationPermission === 'denied'
           ? 'Open your browser settings, allow location access, then refresh the page.'
           : 'Grant location access so we can show hospitals, clinics and pharmacies closest to you.',
-        action: locationPermission === 'denied' ? undefined : getCurrentLocation,
+        onSelect: locationPermission === 'denied' ? undefined : getCurrentLocation,
       });
     }
 
     // Low GPS accuracy — results may be off
     if (userLocation && locationInfo?.accuracy && locationInfo.accuracy > 500)
       list.push({
-        id: 'low-accuracy',
+        id: 'low-accuracy', scope: 'contextual', createdAt: nowIso,
         icon: Crosshair,
         color: 'amber',
         title: `Low GPS accuracy — ±${Math.round(locationInfo.accuracy)}m`,
         body: 'Your location fix is weak. Results may not reflect your exact position. Tap to retry GPS.',
-        action: getCurrentLocation,
+        onSelect: getCurrentLocation,
       });
 
     // Search active but filtered list is empty (raw facilities exist, query filters them all out)
     if (searchQuery.trim() && facilities.length > 0 && !isLoadingFacilities)
       list.push({
-        id: 'empty-search',
+        id: 'empty-search', scope: 'contextual', createdAt: nowIso,
         icon: Search,
         color: 'amber',
         title: `No results for "${searchQuery}"`,
@@ -1279,35 +1865,35 @@ function DynamicFacilityFinderInner() {
     // Selected facility has emergency services — nudge to save it
     if (selectedFacility?.emergencyServices && !savedFacilityIds.has(selectedFacility.id))
       list.push({
-        id: 'save-er',
+        id: 'save-er', scope: 'contextual', createdAt: nowIso,
         icon: BookmarkCheck,
         color: 'teal',
         title: `Save ${selectedFacility.name}?`,
         body: 'This facility has emergency services. Bookmark it so you can find it instantly in a crisis.',
-        action: () => toggleSaveFacility(selectedFacility),
+        onSelect: () => toggleSaveFacility(selectedFacility),
       });
-    if (userLocation && !isLoadingFacilities && facilities.length === 0 && !error) {
+    if (userLocation && !isLoadingOrRefining && facilities.length === 0 && !error) {
       const radiusKm = Math.round(parseInt(selectedRadius) / 1000);
       list.push({
-        id: 'no-results',
+        id: 'no-results', scope: 'contextual', createdAt: nowIso,
         icon: MapPin,
         color: 'amber',
         title: 'No facilities found nearby',
         body: `Nothing found within ${radiusKm} km. Try increasing your search radius in the filters.`,
-        action: () => setShowFilters(true),
+        onSelect: () => setShowFilters(true),
       });
     }
 
     // Fetch error
     if (error) {
       list.push({
-        id: 'error',
+        id: 'error', scope: 'contextual', createdAt: nowIso,
         icon: AlertCircle,
         color: 'red',
         title: 'Could not load facilities',
         body: 'There was a problem fetching nearby facilities. Tap to retry.',
-        action: userLocation
-          ? () => fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius))
+        onSelect: userLocation
+          ? () => { isFetchingRef.current = false; fetchNearbyFacilities(userLocation[0], userLocation[1], parseInt(selectedRadius)); }
           : undefined,
       });
     }
@@ -1315,19 +1901,20 @@ function DynamicFacilityFinderInner() {
     // Saved facilities nudge
     if (savedFacilityIds.size > 0) {
       list.push({
-        id: 'saved',
+        id: 'saved', scope: 'contextual', createdAt: nowIso,
         icon: BookmarkCheck,
         color: 'teal',
         title: `${savedFacilityIds.size} saved ${savedFacilityIds.size === 1 ? 'facility' : 'facilities'}`,
         body: 'View your saved facilities on the profile page or scroll up to the saved bar.',
-        action: () => router.push('/profile'),
+        onSelect: () => router.push('/profile'),
       });
     }
 
-    // Location found — show city/accuracy info as a positive confirmation
+    // Location found — show city/accuracy info as a positive confirmation.
+    // silent: true — informational only, doesn't bump the unread badge.
     if (userLocation && locationInfo?.city && facilities.length > 0) {
       list.push({
-        id: 'located',
+        id: 'located', scope: 'contextual', createdAt: nowIso, silent: true,
         icon: MapPin,
         color: 'mint',
         title: `Showing facilities near ${locationInfo.city}`,
@@ -1336,13 +1923,16 @@ function DynamicFacilityFinderInner() {
     }
 
     if (list.length === 0)
-      list.push({ id: 'empty', icon: MapPin, color: 'mint', title: 'No new notifications', body: 'Enable GPS to start finding nearby healthcare facilities.' });
+      list.push({
+        id: 'empty', scope: 'contextual', createdAt: nowIso, silent: true,
+        icon: MapPin, color: 'mint', title: 'No new notifications',
+        body: 'Enable GPS to start finding nearby healthcare facilities.',
+      });
 
     return list;
-  }, [userLocation, locationPermission, facilities, isLoadingFacilities, error, savedFacilityIds, locationInfo, selectedRadius, searchQuery, selectedFacility, getCurrentLocation, fetchNearbyFacilities, toggleSaveFacility, router]);
+  }, [userLocation, locationPermission, facilities, isLoadingOrRefining, error, savedFacilityIds, locationInfo, selectedRadius, searchQuery, selectedFacility, getCurrentLocation, fetchNearbyFacilities, toggleSaveFacility, router]);
 
-  const hasUnread = notifications.some(n => !['empty', 'located'].includes(n.id)) && !notifsRead;
-  const toggleNotifPanel = () => { setShowNotifPanel(p => !p); setNotifsRead(true); };
+  useRegisterNotifications('facilities', notifications);
 
   if (status === 'loading') {
     return (
@@ -1377,6 +1967,14 @@ function DynamicFacilityFinderInner() {
     */
     <DashboardLayout activeTab="/facilities" showFooter={false} className="hc-layout--has-mob-topbar">
 
+      {/* ── Fixed background layer — pattern + tint stay pinned to the
+           viewport while everything else scrolls over it. A real
+           position:fixed element, not background-attachment:fixed,
+           since that CSS property is unreliably ignored on iOS Safari.
+           Same technique as Dashboard's .db-bg-fixed / Emergency's
+           .em-bg-fixed / Profile's .pr-bg-fixed. ── */}
+      <div className="facility-finder-bg-fixed" aria-hidden="true" />
+
       {/* ── Mobile sticky top bar ─────────────────────────────────
            position:fixed — sits above all page content.
            Shown at ≤640px via hc-layout--has-mob-topbar rules.   */}
@@ -1386,167 +1984,103 @@ function DynamicFacilityFinderInner() {
           <span className="mob-topbar__logo-text">HealthConnect</span>
         </div>
         <div className="mob-topbar__right">
-          <button
-            className="mob-topbar__btn"
-            type="button"
-            onClick={toggleDarkMode}
-            aria-label="Toggle dark mode"
-          >
+          <MobTopbarMenu />
+        </div>
+      </div>
+
+      {/* ── Mobile bottom tab bar ─────────────────────────────────
+           Shared component — Home / Find / Emergency / Profile, same as
+           /dashboard, /find-care, /emergency, /profile. Find tab shows
+           the location pin here since /facilities is the map view. */}
+      <MobTabBar currentPath="/facilities" />
+
+      {/* ── Desktop topbar — same as profile page, hidden on mobile ── */}
+      <div className="db-topbar">
+        <div className="db-topbar__right">
+          <div className="db-topbar__live"><span className="db-topbar__live-dot" />Live</div>
+          <button className="db-topbar__icon-btn" type="button" onClick={toggleDarkMode} aria-label="Toggle theme">
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button
-            ref={notifMobRef}
-            className="mob-topbar__btn mob-topbar__bell"
-            type="button"
+          <NotificationBell
+            className="db-topbar__icon-btn db-topbar__notif"
+            dotClassName="db-topbar__notif-dot"
             aria-label="Notifications"
-            onClick={toggleNotifPanel}
-          >
-            <Bell size={18} />
-            {hasUnread && <span className="mob-topbar__bell-dot" />}
-          </button>
-          <button
-            className="mob-topbar__avatar-btn"
-            type="button"
-            onClick={() => router.push('/profile')}
-            aria-label="Profile"
-          >
-            <div className="mob-topbar__avatar">
+          />
+          <button className="db-topbar__user" type="button" onClick={() => router.push('/profile')} title="Go to Profile">
+            <div className="db-topbar__user-avatar">
               {userImage
                 ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
                 : userInitials}
+            </div>
+            <div className="db-topbar__user-info">
+              <span className="db-topbar__user-name">{userName}</span>
+              <span className="db-topbar__user-id">HC-{userEmail?.slice(0,5).toUpperCase()}</span>
             </div>
           </button>
         </div>
       </div>
 
-      {/* ── Mobile bottom tab bar ─────────────────────────────────
-           position:fixed — sits below all page content.
-           Shown at ≤640px via hc-layout--has-mob-topbar rules.
-           SOS: plain Phone icon + red dot, matching image reference. */}
-      <nav className="mob-tab-bar" aria-label="Main navigation">
-        <div className="mob-tab-bar__inner">
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'dashboard' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/dashboard', 'dashboard')}
-            type="button"
-            aria-label="Home"
-          >
-            <span className="mob-tab-btn__icon"><Heart size={20} /></span>
-            Home
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'facilities' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/facilities', 'facilities')}
-            type="button"
-            aria-current="page"
-            aria-label="Find facilities"
-          >
-            <span className="mob-tab-btn__icon"><MapPin size={20} /></span>
-            Find
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'symptom' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/symptom-checker', 'symptom')}
-            type="button"
-            aria-label="Symptom Checker"
-          >
-            <span className="mob-tab-btn__icon"><Bot size={20} /></span>
-            Check
-          </button>
-          <button
-            className={`mob-tab-btn mob-tab-btn--sos${activeBottomTab === 'emergency' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/emergency', 'emergency')}
-            type="button"
-            aria-label="Emergency"
-          >
-            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
-            SOS
-          </button>
-          <button
-            className={`mob-tab-btn${activeBottomTab === 'profile' ? ' active' : ''}`}
-            onClick={() => handleBottomNavClick('/profile', 'profile')}
-            type="button"
-            aria-label="Profile"
-          >
-            <span className="mob-tab-btn__icon"><User size={20} /></span>
-            Profile
-          </button>
-        </div>
-      </nav>
+      {/* Notifications panel is now the single shared one — see
+           NotificationPanel.tsx, mounted once by DashboardLayout. This
+           page just registers its GPS/search tips into the feed above
+           (notifications + useRegisterNotifications). */}
 
     <div className="facility-finder">
 
-      {/* Notification panel */}
-      {showNotifPanel && (
-        <>
-          <div className="db-notif-panel" ref={notifPanelRef} role="dialog" aria-label="Notifications">
-            <div className="db-notif-panel__header">
-              <span className="db-notif-panel__title">Notifications</span>
-              {notifications.some(n => !['empty', 'located'].includes(n.id)) && (
-                <span className="db-notif-panel__count">
-                  {notifications.filter(n => !['empty', 'located'].includes(n.id)).length}
-                </span>
-              )}
-              <button className="db-notif-panel__close" onClick={() => setShowNotifPanel(false)} type="button" aria-label="Close">
-                <X size={15} />
-              </button>
-            </div>
-            <div className="db-notif-panel__list">
-              {notifications.map(n => {
-                const Icon = n.icon;
-                return (
-                  <button
-                    key={n.id}
-                    className={`db-notif-item db-notif-item--${n.color}`}
-                    onClick={() => { setShowNotifPanel(false); n.action?.(); }}
-                    type="button"
-                    disabled={!n.action}
-                  >
-                    <div className={`db-notif-item__icon db-notif-item__icon--${n.color}`}><Icon size={14} /></div>
-                    <div className="db-notif-item__body">
-                      <p className="db-notif-item__title">{n.title}</p>
-                      <p className="db-notif-item__body-text">{n.body}</p>
-                    </div>
-                    {n.action && <ChevronRight size={13} className="db-notif-item__arrow" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="db-notif-overlay" onClick={() => setShowNotifPanel(false)} />
-        </>
-      )}
-
       {/* Main Content */}
       <div className="facility-finder-content">
-        <div className="facility-finder-page-header">
-          <h2>Find Healthcare Facilities</h2>
-          <p className="facility-finder-page-subtitle">
-            Click "Find Near Me" to discover healthcare facilities in your area using GPS
-          </p>
-          <div className="facility-finder-header-actions">
-            <button
-              className="facility-finder-notif-btn"
-              type="button"
-              aria-label="Notifications"
-              onClick={toggleNotifPanel}
-            >
-              <Bell size={20} />
-              {hasUnread && <span className="facility-finder-notif-dot" />}
-            </button>
-            <button 
-              className={`facility-finder-location-btn ${isLoadingLocation ? 'loading' : ''}`}
-              onClick={getCurrentLocation}
-              disabled={isLoadingLocation}
-              type="button"
-            >
-              {isLoadingLocation ? <Loader2 size={20} className="spin" /> : <Crosshair size={20} />}
-              <span>{isLoadingLocation ? 'Getting GPS Location...' : 'Find Near Me (GPS)'}</span>
-            </button>
-          </div>
+
+        {/* Page header — morphs between BROWSE and RESULTS STATE based on how
+             /facilities was arrived at (bare vs ?type=&lat=&lng=). Both
+             render from the same underlying facilities/filters/view state;
+             this is conditional header content, not two glued-together pages. */}
+        <div className="facility-header-morph" key={isResultsMode ? 'results' : 'browse'}>
+          {isResultsMode ? (
+            <div className="fcr-page-header">
+              <span className="fcr-page-header__ghost-icon" aria-hidden="true">
+                <ResultsHeaderIcon size={132} strokeWidth={1.5} />
+              </span>
+              <div className="fcr-page-header__left">
+                <button className="fcr-back" onClick={handleResultsBack} type="button" aria-label={resultsBackLabel}>
+                  <ArrowLeft size={14} /> <span className="fcr-back__label">{resultsBackLabel}</span>
+                </button>
+                <h1 className="fcr-page-header__title">
+                  <span className="fcr-page-header__icon"><ResultsHeaderIcon size={22} /></span>
+                  {resultsPageTitle}
+                </h1>
+                <p className="fcr-page-header__sub"><MapPin size={12} /> {resultsLocationLabel}</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="pr-page-header">
+                <div>
+                  <h1 className="pr-page-header__title">Nearby Facilities</h1>
+                  <p className="pr-page-header__sub">Hospitals, clinics and pharmacies near you</p>
+                </div>
+                <div className="pr-page-header__actions">
+                  <button
+                    className={`pr-btn pr-btn--primary${isLoadingLocation ? ' loading' : ''}`}
+                    onClick={() => { resetMapFocus(); getCurrentLocation(); }}
+                    disabled={isLoadingLocation}
+                    type="button"
+                  >
+                    {isLoadingLocation
+                      ? <Loader2 size={14} className="pr-spin" />
+                      : <Crosshair size={14} />}
+                    {isLoadingLocation ? 'Finding you…' : 'Find Near Me'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode toggle — switch to symptom-based doctor search */}
+              <FindCareToggle active="facilities" />
+            </>
+          )}
         </div>
 
-        {/* Location Permission Banner */}
+        {/* Location Permission Banner — RESULTS STATE already has its
+             location from the URL, so this only ever shows in BROWSE STATE */}
         {showLocationBanner && !userLocation && (
           <LocationPermissionBanner
             onEnableLocation={getCurrentLocation}
@@ -1555,27 +2089,35 @@ function DynamicFacilityFinderInner() {
           />
         )}
 
-        {/* Location Confirmation — wrapper reserves space to prevent page jump */}
-        <div className="loc-confirmation-wrap">
-          {userLocation && (
-            <LocationConfirmation
-              location={userLocation}
-              locationInfo={locationInfo}
-              onRefresh={getCurrentLocation}
-              isRefreshing={isLoadingLocation}
-            />
-          )}
-          {/* Shown while fresh data loads in background over cached results */}
-          {isFromCache && isLoadingFacilities && (
-            <div className="cache-refresh-badge">
-              <Loader2 size={12} className="spin" />
-              <span>Updating results…</span>
-            </div>
-          )}
-        </div>
+        {/* Location Confirmation — wrapper reserves space to prevent page jump
+             while location is fetched, so it's always rendered in BROWSE STATE.
+             RESULTS STATE already has its location from the URL (no async wait,
+             nothing to guard against), so the wrapper is skipped entirely there
+             unless the cache-refresh badge needs it — as an empty flex child it
+             was still costing two gap-widths of dead space for no reason. */}
+        {(!isResultsMode || (isFromCache && isLoadingFacilities)) && (
+          <div className={`loc-confirmation-wrap${isResultsMode ? ' loc-confirmation-wrap--compact' : ''}`}>
+            {userLocation && !isResultsMode && (
+              <LocationConfirmation
+                location={userLocation}
+                locationInfo={locationInfo}
+                onRefresh={getCurrentLocation}
+                isRefreshing={isLoadingLocation}
+              />
+            )}
+            {/* Shown while fresh data loads in background over cached results */}
+            {isFromCache && isLoadingFacilities && (
+              <div className="cache-refresh-badge">
+                <Loader2 size={12} className="spin" />
+                <span>Updating results…</span>
+              </div>
+
+            )}
+          </div>
+        )}
 
         {/* Search and Filters */}
-        <div className="facility-finder-controls">
+        <div className="facility-finder-controls" ref={searchControlsRef}>
           <div className="facility-finder-search-section">
             <div className={`facility-finder-search-wrapper${searchActive ? ' search-focused' : ''}`}>
               <button
@@ -1589,14 +2131,25 @@ function DynamicFacilityFinderInner() {
               <input
                 ref={searchInputRef}
                 type="search"
-                placeholder="Search by name, type, location..."
+                placeholder="Search clinics, hospitals, pharmacies..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setSearchActive(true)}
-                onBlur={() => setSearchActive(false)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchDropdownOpen(e.target.value.trim().length > 0);
+                }}
+                onFocus={() => {
+                  setSearchActive(true);
+                  if (searchQuery.trim().length > 0) setSearchDropdownOpen(true);
+                }}
+                onBlur={() => {
+                  setSearchActive(false);
+                  // Delay close so clicks on dropdown items register
+                  setTimeout(() => setSearchDropdownOpen(false), 180);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     setSearchQuery('');
+                    setSearchDropdownOpen(false);
                     searchInputRef.current?.blur();
                   }
                 }}
@@ -1606,13 +2159,17 @@ function DynamicFacilityFinderInner() {
                 autoCapitalize="off"
                 spellCheck={false}
               />
-              {/* Clear button — shown only when there is a query */}
+              {/* Clear button */}
               {searchQuery && (
                 <button
                   type="button"
                   className="facility-finder-search-clear"
                   aria-label="Clear search"
-                  onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchDropdownOpen(false);
+                    searchInputRef.current?.focus();
+                  }}
                 >
                   <X size={16} />
                 </button>
@@ -1629,19 +2186,63 @@ function DynamicFacilityFinderInner() {
               </button>
             </div>
 
-            {/* Type filter pills — shown below search bar on all screen sizes */}
+            {/* ── Search autocomplete dropdown ── */}
+            {searchDropdownOpen && filteredFacilities.length > 0 && (
+              <div className="search-dropdown" role="listbox" aria-label="Search suggestions">
+                {filteredFacilities.slice(0, 6).map(facility => {
+                  const FacIcon = getFacilityIconComponent(facility.type);
+                  return (
+                    <button
+                      key={facility.id}
+                      className="search-dropdown__item"
+                      type="button"
+                      role="option"
+                      onMouseDown={() => handleFacilitySelect(facility)}
+                    >
+                      <div className={`search-dropdown__icon search-dropdown__icon--${facility.type}`}>
+                        <FacIcon size={14} />
+                      </div>
+                      <div className="search-dropdown__body">
+                        <span className="search-dropdown__name">{facility.name}</span>
+                        <span className="search-dropdown__meta">
+                          {facility.typeLabel} · {facility.city}
+                          {facility.distance > 0 ? ` · ${facility.distance.toFixed(1)} km` : ''}
+                        </span>
+                      </div>
+                      <div className="search-dropdown__action">
+                        <MapPin size={12} />
+                        <span>View on map</span>
+                      </div>
+                    </button>
+                  );
+                })}
+                {filteredFacilities.length > 6 && (
+                  <div className="search-dropdown__footer">
+                    {filteredFacilities.length - 6} more result{filteredFacilities.length - 6 !== 1 ? 's' : ''} — scroll the list below
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No matches message */}
+            {searchDropdownOpen && searchQuery.trim().length > 0 && filteredFacilities.length === 0 && (
+              <div className="search-dropdown search-dropdown--empty">
+                <div className="search-dropdown__empty">
+                  <Search size={16} />
+                  <span>No facilities found for &ldquo;{searchQuery}&rdquo;</span>
+                </div>
+              </div>
+            )}
+
+            {/* Type filter pills — shown below search bar on all screen sizes.
+                 Widened from the old 4-bucket set to the full 9-type
+                 FACILITY_TYPE_OPTIONS taxonomy shared with find-care/results. */}
             <div className="facility-type-pills">
-              {[
-                { value: 'all',           label: 'All' },
-                { value: 'hospital',      label: 'Hospitals' },
-                { value: 'clinic',        label: 'Clinics' },
-                { value: 'pharmacy',      label: 'Pharmacies' },
-                { value: 'health_center', label: 'Health Centres' },
-              ].map(opt => (
+              {[{ slug: 'all', label: 'All' }, ...FACILITY_TYPE_OPTIONS].map(opt => (
                 <button
-                  key={opt.value}
-                  className={`type-pill${selectedType === opt.value ? ' active' : ''}`}
-                  onClick={() => setSelectedType(opt.value)}
+                  key={opt.slug}
+                  className={`type-pill${selectedType === opt.slug ? ' active' : ''}`}
+                  onClick={() => selectResultsType(opt.slug)}
                   type="button"
                 >
                   {opt.label}
@@ -1657,19 +2258,15 @@ function DynamicFacilityFinderInner() {
                     className="facility-finder-filter-select"
                   >
                     <option value="distance">Sort: Distance</option>
-                    <option value="rating">Sort: Rating</option>
-                    <option value="reviews">Sort: Reviews</option>
                     <option value="name">Sort: Name</option>
                   </select>
 
                   <div className="facility-finder-radius-select">
                     <span className="radius-label">Radius:</span>
-                    {[
-                      { value: '5000',  label: '5km' },
-                      { value: '10000', label: '10km' },
-                      { value: '20000', label: '20km' },
-                      { value: '50000', label: '50km' },
-                    ].map(r => (
+                    {(isResultsMode
+                      ? [{ value: '5000', label: '5km' }, { value: '10000', label: '10km' }, { value: '15000', label: '15km' }, { value: '20000', label: '20km' }]
+                      : [{ value: '5000', label: '5km' }, { value: '10000', label: '10km' }, { value: '20000', label: '20km' }, { value: '50000', label: '50km' }]
+                    ).map(r => (
                       <button
                         key={r.value}
                         className={`radius-pill${selectedRadius === r.value ? ' active' : ''}`}
@@ -1693,9 +2290,57 @@ function DynamicFacilityFinderInner() {
                     </button>
                   )}
                 </div>
+
+                {/* ── RESULTS-STATE-only filters — district + NHIS-only toggle,
+                     ported from find-care/results into this same panel rather
+                     than a second, competing filters UI ── */}
+                {isResultsMode && (
+                  <div className="fcr-filters__row fcr-filters__row--toggle" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--hc-border2)' }}>
+                    <input
+                      className="fcr-select"
+                      type="text"
+                      placeholder="Area / district, e.g. Tarkwa"
+                      value={districtQuery}
+                      onChange={(e) => setDistrictQuery(e.target.value)}
+                      style={{ flex: 1, marginRight: 12 }}
+                    />
+                    <label className="fcr-toggle-label">
+                      <input type="checkbox" checked={nhisOnly} onChange={(e) => setNhisOnly(e.target.checked)} />
+                      <span>NHIS accepted only</span>
+                    </label>
+                    {(districtQuery || nhisOnly || selectedRadius !== '15000') && (
+                      <button
+                        className="fcr-clear-filters"
+                        onClick={() => { setDistrictQuery(''); setNhisOnly(false); setSelectedRadius('15000'); }}
+                        type="button"
+                      >
+                        <X size={12} /> Clear filters
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          {isLoadingOrRefining ? (
+            <div className="facility-finder-status-pill">
+              <Loader2 size={13} className="spin" />
+              Looking for {resultsActiveLabel} near you…
+            </div>
+          ) : isResultsMode && !userLocation ? (
+            <div className="facility-finder-status-pill facility-finder-status-pill--empty">
+              <MapPin size={13} />
+              {locationPermission === 'denied'
+                ? 'Enable location access to search nearby'
+                : 'Waiting for your location…'}
+            </div>
+          ) : filteredFacilities.length === 0 && userLocation ? (
+            <div className="facility-finder-status-pill facility-finder-status-pill--empty">
+              <MapPin size={13} />
+              No matches yet — try widening your search below
+            </div>
+          ) : null}
 
           <div className="facility-finder-view-controls">
             <div className="results-summary">
@@ -1707,7 +2352,11 @@ function DynamicFacilityFinderInner() {
               </span>
               {isLoadingFacilities && <Loader2 size={16} className="spin" />}
             </div>
-            
+
+            <Link href="/facilities/submit" className="facility-finder-add-link">
+              Don't see a place? Add it
+            </Link>
+
             <div className="facility-finder-view-toggle">
               <button 
                 className={`facility-finder-view-btn ${viewMode === 'map' ? 'active' : ''}`}
@@ -1780,6 +2429,10 @@ function DynamicFacilityFinderInner() {
                 facilities={filteredFacilities}
                 userLocation={userLocation}
                 onFacilitySelect={handleFacilitySelect}
+                focusFacility={mapFocusFacility}
+                onReady={() => setMapReady(true)}
+                isLoading={isLoadingOrRefining}
+                emptyState={mapEmptyState}
               />
               
               <div className="facility-finder-map-sidebar">
@@ -1794,41 +2447,37 @@ function DynamicFacilityFinderInner() {
                 </div>
                 
                 <div className="facility-finder-results-list">
-                  {isLoadingFacilities ? (
+                  {isLoadingOrRefining ? (
                     <div className="loading-facilities">
-                      <Loader2 size={24} className="spin" />
-                      <p>Loading healthcare facilities...</p>
-                      <small>Searching OpenStreetMap database...</small>
+                      <div className="loading-facilities-pulse">
+                        <Loader2 size={22} className="spin" />
+                      </div>
+                      <p>Looking for care near you…</p>
+                      <small>This usually takes just a few seconds — hang tight.</small>
                     </div>
                   ) : filteredFacilities.length === 0 ? (
+                    isResultsMode ? renderResultsEmptyState() : browseEmptyState && (
                     <div className="no-facilities">
                       <Hospital size={32} />
-                      <p>No facilities found</p>
-                      {userLocation ? (
-                        <>
-                          <p>Try adjusting your search radius or filters</p>
-                          <button 
-                            className="location-enable-btn"
-                            onClick={() => setSelectedRadius('20000')}
-                            type="button"
-                          >
-                            Try 20km radius
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <p>Enable location to find facilities near you</p>
-                          <button 
-                            className="location-enable-btn"
-                            onClick={getCurrentLocation}
-                            type="button"
-                          >
-                            <Locate size={20} />
-                            Enable Location
-                          </button>
-                        </>
+                      <p>{browseEmptyState.headline}</p>
+                      <p>{browseEmptyState.hint}</p>
+                      {browseEmptyState.actions.length > 0 && (
+                        <div className="radius-suggestions">
+                          {browseEmptyState.actions.map(action => (
+                            <button
+                              key={action.label}
+                              className="location-enable-btn"
+                              onClick={action.onClick}
+                              type="button"
+                            >
+                              {action.icon && <Locate size={20} />}
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
+                    )
                   ) : (
                     filteredFacilities.map(facility => {
                       const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(facility.hours, facility.emergencyServices);
@@ -1848,10 +2497,6 @@ function DynamicFacilityFinderInner() {
                             <p className="facility-result-location">{facility.city}, {facility.region}</p>
                             <p className="facility-result-distance">{facility.distance.toFixed(1)} km away</p>
                           </div>
-                          <div className="facility-result-rating">
-                            <Star size={14} className="rating-star" fill="currentColor" />
-                            <span>{facility.rating.toFixed(1)}</span>
-                          </div>
                         </div>
                         
                         <div className="facility-result-details">
@@ -1862,12 +2507,12 @@ function DynamicFacilityFinderInner() {
                             {facility.emergencyServices && (
                               <span className="emergency-badge">24/7 Emergency</span>
                             )}
+                            {facility.nhis !== 'none' && (
+                              <span className={`fcr-badge ${facility.nhis === 'confirmed' ? 'fcr-badge--nhis' : 'fcr-badge--nhis-likely'}`}>
+                                <Check size={11} /> {facility.nhis === 'confirmed' ? 'NHIS' : 'NHIS likely'}
+                              </span>
+                            )}
                           </div>
-                          
-                          <p className="facility-result-services">
-                            {facility.services.slice(0, 2).join(', ')}
-                            {facility.services.length > 2 && ` +${facility.services.length - 2} more`}
-                          </p>
                         </div>
                         
                         <div className="facility-result-actions">
@@ -1882,6 +2527,19 @@ function DynamicFacilityFinderInner() {
                             >
                               <Phone size={14} />
                               Call
+                            </button>
+                          )}
+                          {hasPhone && (
+                            <button
+                              className="facility-action-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(toWhatsAppLink(facility.phone), '_blank');
+                              }}
+                              type="button"
+                            >
+                              <MessageCircle size={14} />
+                              WhatsApp
                             </button>
                           )}
                           <button 
@@ -1915,63 +2573,115 @@ function DynamicFacilityFinderInner() {
                 )}
               </div>
               
-              {isLoadingFacilities ? (
+              {isLoadingOrRefining ? (
                 <div className="loading-facilities-list">
-                  <Loader2 size={32} className="spin" />
-                  <p>Searching for healthcare facilities...</p>
-                  <small>Using OpenStreetMap data for accurate results</small>
+                  <div className="loading-facilities-pulse">
+                    <Loader2 size={26} className="spin" />
+                  </div>
+                  <p>Looking for care near you…</p>
+                  <small>This usually takes just a few seconds — hang tight.</small>
                 </div>
               ) : filteredFacilities.length === 0 ? (
+                isResultsMode ? renderResultsEmptyState() : browseEmptyState && (
                 <div className="no-results-message">
                   <div className="no-results-icon">
                     <Search size={48} />
                   </div>
                   <h3>No facilities found</h3>
-                  {userLocation ? (
-                    <>
-                      <p>No healthcare facilities found within {parseInt(selectedRadius)/1000}km of your location</p>
-                      <p>Try increasing the search radius or adjusting your filters</p>
-                      <div className="radius-suggestions">
-                        <button 
+                  {userLocation && <p>{browseEmptyState.headline}</p>}
+                  <p>{browseEmptyState.hint}</p>
+                  {browseEmptyState.actions.length > 0 && (
+                    <div className="radius-suggestions">
+                      {browseEmptyState.actions.map(action => (
+                        <button
+                          key={action.label}
                           className="location-enable-btn"
-                          onClick={() => setSelectedRadius('20000')}
+                          onClick={action.onClick}
                           type="button"
                         >
-                          Try 20km radius
+                          {action.icon && <Locate size={20} />}
+                          {action.label}
                         </button>
-                        <button 
-                          className="location-enable-btn"
-                          onClick={() => setSelectedRadius('50000')}
-                          type="button"
-                        >
-                          Try 50km radius
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p>Enable location services to find healthcare facilities near you</p>
-                      <button 
-                        className="location-enable-btn" 
-                        onClick={getCurrentLocation} 
-                        type="button"
-                      >
-                        <Locate size={20} />
-                        Enable GPS Location
-                      </button>
-                    </>
+                      ))}
+                    </div>
                   )}
                 </div>
+                )
               ) : (
-                <div className="facility-finder-list-grid">
+                <div className={isResultsMode ? 'fcr-grid' : 'facility-finder-list-grid'}>
                   {filteredFacilities.map(facility => {
                     const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(facility.hours, facility.emergencyServices);
                     const hasPhone = !!facility.phone;
+                    const FacIcon = getFacilityIconComponent(facility.type);
+
+                    // ── RESULTS STATE: fcr-card, exact parity with find-care/results ──
+                    if (isResultsMode) {
+                      const isSaved = savedFacilityIds.has(facility.id);
+                      return (
+                        <div key={facility.id} className="fcr-card">
+                          <div className="fcr-card__top">
+                            <div className="fcr-card__icon"><FacIcon size={20} /></div>
+                            <div className="fcr-card__id">
+                              <h3 className="fcr-card__name">{facility.name}</h3>
+                              <span className="fcr-card__type">{facility.typeLabel}</span>
+                            </div>
+                            <div className="fcr-card__top-actions">
+                              <span className="fcr-distance-chip">{formatDistance(facility.distance)}</span>
+                              <button
+                                className={`fcr-card__bookmark${isSaved ? ' fcr-card__bookmark--saved' : ''}`}
+                                onClick={e => { e.stopPropagation(); toggleSaveFacility(facility); }}
+                                disabled={isSavingFacility}
+                                type="button"
+                                aria-label={isSaved ? 'Remove from saved' : 'Save facility'}
+                              >
+                                <Bookmark size={16} fill={isSaved ? 'var(--hc-teal)' : 'none'} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="fcr-card__meta">
+                            <span className="fcr-card__meta-item"><MapPin size={12} /> {[facility.address, facility.city].filter(Boolean).join(', ') || 'Address not available'}</span>
+                            {facility.hours && facility.hours !== 'Call for hours' && (
+                              <span className="fcr-card__meta-item">🕐 {facility.hours}</span>
+                            )}
+                          </div>
+
+                          {facility.nhis !== 'none' && (
+                            <div className="fcr-card__badges">
+                              <span className={`fcr-badge ${facility.nhis === 'confirmed' ? 'fcr-badge--nhis' : 'fcr-badge--nhis-likely'}`}>
+                                <Check size={11} /> {facility.nhis === 'confirmed' ? 'NHIS Accepted' : 'NHIS likely (public facility)'}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="fcr-card__actions">
+                            {hasPhone && (
+                              <a className="fcr-action-btn fcr-action-btn--call" href={`tel:${facility.phone}`} onClick={e => e.stopPropagation()}>
+                                <Phone size={14} /> Call
+                              </a>
+                            )}
+                            {hasPhone && (
+                              <a className="fcr-action-btn fcr-action-btn--whatsapp" href={toWhatsAppLink(facility.phone)}
+                                target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                                <MessageCircle size={14} /> WhatsApp
+                              </a>
+                            )}
+                            <a className="fcr-action-btn" href={`https://maps.google.com/?q=${facility.coordinates[0]},${facility.coordinates[1]}`}
+                              target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                              <ExternalLink size={14} /> Directions
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ── BROWSE STATE: existing detailed card, unchanged except for
+                    // the removal of fabricated rating/services/specializations/insurance ──
                     return (
                     <div key={facility.id} className="facility-finder-list-card">
                       <div className="facility-card-header">
                         <div className={`facility-card-icon ${facility.type}`}>
-                          {React.createElement(getFacilityIconComponent(facility.type), { size: 28 })}
+                          {React.createElement(FacIcon, { size: 28 })}
                         </div>
                         <div className="facility-card-info">
                           <h3 className="facility-card-name">{facility.name}</h3>
@@ -1980,13 +2690,6 @@ function DynamicFacilityFinderInner() {
                             {[facility.address, facility.city].filter(Boolean).join(', ') || 'Address not available'}
                           </p>
                           <p className="facility-card-distance">{facility.distance.toFixed(1)} km away</p>
-                        </div>
-                        <div className="facility-card-rating">
-                          <div className="rating-display">
-                            <Star size={16} className="rating-star" fill="currentColor" />
-                            <span className="rating-value">{facility.rating.toFixed(1)}</span>
-                          </div>
-                          <span className="rating-reviews">({facility.reviews} est.)</span>
                         </div>
                       </div>
                       
@@ -2010,6 +2713,12 @@ function DynamicFacilityFinderInner() {
                             <span>Emergency Services Available</span>
                           </div>
                         )}
+                        {facility.nhis !== 'none' && (
+                          <div className="quick-info-item">
+                            <Check size={14} />
+                            <span>{facility.nhis === 'confirmed' ? 'NHIS Accepted' : 'NHIS likely (public facility)'}</span>
+                          </div>
+                        )}
                         {facility.website && (
                           <div className="quick-info-item">
                             <Globe size={14} />
@@ -2024,38 +2733,6 @@ function DynamicFacilityFinderInner() {
                             </a>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="facility-card-services">
-                        <h4>Services Available:</h4>
-                        <div className="service-tags">
-                          {facility.services.slice(0, 4).map((service, index) => (
-                            <span key={index} className="service-tag">{service}</span>
-                          ))}
-                          {facility.services.length > 4 && (
-                            <span className="service-tag-more">+{facility.services.length - 4} more</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {facility.specializations && facility.specializations.length > 0 && (
-                        <div className="facility-card-specializations">
-                          <h4>Specializations:</h4>
-                          <div className="specialization-tags">
-                            {facility.specializations.map((spec, index) => (
-                              <span key={index} className="specialization-tag">{spec}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="facility-card-insurance">
-                        <h4>Insurance Accepted:</h4>
-                        <div className="insurance-tags">
-                          {facility.insurance.map((ins, index) => (
-                            <span key={index} className="insurance-tag">{ins}</span>
-                          ))}
-                        </div>
                       </div>
                       
                       <div className="facility-card-actions">
@@ -2105,15 +2782,37 @@ function DynamicFacilityFinderInner() {
             </div>
           )}
         </div>
+
+        {isResultsMode && (
+          <div className="fcr-emergency-footer">
+            <PhoneCall size={14} />
+            <span>Think this is an emergency? <Link href="/emergency">Emergency Hub</Link></span>
+          </div>
+        )}
       </div>
 
       {selectedFacility && (() => {
         const { label: statusLabel, isOpen, isUnknown } = getOpenStatus(selectedFacility.hours, selectedFacility.emergencyServices);
         const hasPhone = !!selectedFacility.phone;
         return (
-        <div className="facility-detail-modal" onClick={() => setSelectedFacility(null)}>
-          <div className="facility-detail-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setSelectedFacility(null)} type="button">×</button>
+        <div className="facility-detail-panel">
+          <div className="facility-detail-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => {
+                setSelectedFacility(null);
+                // Re-open the marker popup after panel closes so the tag is visible
+                if (mapFocusFacility) {
+                  setTimeout(() => {
+                    const event = new CustomEvent('reopenFacilityPopup', {
+                      detail: { facilityId: mapFocusFacility.id }
+                    });
+                    window.dispatchEvent(event);
+                  }, 120);
+                }
+              }}
+              type="button"
+            >×</button>
 
             {/* Drag handle — real flex child (not ::before) so flex column stays intact */}
             <div className="facility-detail-drag-handle" />
@@ -2127,15 +2826,11 @@ function DynamicFacilityFinderInner() {
               <div className="facility-detail-title">
                 <h2>{selectedFacility.name}</h2>
                 <p className="facility-detail-type">
-                  {selectedFacility.type.charAt(0).toUpperCase() + selectedFacility.type.slice(1).replace('_', ' ')} in {selectedFacility.city}
+                  {selectedFacility.typeLabel} in {selectedFacility.city}
                 </p>
                 <p className="facility-detail-distance">{selectedFacility.distance.toFixed(1)} km from your location</p>
               </div>
-              <div className="facility-detail-rating" title="Illustrative rating — based on facility type">
-                <Star size={20} className="rating-star" fill="currentColor" />
-                <span className="rating-value">{selectedFacility.rating.toFixed(1)}</span>
-                <span className="rating-reviews">({selectedFacility.reviews} est.)</span>
-              </div>
+              <div className="facility-detail-rating fac-no-rating">No ratings yet</div>
             </div>
             
             <div className="facility-detail-body">
@@ -2166,21 +2861,16 @@ function DynamicFacilityFinderInner() {
               </div>
               
               <div className="detail-section">
-                <h3>Services Available</h3>
-                <div className="detail-service-tags">
-                  {selectedFacility.services.map((service, index) => (
-                    <span key={index} className="detail-service-tag">{service}</span>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="detail-section">
-                <h3>Insurance & Payment</h3>
-                <div className="detail-insurance-tags">
-                  {selectedFacility.insurance.map((ins, index) => (
-                    <span key={index} className="detail-insurance-tag">{ins}</span>
-                  ))}
-                </div>
+                <h3>NHIS & Insurance</h3>
+                {selectedFacility.nhis !== 'none' ? (
+                  <div className="detail-insurance-tags">
+                    <span className="detail-insurance-tag">
+                      {selectedFacility.nhis === 'confirmed' ? 'NHIS Accepted' : 'NHIS likely (public facility)'}
+                    </span>
+                  </div>
+                ) : (
+                  <p style={{ color: 'var(--hc-text2)', fontSize: 13 }}>No NHIS signal available for this facility — call ahead to confirm.</p>
+                )}
                 {selectedFacility.emergencyServices && (
                   <div className="emergency-service-notice">
                     <AlertCircle size={16} />
@@ -2202,6 +2892,12 @@ function DynamicFacilityFinderInner() {
                   Call
                 </button>
               )}
+              {hasPhone && (
+                <button className="detail-action-btn secondary" onClick={() => window.open(toWhatsAppLink(selectedFacility.phone), '_blank')} type="button">
+                  <MessageCircle size={16} />
+                  WhatsApp
+                </button>
+              )}
               <button
                 className={`detail-action-btn save-btn${savedFacilityIds.has(selectedFacility.id) ? ' saved' : ''}`}
                 onClick={() => toggleSaveFacility(selectedFacility)}
@@ -2220,88 +2916,7 @@ function DynamicFacilityFinderInner() {
       })()}
 
       {/* Dashboard Footer */}
-      <footer className="dashboard-footer">
-        <div className="dashboard-footer-content">
-          <div className="dashboard-footer-main">
-            <div className="dashboard-footer-brand">
-              <div className="dashboard-footer-logo">
-                <Heart size={24} className="dashboard-footer-heart" />
-                <span className="dashboard-footer-brand-text">HealthConnect Navigator</span>
-              </div>
-              <p className="dashboard-footer-tagline">
-                Connecting you to quality healthcare services across Ghana. 
-                Your health, our priority.
-              </p>
-            </div>
-            
-            <div className="dashboard-footer-links">
-              <div>
-                <h4 className="dashboard-footer-section-title">Quick Links</h4>
-                <ul className="dashboard-footer-list">
-                  <li>
-                    <button 
-                      className="dashboard-footer-link"
-                      onClick={() => router.push('/dashboard')}
-                      type="button"
-                    >
-                      Dashboard
-                    </button>
-                  </li>
-                  <li>
-                    <button className="dashboard-footer-link" type="button">
-                      Find Facilities
-                    </button>
-                  </li>
-                  <li>
-                    <button 
-                      className="dashboard-footer-link"
-                      onClick={() => router.push('/symptom-checker')}
-                      type="button"
-                    >
-                      Symptom Checker
-                    </button>
-                  </li>
-                  <li>
-                    <button 
-                      className="dashboard-footer-link"
-                      onClick={() => router.push('/emergency')}
-                      type="button"
-                    >
-                      Emergency Services
-                    </button>
-                  </li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="dashboard-footer-section-title">Resources</h4>
-                <ul className="dashboard-footer-list">
-                  <li><button className="dashboard-footer-link" type="button">Health Tips</button></li>
-                  <li><button className="dashboard-footer-link" type="button">About Us</button></li>
-                  <li><button className="dashboard-footer-link" type="button">Contact Support</button></li>
-                  <li><button className="dashboard-footer-link" type="button">Privacy Policy</button></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="dashboard-footer-section-title">Support</h4>
-                <ul className="dashboard-footer-list">
-                  <li><button className="dashboard-footer-link" type="button">Help Center</button></li>
-                  <li><button className="dashboard-footer-link" type="button">FAQs</button></li>
-                  <li><button className="dashboard-footer-link" type="button">Terms of Service</button></li>
-                  <li><button className="dashboard-footer-link" type="button">Feedback</button></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="dashboard-footer-bottom">
-            <p className="dashboard-footer-copyright">
-              © 2025 HealthConnect Navigator. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <DashbordFooter />
 
     </div>
     </DashboardLayout>

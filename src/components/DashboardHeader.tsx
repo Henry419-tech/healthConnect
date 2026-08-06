@@ -3,15 +3,21 @@
 import '@/styles/dashboard-header.css';
 import '@/styles/dashboard-mobile.css';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import type { Language } from '@/contexts/LanguageContext';
 import {
-  Home, MapPin, Bot, Phone, User,
-  Bell, Moon, Sun, LogOut, PanelLeftClose,
-  PanelLeftOpen, Menu, X,
+  Home, MapPin, ShieldAlert, User, Calendar,
+  Moon, Sun, LogOut, PanelLeftClose,
+  PanelLeftOpen, Menu, X, Syringe, ChevronRight,
+  FileText, CalendarHeart, Globe, MoreVertical,
+  Stethoscope, BookOpen,
 } from 'lucide-react';
+import NotificationBell from './NotificationBell';
+import '@/styles/settings.css';
 
 const HCLogo = ({ size = 28 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="115 55 460 363" fill="none"
@@ -34,33 +40,138 @@ const HCLogo = ({ size = 28 }: { size?: number }) => (
 interface DashboardHeaderProps {
   activeTab?: string;
   onSidebarToggle?: (collapsed: boolean) => void;
+  locked?: boolean;
 }
 
+// Find tab now points at /find-care (symptom → specialty → doctor search),
+// same change as the mobile MobTabBar. The Overpass/NHIS map view is still
+// reachable at /facilities — moved to the Discover group below.
 const NAV_ITEMS = [
-  { path: '/dashboard',       label: 'Dashboard',      icon: Home   },
-  { path: '/facilities',      label: 'Facilities',      icon: MapPin  },
-  { path: '/symptom-checker', label: 'Symptom Checker', icon: Bot    },
-  { path: '/emergency',       label: 'Emergency Hub',   icon: Phone  },
-  { path: '/profile',         label: 'Profile',         icon: User   },
+  { path: '/dashboard',       label: 'Home',            icon: Home,        shortLabel: 'Home'     },
+  { path: '/find-care',       label: 'Find Care',       icon: Stethoscope, shortLabel: 'Find'     },
+  { path: '/emergency',       label: 'Emergency',       icon: ShieldAlert, shortLabel: 'Emergency' },
+  { path: '/profile',         label: 'My Health Profile', icon: User,      shortLabel: 'Profile'  },
 ];
 
-const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarToggle }) => {
+const NAV_GROUPS_BASE = [
+  {
+    label: 'Discover',
+    items: [
+      { path: '/facilities',  label: 'Facilities Map', icon: MapPin,   femaleOnly: false },
+      { path: '/health-info', label: 'Health Info',    icon: BookOpen, femaleOnly: false },
+    ],
+  },
+  {
+    label: 'Health Records',
+    items: [
+      { path: '/vaccinations', label: 'Vaccinations', icon: Syringe,       femaleOnly: false },
+      { path: '/documents',    label: 'Documents',    icon: FileText,      femaleOnly: false },
+    ],
+  },
+  {
+    label: 'Tracking & Devices',
+    items: [
+      { path: '/cycle',     label: 'Cycle',     icon: CalendarHeart, femaleOnly: true  },
+    ],
+  },
+];
+
+/* ── Language quick-switch pill ──────────────────────────────────── */
+function LangPill() {
+  const { language, setLanguage } = useLanguage();
+  const { data: session }         = useSession();
+
+  const toggle = async () => {
+    const next: Language = language === 'en' ? 'tw' : 'en';
+    setLanguage(next);
+    // Persist for logged-in users — fire-and-forget
+    if (session?.user?.email) {
+      fetch('/api/user/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: next }),
+      }).catch(() => {});
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="hc-lang-pill"
+      onClick={toggle}
+      title={language === 'en' ? 'Switch to Twi' : 'Sesa kɔ Borɔfo'}
+      aria-label={language === 'en' ? 'Switch to Twi' : 'Switch to English'}
+    >
+      <Globe size={12} />
+      <span>{language === 'en' ? 'EN' : 'TW'}</span>
+    </button>
+  );
+}
+
+const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarToggle, locked = false }) => {
   const { data: session } = useSession();
   const router   = useRouter();
   const pathname = usePathname();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const { language, setLanguage }      = useLanguage();
 
   const [collapsed,  setCollapsed]  = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const quickMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const userName  = session?.user?.name  || 'User';
   const userEmail = session?.user?.email || null;
   const userImage = session?.user?.image || null;
 
+  // Sync server-saved language preference when session loads
+  useEffect(() => {
+    if (!session?.user?.email) return;
+    fetch('/api/user/settings')
+      .then(r => r.json())
+      .then(d => {
+        if (d.language && d.language !== language) {
+          setLanguage(d.language as Language);
+        }
+      })
+      .catch(() => {});
+  // Only run on mount / session email change — not on language change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.email]);
+
+  // NAV_GROUPS depends on session gender — render empty until mounted so SSR
+  // and the initial client paint are byte-for-byte identical (no hydration mismatch).
+  // After mount, React re-renders with the real session in one synchronous pass.
+  const gender      = session?.user?.gender?.toLowerCase() ?? null;
+  const isFemale    = gender === 'female';
+  const genderUnset = gender === null || gender === '';
+
+  const NAV_GROUPS = mounted
+    ? NAV_GROUPS_BASE.map(group => ({
+        ...group,
+        items: group.items.filter(item => !item.femaleOnly || isFemale || genderUnset),
+      })).filter(group => group.items.length > 0)
+    : [];
+
+  const cycleTooltip = (label: string, femaleOnly: boolean): string | undefined => {
+    if (femaleOnly && genderUnset) return `${label} — set gender in Profile to unlock`;
+    return undefined;
+  };
+
   const initials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-  const isActive = (path: string) => pathname === path || activeTab === path;
+  // /find-care, /find-care/results, and /find-care/doctor/[id] all count as
+  // active for the "Find Care" nav item.
+  const isActive = (path: string) => {
+    if (path === '/find-care') {
+      return pathname.startsWith('/find-care') || activeTab === '/find-care';
+    }
+    return pathname === path || activeTab === path;
+  };
 
   const handleSignOut = async () => {
     try { await signOut({ callbackUrl: '/', redirect: true }); }
@@ -73,10 +184,25 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
     onSidebarToggle?.(next);
   };
 
-  // Notify parent of initial state
   useEffect(() => { onSidebarToggle?.(false); }, []); // eslint-disable-line
 
-  // Lock body scroll when mobile drawer open
+  /* Close quick menu on outside click */
+  useEffect(() => {
+    if (!showQuickMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+        setShowQuickMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showQuickMenu]);
+
+  /* Close quick menu on route change */
+  useEffect(() => {
+    setShowQuickMenu(false);
+  }, [pathname]);
+
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -89,9 +215,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
       ════════════════════════════════════════ */}
       <aside className={`hc-sidebar${collapsed ? ' hc-sidebar--collapsed' : ''}`}>
 
-        {/* Logo + collapse toggle in same row */}
         <div className="hc-sidebar__logo">
-          {/* Left: icon + text */}
           <div className="hc-sidebar__logo-inner">
             <HCLogo size={36} />
             <div className="hc-sidebar__logo-text">
@@ -99,7 +223,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
               <span className="hc-sidebar__logo-sub">Navigator</span>
             </div>
           </div>
-          {/* Toggle — always visible on the right */}
           <button
             className="hc-sidebar__toggle-btn"
             onClick={toggleCollapse}
@@ -111,13 +234,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="hc-sidebar__nav">
           {!collapsed && <span className="hc-sidebar__nav-label">Main Menu</span>}
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
             <button
               key={path}
-              className={`hc-sidebar__nav-item${isActive(path) ? ' hc-sidebar__nav-item--active' : ''}`}
+              className={`hc-sidebar__nav-item${isActive(path) ? ' hc-sidebar__nav-item--active' : ''}${path === '/emergency' ? ' hc-sidebar__nav-item--emergency' : ''}`}
               onClick={() => router.push(path)}
               type="button"
               title={collapsed ? label : undefined}
@@ -127,37 +249,67 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
               {!collapsed && <span>{label}</span>}
             </button>
           ))}
+
+          {NAV_GROUPS.map(group => (
+            <div key={group.label} className="hc-sidebar__nav-group">
+              {!collapsed && (
+                <span className="hc-sidebar__nav-label hc-sidebar__nav-label--group">
+                  {group.label}
+                </span>
+              )}
+              {group.items.map(({ path, label, icon: Icon, femaleOnly }) => (
+                <button
+                  key={path}
+                  className={`hc-sidebar__nav-item hc-sidebar__nav-item--secondary${isActive(path) ? ' hc-sidebar__nav-item--active' : ''}${femaleOnly && genderUnset ? ' hc-sidebar__nav-item--muted' : ''}`}
+                  onClick={() => router.push(path)}
+                  type="button"
+                  title={collapsed ? (cycleTooltip(label, femaleOnly) ?? label) : cycleTooltip(label, femaleOnly)}
+                >
+                  <span className="hc-sidebar__nav-indicator" />
+                  <Icon size={16} />
+                  {!collapsed && <span>{label}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
         </nav>
 
-        {/* Bottom */}
         <div className="hc-sidebar__bottom">
-          {/* Dark mode toggle */}
           <button
             className="hc-sidebar__nav-item hc-sidebar__darkmode-btn"
             onClick={toggleDarkMode}
             type="button"
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            suppressHydrationWarning
           >
             {isDarkMode
-              ? <Sun size={18} />
-              : <Moon size={18} />}
+              ? <Sun size={18} suppressHydrationWarning />
+              : <Moon size={18} suppressHydrationWarning />}
             {!collapsed && (
-              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              <span suppressHydrationWarning>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
             )}
           </button>
 
-          {/* User card */}
-          <div className="hc-sidebar__user">
-            <div className="hc-sidebar__user-avatar">
+          {/* Language toggle in collapsed sidebar shows globe icon only */}
+          {!collapsed && (
+            <div className="hc-sidebar__lang-row">
+              <Globe size={18} />
+              <span>Language</span>
+              <LangPill />
+            </div>
+          )}
+
+          <div className="hc-sidebar__user" suppressHydrationWarning>
+            <div className="hc-sidebar__user-avatar" suppressHydrationWarning>
               {userImage
-                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
-                : <span>{initials(userName)}</span>}
+                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" suppressHydrationWarning />
+                : <span suppressHydrationWarning>{initials(userName)}</span>}
             </div>
             {!collapsed && (
               <>
-                <div className="hc-sidebar__user-info">
-                  <span className="hc-sidebar__user-name">{userName}</span>
-                  {userEmail && <span className="hc-sidebar__user-email">{userEmail}</span>}
+                <div className="hc-sidebar__user-info" suppressHydrationWarning>
+                  <span className="hc-sidebar__user-name" suppressHydrationWarning>{userName}</span>
+                  {userEmail && <span className="hc-sidebar__user-email" suppressHydrationWarning>{userEmail}</span>}
                 </div>
                 <button
                   className="hc-sidebar__signout-btn"
@@ -176,7 +328,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
       {/* ════════════════════════════════════════
           MOBILE TOP BAR
       ════════════════════════════════════════ */}
-      <header className="hc-topbar">
+      {!locked && <header className="hc-topbar">
         <button
           className="hc-topbar__icon-btn"
           onClick={() => setDrawerOpen(true)}
@@ -194,25 +346,91 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
         </div>
 
         <div className="hc-topbar__actions">
+          {/* Language quick-switch — prominent for emergency hub access */}
+          <LangPill />
+
           <button
             className="hc-topbar__icon-btn"
             onClick={toggleDarkMode}
             type="button"
             aria-label="Toggle dark mode"
+            suppressHydrationWarning
           >
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            {isDarkMode ? <Sun size={18} suppressHydrationWarning /> : <Moon size={18} suppressHydrationWarning />}
           </button>
-          <button className="hc-topbar__icon-btn hc-topbar__bell" type="button" aria-label="Notifications">
-            <Bell size={18} />
-            <span className="hc-topbar__bell-dot" />
-          </button>
-          <div className="hc-topbar__avatar">
+          <NotificationBell
+            className="hc-topbar__icon-btn hc-topbar__bell"
+            dotClassName="hc-topbar__bell-dot"
+          />
+
+          {/* ⋮ three-dots quick menu */}
+          <div className="st-quick-menu-wrap" ref={quickMenuRef}>
+            <button
+              className="hc-topbar__icon-btn"
+              type="button"
+              aria-label="More options"
+              aria-expanded={showQuickMenu}
+              onClick={() => setShowQuickMenu(p => !p)}
+            >
+              <MoreVertical size={18} />
+            </button>
+
+            {showQuickMenu && (
+              <div className="st-quick-menu" role="menu">
+                {/* Settings row removed — reachable directly at /settings.
+                    See HEALTHNAV handoff Section 7. Notifications row
+                    removed too — the dedicated bell button (left of this
+                    menu) now owns that; see NotificationBell.tsx. */}
+
+                {/* Inline language toggle */}
+                <div className="st-quick-menu__lang">
+                  <span className="st-quick-menu__lang-label">Language</span>
+                  <div className="st-lang-seg">
+                    <button
+                      type="button"
+                      className={`st-lang-seg__btn${language === 'en' ? ' st-lang-seg__btn--active' : ''}`}
+                      onClick={() => {
+                        setLanguage('en');
+                        if (session?.user?.email) {
+                          fetch('/api/user/settings', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ language: 'en' }),
+                          }).catch(() => {});
+                        }
+                      }}
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      className={`st-lang-seg__btn${language === 'tw' ? ' st-lang-seg__btn--active' : ''}`}
+                      onClick={() => {
+                        setLanguage('tw');
+                        if (session?.user?.email) {
+                          fetch('/api/user/settings', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ language: 'tw' }),
+                          }).catch(() => {});
+                        }
+                      }}
+                    >
+                      TW
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="hc-topbar__avatar" suppressHydrationWarning>
             {userImage
-              ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
-              : <span>{initials(userName)}</span>}
+              ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" suppressHydrationWarning />
+              : <span suppressHydrationWarning>{initials(userName)}</span>}
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* ════════════════════════════════════════
           MOBILE DRAWER OVERLAY
@@ -230,15 +448,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
       ════════════════════════════════════════ */}
       <div className={`hc-drawer${drawerOpen ? ' hc-drawer--open' : ''}`}>
         <div className="hc-drawer__header">
-          <div className="hc-drawer__user">
-            <div className="hc-drawer__avatar">
+          <div className="hc-drawer__user" suppressHydrationWarning>
+            <div className="hc-drawer__avatar" suppressHydrationWarning>
               {userImage
-                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
-                : <span>{initials(userName)}</span>}
+                ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" suppressHydrationWarning />
+                : <span suppressHydrationWarning>{initials(userName)}</span>}
             </div>
-            <div>
-              <p className="hc-drawer__user-name">{userName}</p>
-              {userEmail && <p className="hc-drawer__user-email">{userEmail}</p>}
+            <div suppressHydrationWarning>
+              <p className="hc-drawer__user-name" suppressHydrationWarning>{userName}</p>
+              {userEmail && <p className="hc-drawer__user-email" suppressHydrationWarning>{userEmail}</p>}
             </div>
           </div>
           <button
@@ -254,12 +472,30 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
           {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
             <button
               key={path}
-              className={`hc-drawer__nav-item${isActive(path) ? ' hc-drawer__nav-item--active' : ''}`}
+              className={`hc-drawer__nav-item${isActive(path) ? ' hc-drawer__nav-item--active' : ''}${path === '/emergency' ? ' hc-drawer__nav-item--emergency' : ''}`}
               onClick={() => { router.push(path); setDrawerOpen(false); }}
               type="button"
             >
-              <Icon size={19} /><span>{label}</span>
+              <Icon size={19} />
+              <span>{label}</span>
             </button>
+          ))}
+
+          {NAV_GROUPS.map(group => (
+            <div key={group.label} className="hc-drawer__nav-group">
+              <span className="hc-drawer__nav-group-label">{group.label}</span>
+              {group.items.map(({ path, label, icon: Icon, femaleOnly }) => (
+                <button
+                  key={path}
+                  className={`hc-drawer__nav-item hc-drawer__nav-item--secondary${isActive(path) ? ' hc-drawer__nav-item--active' : ''}${femaleOnly && genderUnset ? ' hc-drawer__nav-item--muted' : ''}`}
+                  onClick={() => { router.push(path); setDrawerOpen(false); }}
+                  type="button"
+                  title={cycleTooltip(label, femaleOnly)}
+                >
+                  <Icon size={17} /><span>{label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -272,6 +508,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
             {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
             <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
+          {/* Language toggle in drawer */}
+          <div className="hc-drawer__lang-row">
+            <Globe size={19} />
+            <span>Language</span>
+            <LangPill />
+          </div>
           <button
             className="hc-drawer__nav-item hc-drawer__nav-item--danger"
             onClick={handleSignOut}
@@ -285,19 +527,20 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ activeTab, onSidebarT
       {/* ════════════════════════════════════════
           MOBILE BOTTOM NAV
       ════════════════════════════════════════ */}
-      <nav className="hc-bottom-nav">
-        {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+      {!locked && <nav className="hc-bottom-nav">
+        {NAV_ITEMS.map(({ path, label, shortLabel, icon: Icon }) => (
           <button
             key={path}
             className={`hc-bottom-nav__item${isActive(path) ? ' hc-bottom-nav__item--active' : ''}`}
             onClick={() => router.push(path)}
             type="button"
+            aria-label={label}
           >
             <span className="mob-tab-btn__icon"><Icon size={21} /></span>
-            <span>{label}</span>
+            <span>{shortLabel}</span>
           </button>
         ))}
-      </nav>
+      </nav>}
     </>
   );
 };

@@ -1,0 +1,45 @@
+{
+  "name": "HealthConnect Navigator",
+  "short_name": "HealthConnect",
+  "description": "Your personal health management system",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0a0f1a",
+  "theme_color": "#00d2ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["health", "medical", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Symptom Checker",
+      "short_name": "Check Symptoms",
+      "url": "/symptom-checker",
+      "description": "Check your symptoms with AI"
+    },
+    {
+      "name": "Emergency",
+      "short_name": "SOS",
+      "url": "/emergency",
+      "description": "Emergency contacts and first aid"
+    },
+    {
+      "name": "Find Facilities",
+      "short_name": "Facilities",
+      "url": "/facilities",
+      "description": "Find nearby healthcare facilities"
+    }
+  ]
+}

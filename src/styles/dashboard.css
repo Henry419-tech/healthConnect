@@ -12,7 +12,89 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  position: relative;
 }
+/* ── Fixed background layer ──────────────────────────────────────
+   Previously implemented as body:has(.db-page)::before/::after,
+   fixed-positioned and in principle correct — but .hc-layout (the
+   shell wrapper between <body> and the page content) has an opaque
+   background: var(--hc-bg), which sits on top of it in paint order.
+   That layer was very likely never actually visible; what was
+   visible and scrolling was .hc-layout__main::before/::after
+   (disabled below), which masked the problem. Replaced with a real
+   element (.db-bg-fixed, inserted as a DashboardLayout child in
+   dashboard/page.tsx) the same way Emergency's .em-bg-fixed and
+   Profile's .pr-bg-fixed already do it successfully. Colours/opacity
+   unchanged from the original body-level version. */
+.db-bg-fixed {
+  /* !important: dashboard-header.css applies
+     ".hc-layout__main > *, .hc-layout__content > * { position: relative; z-index: 1; }"
+     to every direct child at equal specificity — without !important
+     that silently flips this back to position:relative. */
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none;
+}
+.db-bg-fixed::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  opacity: 0;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  animation: db-pattern-in 0.6s ease 0.1s forwards;
+}
+html.dark-mode .db-bg-fixed::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  mix-blend-mode: screen;
+}
+@keyframes db-pattern-in {
+  from { opacity: 0; }
+  to   { opacity: 0.10; }
+}
+/* Teal gradient glow */
+.db-bg-fixed::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 90% 50% at 10% 0%,
+    rgba(0, 210, 255, 0.10) 0%,
+    rgba(0, 255, 178, 0.04) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+html:not(.dark-mode) .db-bg-fixed::after {
+  background: radial-gradient(ellipse 90% 50% at 10% 0%,
+    rgba(0, 180, 220, 0.07) 0%,
+    transparent 60%
+  );
+}
+/* Remove the old pseudo-elements from db-page itself */
+.db-page::before,
+.db-page::after {
+  display: none;
+}
+/* The old body-level layer is superseded by .db-bg-fixed above —
+   neutralised rather than deleted so its history/values stay visible. */
+body:has(.db-page)::before,
+body:has(.db-page)::after {
+  display: none !important;
+}
+/* Switch off the shared shell's own scrolling background
+   (.hc-layout__main::before/::after in dashboard-header.css) on this
+   page — it's position:absolute inside the scrolling content column,
+   so it moves with the page unless silenced. .db-bg-fixed above is
+   the one that's actually meant to be visible now; without this,
+   both render at once and the still-scrolling one is what you notice.
+   Same fix as Emergency's .em-page and Profile's .pfs-page, just
+   keyed off .db-page since this page already has it. */
+.hc-layout__main:has(.db-page)::before,
+.hc-layout__main:has(.db-page)::after {
+  display: none !important;
+}
+/* All page children above the decorative layers */
+.db-page > * { position: relative; z-index: 1; }
 
 /* ════════════════════════════════════════════════════════════════
    STICKY GLASSMORPHISM TOP BAR
@@ -176,6 +258,10 @@ html.dark-mode .db-topbar__search-submit {
   color: var(--hc-teal);
   border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent);
 }
+/* Notification bell button — inherits .db-topbar__icon-btn, this modifier
+   just ensures position:relative is set for the dot to anchor against */
+.db-topbar__notif { position: relative; }
+
 .db-topbar__notif-dot {
   position: absolute; top: 7px; right: 7px;
   width: 7px; height: 7px;
@@ -257,15 +343,34 @@ html.dark-mode .db-topbar__user-avatar { color: #020B14; }
   gap: 16px;
   flex-wrap: wrap;
 }
+/* Solid, weight-driven greeting — hierarchy comes from size/weight,
+   not a gradient text-fill effect (also keeps this legible and
+   theme-correct at every font-size/style accessibility setting). */
 .db-page-header__greeting {
-  font-size: 28px; font-weight: 800;
-  color: var(--hc-text);
+  font-size: 26px; font-weight: 800;
   letter-spacing: -0.5px;
+  color: var(--hc-text);
   margin: 0 0 4px;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .db-page-header__sub {
   font-size: 13px; color: var(--hc-text2);
   margin: 0;
+}
+.db-page-header__context {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--hc-text2);
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
 }
 .db-page-header__actions {
   display: flex; align-items: center; gap: 10px;
@@ -283,87 +388,125 @@ html.dark-mode .db-topbar__user-avatar { color: #020B14; }
 }
 .db-page-header__schedule-btn:hover {
   background: var(--hc-teal-dim);
-  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent);
+  border-color: rgba(0, 210, 255, 0.35);
   color: var(--hc-teal);
-}
-.db-page-header__sos-btn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 20px; border-radius: 12px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: none; color: #fff;
-  font-family: inherit; font-size: 13px; font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239,68,68,0.2);
-  transition: transform 0.18s, box-shadow 0.18s, opacity 0.18s;
-}
-.db-page-header__sos-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.55), 0 0 0 1px rgba(239,68,68,0.3);
-  opacity: 0.95;
-}
-.db-page-header__sos-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: rgba(255,255,255,0.85);
-  animation: livePulse 1.5s ease-in-out infinite;
 }
 
 /* ════════════════════════════════════════════════════════════════
    HEALTH SCORE CARD
 ════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   HEALTH SCORE CARD — redesigned
+   Three-column: ring | center meta | pillar breakdown
+════════════════════════════════════════════════════════════════ */
 .db-health-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: 140px 1fr 220px;
   align-items: center;
-  gap: 32px;
-  padding: 28px 32px;
+  gap: 0;
+  padding: 28px 28px 28px 24px;
   border-radius: 20px;
   background: linear-gradient(135deg,
-    color-mix(in srgb, var(--hc-teal) 12%, var(--hc-surface)),
-    color-mix(in srgb, var(--hc-mint) 6%, var(--hc-surface))
+    color-mix(in srgb, var(--hc-teal) 10%, var(--hc-surface)),
+    color-mix(in srgb, var(--hc-mint) 5%, var(--hc-surface))
   );
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border: 1px solid color-mix(in srgb, var(--hc-teal) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 20%, transparent);
   position: relative;
   overflow: hidden;
-}
-html.dark-mode .db-health-card {
-  background: linear-gradient(135deg, rgba(0,210,255,0.10) 0%, rgba(0,255,178,0.05) 100%);
-  border-color: rgba(0,210,255,0.20);
-}
-.db-health-card::before {
-  content: '';
-  position: absolute; top: -60px; right: -60px;
-  width: 240px; height: 240px; border-radius: 50%;
-  background: radial-gradient(circle, var(--hc-teal-glow) 0%, transparent 70%);
-  pointer-events: none;
+  box-shadow: 0 4px 32px rgba(0, 210, 255, 0.09), 0 1px 0 rgba(255,255,255,0.05) inset;
 }
 
-/* Left — score text */
-.db-health-card__left { flex-shrink: 0; min-width: 200px; }
+/* Tier-based accent border */
+.db-health-card--excellent { border-color: rgba(16,185,129,0.30); box-shadow: 0 4px 32px rgba(16,185,129,0.10); }
+.db-health-card--good      { border-color: rgba(0,210,255,0.25);  box-shadow: 0 4px 32px rgba(0,210,255,0.09);  }
+.db-health-card--fair      { border-color: rgba(245,158,11,0.28); box-shadow: 0 4px 32px rgba(245,158,11,0.09); }
+.db-health-card--poor      { border-color: rgba(239,68,68,0.28);  box-shadow: 0 4px 32px rgba(239,68,68,0.09);  }
+
+html.dark-mode .db-health-card {
+  background: linear-gradient(135deg,
+    rgba(0, 210, 255, 0.11) 0%,
+    rgba(0, 255, 178, 0.05) 55%,
+    rgba(7, 24, 40, 0.50) 100%
+  );
+  border-color: rgba(0, 210, 255, 0.22);
+  box-shadow:
+    0 4px 36px rgba(0, 210, 255, 0.12),
+    0 1px 0 rgba(0, 210, 255, 0.08) inset,
+    0 0 60px rgba(0, 210, 255, 0.04);
+}
+html:not(.dark-mode) .db-health-card {
+  background: linear-gradient(135deg,
+    rgba(0, 195, 180, 0.08) 0%,
+    rgba(255, 255, 255, 0.96) 50%
+  );
+  box-shadow:
+    0 4px 24px rgba(0, 180, 200, 0.10),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+/* Ambient orb */
+.db-health-card__orb {
+  position: absolute; top: -80px; right: -80px;
+  width: 280px; height: 280px; border-radius: 50%;
+  background: radial-gradient(circle, var(--hc-teal-glow) 0%, transparent 65%);
+  pointer-events: none; z-index: 0;
+}
+html.dark-mode .db-health-card__orb { opacity: 1; }
+html:not(.dark-mode) .db-health-card__orb { opacity: 0.5; }
+
+/* All columns above orb */
+.db-health-card__ring-col,
+.db-health-card__center,
+.db-health-card__pillars { position: relative; z-index: 1; }
+
+/* ── Column 1: Ring ── */
+.db-health-card__ring-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-right: 24px;
+  border-right: 1px solid var(--hc-border2);
+}
+.db-health-card__ring-wrap {
+  width: 120px; height: 120px;
+  position: relative;
+}
+.db-health-card__ring-wrap svg {
+  display: block;
+  /* Track darkens in dark mode via fill override */
+}
+html.dark-mode .db-health-card__ring-wrap circle:first-child {
+  stroke: rgba(255,255,255,0.08);
+}
+.db-health-card__tier-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ── Column 2: Center meta ── */
+.db-health-card__center {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 24px;
+  border-right: 1px solid var(--hc-border2);
+}
 .db-health-card__label {
-  font-size: 10px; font-weight: 700;
+  font-size: 9.5px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  color: var(--hc-teal); margin: 0 0 6px;
-}
-.db-health-card__score-row {
-  display: flex; align-items: baseline; gap: 4px;
-  margin-bottom: 4px;
-}
-.db-health-card__score-num {
-  font-size: 64px; font-weight: 900;
-  color: var(--hc-text);
-  line-height: 1; letter-spacing: -2px;
-}
-.db-health-card__score-denom {
-  font-size: 22px; font-weight: 700;
-  color: var(--hc-teal);
+  color: var(--hc-teal); margin: 0;
 }
 .db-health-card__status {
   font-size: 12px; color: var(--hc-text2);
-  margin: 0 0 14px;
+  margin: 0;
 }
+.db-health-card__status strong { color: var(--hc-text); font-weight: 600; }
 .db-health-card__badges {
-  display: flex; flex-wrap: wrap; gap: 7px;
+  display: flex; flex-wrap: wrap; gap: 6px;
 }
 .db-health-card__badge {
   display: inline-flex; align-items: center; gap: 5px;
@@ -394,58 +537,108 @@ html.dark-mode .db-health-card__badge--grey {
   border: 1px solid color-mix(in srgb, var(--hc-teal) 30%, transparent);
   color: var(--hc-teal);
 }
+.db-health-card__badge--amber {
+  background: rgba(245,158,11,0.12);
+  color: #d97706;
+  border: 1px solid rgba(245,158,11,0.25);
+}
+html.dark-mode .db-health-card__badge--amber {
+  background: rgba(245,158,11,0.14);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.30);
+}
+.db-health-card__badge--red {
+  background: rgba(239,68,68,0.10);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.22);
+}
+html.dark-mode .db-health-card__badge--red {
+  background: rgba(239,68,68,0.12);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.28);
+}
 
-/* Ring */
-.db-health-card__ring-wrap {
-  position: relative;
-  flex-shrink: 0;
-  width: 96px; height: 96px;
-  display: flex; align-items: center; justify-content: center;
-}
-.db-health-card__ring-wrap svg {
-  position: absolute; top: 0; left: 0;
-  filter: drop-shadow(0 0 8px var(--hc-teal-glow));
-}
-.db-health-card__ring-pct {
-  position: relative; z-index: 1;
-  font-size: 18px; font-weight: 800;
-  color: var(--hc-teal);
-}
-
-/* Vitals row */
-.db-vitals {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-  flex: 1;
-  border-left: 1px solid var(--hc-border);
-  padding-left: 32px;
-}
-.db-vital {
-  flex: 1;
-  display: flex; flex-direction: column;
-  align-items: flex-start;
-  padding: 0 20px 0 0;
-  border-right: 1px solid var(--hc-border2);
-}
-.db-vital:last-child { border-right: none; padding-right: 0; }
-.db-vital__top {
-  display: flex; align-items: baseline; gap: 3px;
-  margin-bottom: 4px;
-}
-.db-vital__val {
-  font-size: 28px; font-weight: 800;
-  color: var(--hc-text);
-  line-height: 1; letter-spacing: -0.5px;
-}
-.db-vital__unit {
-  font-size: 13px; font-weight: 600;
+/* Improvement hint pill */
+.db-health-card__hint {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 10px;
+  background: rgba(0,210,255,0.07);
+  border: 1px solid rgba(0,210,255,0.18);
   color: var(--hc-text2);
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
 }
-.db-vital__label {
-  font-size: 9px; font-weight: 700;
-  letter-spacing: 1.2px; text-transform: uppercase;
+html:not(.dark-mode) .db-health-card__hint {
+  background: rgba(0,180,200,0.07);
+  border-color: rgba(0,180,200,0.18);
+}
+.db-health-card__hint:hover {
+  background: rgba(0,210,255,0.12);
+  border-color: rgba(0,210,255,0.30);
+}
+.db-health-card__hint strong { color: var(--hc-text); }
+
+/* ── Column 3: Pillar breakdown ── */
+.db-health-card__pillars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 24px;
+}
+
+/* Individual pillar row */
+.db-pillar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: default;
+}
+.db-pillar__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-pillar__icon {
   color: var(--hc-text3);
+  flex-shrink: 0;
+}
+.db-pillar__label {
+  font-size: 11px; font-weight: 600;
+  color: var(--hc-text2);
+  flex: 1;
+}
+.db-pillar__score {
+  font-size: 12px; font-weight: 700;
+  color: var(--hc-text);
+  transition: color 0.3s;
+}
+.db-pillar__max {
+  font-size: 10px; font-weight: 600;
+  color: var(--hc-text3);
+}
+.db-pillar__track {
+  height: 4px; border-radius: 100px;
+  background: rgba(0,0,0,0.07);
+  overflow: hidden;
+}
+html.dark-mode .db-pillar__track { background: rgba(255,255,255,0.09); }
+.db-pillar__fill {
+  height: 100%; border-radius: 100px;
+}
+
+/* ── Keep old .db-vitals / .db-vital alive for any other references ── */
+/* (they are no longer used inside the health card but guard against lint) */
+.db-vital__bar {
+  width: 100%; height: 3px; border-radius: 100px;
+  background: rgba(0,0,0,0.07); margin-top: 5px; overflow: hidden;
+}
+html.dark-mode .db-vital__bar { background: rgba(255,255,255,0.08); }
+.db-vital__bar-fill {
+  height: 100%; border-radius: 100px;
+  background: linear-gradient(90deg, var(--hc-teal), var(--hc-mint));
+  transition: width 0.8s ease;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -456,12 +649,28 @@ html.dark-mode .db-health-card__badge--grey {
   align-items: flex-start;
   gap: 14px;
   padding: 16px 20px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--hc-amber) 7%, var(--hc-surface));
-  border: 1px solid color-mix(in srgb, var(--hc-amber) 28%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(135deg,
+    rgba(245, 158, 11, 0.10) 0%,
+    var(--hc-surface) 80%
+  );
+  border: 1px solid rgba(245, 158, 11, 0.30);
+  border-left: 3px solid var(--hc-amber);
+  box-shadow: 0 2px 16px rgba(245, 158, 11, 0.08);
 }
 html.dark-mode .db-advisory {
-  background: color-mix(in srgb, var(--hc-amber) 6%, var(--hc-surface2));
+  background: linear-gradient(135deg,
+    rgba(245, 158, 11, 0.10) 0%,
+    rgba(7, 24, 40, 0.80) 80%
+  );
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: var(--hc-amber);
+}
+html:not(.dark-mode) .db-advisory {
+  background: linear-gradient(135deg,
+    rgba(245, 158, 11, 0.08) 0%,
+    rgba(255, 255, 255, 0.95) 70%
+  );
 }
 .db-advisory__icon {
   width: 34px; height: 34px; flex-shrink: 0;
@@ -493,6 +702,32 @@ html.dark-mode .db-advisory {
   background: rgba(245,158,11,0.10);
 }
 
+/* Loading state — muted appearance while Gemini is generating */
+.db-advisory--loading {
+  opacity: 0.7;
+  border-color: rgba(245,158,11,0.15);
+}
+
+/* Skeleton line — placeholder while advisory text is loading */
+.db-advisory__skeleton {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(245,158,11,0.10) 25%,
+    rgba(245,158,11,0.20) 50%,
+    rgba(245,158,11,0.10) 75%
+  );
+  background-size: 200% 100%;
+  animation: db-skeleton-shimmer 1.4s ease infinite;
+  margin: 0;
+  width: 85%;
+}
+@keyframes db-skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ════════════════════════════════════════════════════════════════
    SECTIONS
 ════════════════════════════════════════════════════════════════ */
@@ -502,7 +737,7 @@ html.dark-mode .db-advisory {
   margin-bottom: 12px;
 }
 .db-section__title {
-  font-size: 17px; font-weight: 700;
+  font-size: 15px; font-weight: 700;
   color: var(--hc-text); margin: 0;
 }
 .db-section__link {
@@ -514,98 +749,553 @@ html.dark-mode .db-advisory {
 .db-section__link:hover { text-decoration: underline; }
 
 /* ════════════════════════════════════════════════════════════════
-   QUICK ACTIONS GRID
+   QUICK ACTIONS — matches profile page pr-card design exactly
+   Same: padding, gap, shadow stack, glow orbs, icon style,
+         accent-coloured count pill & arrow, equal heights via
+         align-items: stretch on the grid.
 ════════════════════════════════════════════════════════════════ */
 .db-quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+  align-items: stretch;       /* all cards same height per row */
 }
+
+/* ── Base card shell — mirrors pr-card exactly ──────────────── */
 .db-quick-action {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 22px 20px;
-  border-radius: 18px;
+  gap: 16px;                  /* space between header block and tags */
+  padding: 24px 24px 22px;    /* matches pr-card exactly */
+  border-radius: 18px;        /* pr-radius-lg */
   border: 1px solid transparent;
-  background: var(--hc-surface);
-  backdrop-filter: blur(16px) saturate(1.3);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  cursor: pointer; text-align: left;
-  transition: transform 0.22s var(--hc-ease-spring), box-shadow 0.22s, border-color 0.22s, background 0.22s;
+  cursor: pointer;
+  text-align: left;
   overflow: hidden;
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  animation: db-qa-fade 0.4s ease backwards;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
 }
+.db-quick-action:nth-child(1) { animation-delay: 0.06s; }
+.db-quick-action:nth-child(2) { animation-delay: 0.10s; }
+.db-quick-action:nth-child(3) { animation-delay: 0.14s; }
+.db-quick-action:nth-child(4) { animation-delay: 0.18s; }
+.db-quick-action:nth-child(5) { animation-delay: 0.22s; }
+@keyframes db-qa-fade {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark mode — 4-layer depth shadow (identical to pr-card) */
+html.dark-mode .db-quick-action {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 1px 0 0 rgba(255, 255, 255, 0.03),
+    0 1px 2px  rgba(0, 0, 0, 0.40),
+    0 6px 20px rgba(0, 0, 0, 0.45),
+    0 20px 50px rgba(0, 0, 0, 0.28);
+}
+/* Light mode — soft 4-layer shadow */
+html:not(.dark-mode) .db-quick-action {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 1px 0 0 rgba(255, 255, 255, 0.60),
+    0 1px 2px  rgba(0, 0, 0, 0.04),
+    0 4px 14px rgba(0, 0, 0, 0.06),
+    0 14px 40px rgba(0, 0, 0, 0.04);
+}
+
+/* Top-left ambient glow — always on */
 .db-quick-action::before {
   content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  border-radius: 18px 18px 0 0;
-  transition: opacity 0.2s;
+  position: absolute;
+  top: -40px; left: -40px;
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--qa-glow-rgb, rgba(0,210,255,0.22)) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
-.db-quick-action:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--hc-shadow-lg);
+/* Bottom-right glow — reveals on hover */
+.db-quick-action::after {
+  content: '';
+  position: absolute;
+  bottom: -30px; right: -30px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--qa-glow-rgb, rgba(0,210,255,0.18)) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+  z-index: 0;
 }
 
+.db-quick-action:hover { transform: translateY(-5px) scale(1.012); }
+.db-quick-action:hover::after { opacity: 1; }
+.db-quick-action:active { transform: translateY(-1px) scale(0.99); transition-duration: 0.10s; }
+
+/* All inner content above pseudo glow layers */
+.db-quick-action__header,
+.db-quick-action__tags,
+.db-quick-action__badge { position: relative; z-index: 1; }
+
+/* ── Header row: icon · title · count · chevron ─────────────── */
+.db-quick-action__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;                  /* matches pr-card__header gap */
+}
+
+/* ── Icon box — gradient bg + accent glow, mirrors pr-card__icon */
 .db-quick-action__icon {
-  width: 48px; height: 48px;
-  border-radius: 15px;
+  width: 40px; height: 40px;
+  border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
 }
-.db-quick-action__badge {
-  position: absolute; top: 14px; right: 14px;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--hc-red); color: #fff;
-  font-size: 10px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 8px rgba(239,68,68,0.5);
+.db-quick-action:hover .db-quick-action__icon { transform: scale(1.12); }
+html.dark-mode .db-quick-action:hover .db-quick-action__icon {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.06);
 }
 
+/* ── Title ───────────────────────────────────────────────────── */
 .db-quick-action__title {
-  font-size: 15px; font-weight: 700;
-  color: var(--hc-text); margin: 0 0 5px;
-}
-.db-quick-action__sub {
-  font-size: 12px; color: var(--hc-text2);
-  margin: 0; line-height: 1.4;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;           /* matches pr-card__title */
+  letter-spacing: -0.2px;
+  color: var(--hc-text);
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Teal variant */
+/* ── Count pill — accent-coloured, uses --qa-accent var ────────
+   Matches pr-card__count which uses color-mix(in srgb, accent)  */
+.db-quick-action__count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--qa-accent, var(--hc-teal));
+  background: color-mix(in srgb, var(--qa-accent, var(--hc-teal)) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qa-accent, var(--hc-teal)) 22%, transparent);
+  transition: background 0.2s, border-color 0.2s;
+}
+.db-quick-action:hover .db-quick-action__count {
+  background: color-mix(in srgb, var(--qa-accent, var(--hc-teal)) 16%, transparent);
+}
+
+/* Count pill accent variant — solid fill to distinguish from plain tags */
+.db-quick-action__count--accent {
+  color: #0a1628;
+  background: var(--qa-accent, var(--hc-teal));
+  border-color: var(--qa-accent, var(--hc-teal));
+}
+
+/* ── Chevron — accent coloured, matches pr-card__arrow ─────── */
+.db-quick-action__arrow {
+  flex-shrink: 0;
+  color: var(--qa-accent, var(--hc-teal));
+  opacity: 0.55;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.db-quick-action:hover .db-quick-action__arrow {
+  transform: translateX(3px);
+  opacity: 1;
+}
+
+/* ── Tags row — matches pr-card__tags ───────────────────────── */
+.db-quick-action__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 26px;           /* matches pr-card__tags min-height → equal card heights */
+  align-items: flex-start;
+}
+
+/* ── Description line — plain one-line subtitle, alternative to the
+     tags row for cards that need a sentence instead of keyword pills
+     (Find a Doctor on Dashboard, My Records cards on Profile) ────── */
+.db-quick-action__desc {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hc-text2);
+  line-height: 1.35;
+}
+
+/* Tag pills */
+.db-quick-action__tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 100px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--hc-text2);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+html:not(.dark-mode) .db-quick-action__tag {
+  background: rgba(0,0,0,0.05);
+  border-color: rgba(0,0,0,0.09);
+}
+
+/* ── Notification badge ──────────────────────────────────────── */
+.db-quick-action__badge {
+  position: absolute; top: 12px; right: 12px;
+  min-width: 18px; height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ff4d6d;
+  color: #fff;
+  font-size: 9px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px var(--hc-surface), 0 2px 6px rgba(255,40,70,0.55);
+  animation: db-badge-pulse 2.5s ease-in-out infinite;
+}
+@keyframes db-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--hc-surface), 0 2px 8px rgba(255,40,70,0.45); }
+  50%       { box-shadow: 0 0 0 2px var(--hc-surface), 0 2px 14px rgba(255,40,70,0.75); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   COLOUR VARIANTS
+   Each sets --qa-accent and --qa-glow-rgb (used by ::before/::after)
+   Backgrounds and borders match pr-card dark/light values exactly.
+════════════════════════════════════════════════════════════════ */
+
+/* ── Teal — Find Facility ─────────────────────────────────── */
 .db-quick-action--teal {
-  border-color: color-mix(in srgb, var(--hc-teal) 20%, transparent);
-  background: color-mix(in srgb, var(--hc-teal) 4%, var(--hc-surface));
+  --qa-accent:   var(--hc-teal);
+  --qa-glow-rgb: rgba(0, 210, 255, 0.22);
 }
-.db-quick-action--teal::before { background: var(--hc-teal); }
-.db-quick-action--teal .db-quick-action__icon { background: var(--hc-teal-dim); color: var(--hc-teal); }
-.db-quick-action--teal:hover { border-color: color-mix(in srgb, var(--hc-teal) 40%, transparent); }
+html.dark-mode .db-quick-action--teal {
+  background: linear-gradient(135deg, rgba(0,210,255,0.22) 0%, rgba(0,210,255,0.09) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(0,210,255,0.26);
+}
+html:not(.dark-mode) .db-quick-action--teal {
+  background: linear-gradient(135deg, rgba(0,195,220,0.13) 0%, rgba(0,195,220,0.04) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(0,180,210,0.18);
+}
+html.dark-mode .db-quick-action--teal:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(0,210,255,0.26); border-color: rgba(0,210,255,0.44); }
+html:not(.dark-mode) .db-quick-action--teal:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(0,210,255,0.16); border-color: rgba(0,180,210,0.32); }
+.db-quick-action--teal .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(0,210,255,0.20), rgba(0,180,220,0.08));
+  color: var(--hc-teal);
+  border: 1px solid rgba(0,210,255,0.28);
+  box-shadow: 0 4px 14px rgba(0,210,255,0.16);
+}
+html.dark-mode .db-quick-action--teal .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(0,210,255,0.22), rgba(0,180,220,0.10));
+  color: #22d3ee;
+}
 
-/* Violet variant */
+/* ── Violet ──────────────────────────────────────────────── */
 .db-quick-action--violet {
-  border-color: color-mix(in srgb, var(--hc-violet) 20%, transparent);
-  background: color-mix(in srgb, var(--hc-violet) 4%, var(--hc-surface));
+  --qa-accent:   var(--hc-violet);
+  --qa-glow-rgb: rgba(167, 139, 250, 0.22);
 }
-.db-quick-action--violet::before { background: var(--hc-violet); }
-.db-quick-action--violet .db-quick-action__icon { background: color-mix(in srgb, var(--hc-violet) 12%, transparent); color: var(--hc-violet); }
-.db-quick-action--violet:hover { border-color: color-mix(in srgb, var(--hc-violet) 40%, transparent); }
+html.dark-mode .db-quick-action--violet {
+  background: linear-gradient(135deg, rgba(167,139,250,0.22) 0%, rgba(167,139,250,0.09) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(167,139,250,0.26);
+}
+html:not(.dark-mode) .db-quick-action--violet {
+  background: linear-gradient(135deg, rgba(139,92,246,0.11) 0%, rgba(139,92,246,0.03) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(124,58,237,0.16);
+}
+html.dark-mode .db-quick-action--violet:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(139,92,246,0.24); border-color: rgba(167,139,250,0.44); }
+html:not(.dark-mode) .db-quick-action--violet:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(109,40,217,0.14); border-color: rgba(124,58,237,0.28); }
+.db-quick-action--violet .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(167,139,250,0.20), rgba(139,92,246,0.08));
+  color: var(--hc-violet);
+  border: 1px solid rgba(167,139,250,0.28);
+  box-shadow: 0 4px 14px rgba(139,92,246,0.16);
+}
+html.dark-mode .db-quick-action--violet .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(167,139,250,0.22), rgba(139,92,246,0.10));
+  color: #a78bfa;
+}
 
-/* Amber variant */
+/* ── Amber — Med Reminders ───────────────────────────────── */
 .db-quick-action--amber {
-  border-color: color-mix(in srgb, var(--hc-amber) 20%, transparent);
-  background: color-mix(in srgb, var(--hc-amber) 4%, var(--hc-surface));
+  --qa-accent:   #f59e0b;
+  --qa-glow-rgb: rgba(245, 158, 11, 0.22);
 }
-.db-quick-action--amber::before { background: var(--hc-amber); }
-.db-quick-action--amber .db-quick-action__icon { background: rgba(245,158,11,0.12); color: var(--hc-amber); }
-.db-quick-action--amber:hover { border-color: color-mix(in srgb, var(--hc-amber) 40%, transparent); }
+html.dark-mode .db-quick-action--amber {
+  background: linear-gradient(135deg, rgba(245,158,11,0.22) 0%, rgba(245,158,11,0.09) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(245,158,11,0.26);
+}
+html:not(.dark-mode) .db-quick-action--amber {
+  background: linear-gradient(135deg, rgba(245,158,11,0.13) 0%, rgba(245,158,11,0.04) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(217,119,6,0.18);
+}
+html.dark-mode .db-quick-action--amber:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(245,158,11,0.28); border-color: rgba(245,158,11,0.44); }
+html:not(.dark-mode) .db-quick-action--amber:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(245,158,11,0.18); border-color: rgba(217,119,6,0.32); }
+.db-quick-action--amber .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(255,183,0,0.20), rgba(245,158,11,0.08));
+  color: #d97706;
+  border: 1px solid rgba(255,183,0,0.28);
+  box-shadow: 0 4px 14px rgba(245,158,11,0.18);
+}
+html.dark-mode .db-quick-action--amber .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(255,183,0,0.22), rgba(245,158,11,0.10));
+  color: #fbbf24;
+}
 
-/* Red variant */
+/* ── Red — Emergency Hub ─────────────────────────────────── */
 .db-quick-action--red {
-  border-color: color-mix(in srgb, var(--hc-red) 20%, transparent);
-  background: color-mix(in srgb, var(--hc-red) 4%, var(--hc-surface));
+  --qa-accent:   #ff4d6d;
+  --qa-glow-rgb: rgba(255, 40, 70, 0.24);
+  /* Grid now holds 5 cards (Find a Doctor added) — Emergency Hub spans
+     the full row on every breakpoint so the last row never dangles
+     half-empty. Previously this was mobile-only (@media rules below). */
+  grid-column: 1 / -1;
 }
-.db-quick-action--red::before { background: var(--hc-red); }
-.db-quick-action--red .db-quick-action__icon { background: rgba(239,68,68,0.10); color: var(--hc-red); }
-.db-quick-action--red:hover { border-color: color-mix(in srgb, var(--hc-red) 40%, transparent); }
+html.dark-mode .db-quick-action--red {
+  background: linear-gradient(135deg, rgba(255,77,109,0.22) 0%, rgba(255,77,109,0.09) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(255,77,109,0.26);
+}
+html:not(.dark-mode) .db-quick-action--red {
+  background: linear-gradient(135deg, rgba(255,77,109,0.13) 0%, rgba(255,77,109,0.04) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(220,38,38,0.18);
+}
+html.dark-mode .db-quick-action--red:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(255,40,70,0.30); border-color: rgba(255,77,109,0.50); }
+html:not(.dark-mode) .db-quick-action--red:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(255,40,70,0.18); border-color: rgba(220,38,38,0.34); }
+.db-quick-action--red .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(255,77,109,0.20), rgba(255,40,70,0.08));
+  color: #ff4d6d;
+  border: 1px solid rgba(255,77,109,0.28);
+  box-shadow: 0 4px 14px rgba(255,77,109,0.18);
+}
+html.dark-mode .db-quick-action--red .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(255,77,109,0.22), rgba(255,40,70,0.10));
+  color: #ff6b87;
+}
+
+/* Emergency Hub — larger title since it has a full-width row */
+.db-quick-action--red .db-quick-action__title {
+  font-size: 15px;
+}
+
+/* ── Health Profile — coral accent ──────────────────────────── */
+.db-quick-action--coral {
+  --qa-accent:   #f97316;
+  --qa-glow-rgb: rgba(249, 115, 22, 0.22);
+}
+html.dark-mode .db-quick-action--coral {
+  background: linear-gradient(135deg, rgba(249,115,22,0.20) 0%, rgba(249,115,22,0.08) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(249,115,22,0.24);
+}
+html:not(.dark-mode) .db-quick-action--coral {
+  background: linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.04) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(234,88,12,0.16);
+}
+html.dark-mode .db-quick-action--coral:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(249,115,22,0.28); border-color: rgba(249,115,22,0.44); }
+html:not(.dark-mode) .db-quick-action--coral:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(249,115,22,0.16); border-color: rgba(234,88,12,0.30); }
+.db-quick-action--coral .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(249,115,22,0.18), rgba(234,88,12,0.08));
+  color: #f97316;
+  border: 1px solid rgba(249,115,22,0.26);
+  box-shadow: 0 4px 14px rgba(249,115,22,0.16);
+}
+html.dark-mode .db-quick-action--coral .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(249,115,22,0.22), rgba(234,88,12,0.10));
+  color: #fb923c;
+}
+
+/* ── Green — Vitals Tracker ──────────────────────────────── */
+.db-quick-action--green {
+  --qa-accent:   #10b981;
+  --qa-glow-rgb: rgba(16, 185, 129, 0.22);
+}
+html.dark-mode .db-quick-action--green {
+  background: linear-gradient(135deg, rgba(16,185,129,0.22) 0%, rgba(16,185,129,0.08) 40%, rgba(4,16,30,0.88) 100%);
+  border-color: rgba(16,185,129,0.26);
+}
+html:not(.dark-mode) .db-quick-action--green {
+  background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 50%, rgba(255,255,255,0.94) 100%);
+  border-color: rgba(5,150,105,0.16);
+}
+html.dark-mode .db-quick-action--green:hover   { box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 4px 8px rgba(0,0,0,0.35), 0 14px 36px rgba(0,0,0,0.40), 0 28px 64px rgba(16,185,129,0.28); border-color: rgba(16,185,129,0.44); }
+html:not(.dark-mode) .db-quick-action--green:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 4px 8px rgba(0,0,0,0.06), 0 14px 36px rgba(0,0,0,0.09), 0 28px 64px rgba(16,185,129,0.18); border-color: rgba(5,150,105,0.30); }
+.db-quick-action--green .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(16,185,129,0.20), rgba(5,150,105,0.08));
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,0.28);
+  box-shadow: 0 4px 14px rgba(16,185,129,0.16);
+}
+html.dark-mode .db-quick-action--green .db-quick-action__icon {
+  background: linear-gradient(135deg, rgba(16,185,129,0.24), rgba(5,150,105,0.10));
+  color: #34d399;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MEDICATION PANEL
+   Sits below the quick actions. Shows today's schedule grouped
+   by time slot with adherence streak in the footer.
+════════════════════════════════════════════════════════════════ */
+.db-med-panel {
+  background: var(--hc-surface, var(--color-background-primary));
+  border: 1px solid var(--hc-border, var(--color-border-tertiary));
+  border-radius: 18px;
+  padding: 20px 20px 16px;
+  animation: db-qa-fade 0.4s ease 0.22s backwards;
+}
+html.dark-mode .db-med-panel {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+.db-med-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.db-med-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.db-med-panel__icon { color: var(--hc-text3, var(--color-text-tertiary)); }
+.db-med-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hc-text1, var(--color-text-primary));
+  margin: 0;
+}
+.db-med-panel__badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 100px;
+}
+.db-med-panel__badge--amber { background: rgba(245,158,11,0.12); color: #d97706; }
+html.dark-mode .db-med-panel__badge--amber { color: #fbbf24; }
+.db-med-panel__badge--green { background: rgba(16,185,129,0.11); color: #059669; }
+html.dark-mode .db-med-panel__badge--green { color: #34d399; }
+.db-med-panel__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: none;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-teal, #0ea5e9);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  white-space: nowrap;
+}
+.db-med-panel__link:hover {
+  background: var(--hc-teal-dim);
+  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent);
+}
+.db-med-panel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 12px 8px;
+  gap: 6px;
+}
+.db-med-panel__empty-icon { color: var(--hc-text3, var(--color-text-tertiary)); opacity: .5; }
+.db-med-panel__empty-title { font-size: 13px; font-weight: 500; color: var(--hc-text2, var(--color-text-secondary)); margin: 4px 0 0; }
+.db-med-panel__empty-sub { font-size: 12px; color: var(--hc-text3, var(--color-text-tertiary)); max-width: 280px; line-height: 1.5; margin: 0; }
+.db-med-panel__empty-cta {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  background: var(--hc-teal);
+  color: #021820;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.18s;
+}
+html:not(.dark-mode) .db-med-panel__empty-cta { color: #fff; }
+.db-med-panel__empty-cta:hover { opacity: 0.85; }
+.db-med-panel__slots { display: flex; flex-direction: column; gap: 12px; }
+.db-med-slot__label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: var(--hc-text3, var(--color-text-tertiary));
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-med-slot--due .db-med-slot__label { color: #d97706; }
+html.dark-mode .db-med-slot--due .db-med-slot__label { color: #fbbf24; }
+.db-med-slot__due-pill {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 100px;
+  background: rgba(245,158,11,0.14);
+  color: #d97706;
+  letter-spacing: .5px;
+}
+html.dark-mode .db-med-slot__due-pill { color: #fbbf24; }
+.db-med-slot__items { display: flex; flex-wrap: wrap; gap: 6px; }
+.db-med-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 0.5px solid var(--hc-border, var(--color-border-tertiary));
+  background: var(--hc-surface2, var(--color-background-secondary));
+  transition: border-color .15s;
+}
+.db-med-item--due { border-color: rgba(245,158,11,0.30); background: rgba(245,158,11,0.05); }
+html.dark-mode .db-med-item--due { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.28); }
+.db-med-item--past { opacity: .55; }
+.db-med-item__dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.db-med-item__dot--due      { background: #f59e0b; }
+.db-med-item__dot--past     { background: #10b981; }
+.db-med-item__dot--upcoming { background: var(--hc-border2, var(--color-border-secondary)); }
+.db-med-item__name { font-size: 12px; font-weight: 500; color: var(--hc-text1, var(--color-text-primary)); white-space: nowrap; }
+.db-med-item__dose { font-size: 11px; color: var(--hc-text3, var(--color-text-tertiary)); white-space: nowrap; }
+.db-med-panel__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--hc-border, var(--color-border-tertiary));
+}
+.db-med-panel__streak { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--hc-text2, var(--color-text-secondary)); white-space: nowrap; }
+.db-med-panel__streak strong { font-weight: 500; color: var(--hc-text1, var(--color-text-primary)); }
+.db-med-panel__streak-icon { color: #f59e0b; }
+.db-med-panel__bar-wrap { flex: 1; height: 3px; border-radius: 100px; background: var(--hc-border, var(--color-border-tertiary)); overflow: hidden; }
+.db-med-panel__bar-fill { height: 100%; border-radius: 100px; background: #10b981; transition: width .4s ease; }
+.db-med-panel__pct { font-size: 12px; color: var(--hc-text3, var(--color-text-tertiary)); white-space: nowrap; }
 
 /* ════════════════════════════════════════════════════════════════
    MAIN GRID
@@ -616,8 +1306,27 @@ html.dark-mode .db-advisory {
   gap: 16px;
   align-items: start;
 }
-.db-grid__main { display: flex; flex-direction: column; gap: 14px; }
+.db-grid__main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* No align-self:stretch — cards stay their natural height,
+     no dark empty shell when sidebar is taller than main content */
+}
 .db-grid__side { display: flex; flex-direction: column; gap: 14px; }
+
+/* Sidebar card order — TSX source order: 1=Nearby Facilities, 2=Emergency Hub, 3=Today's Focus
+   Correct priority: Today's Focus (daily action) → Emergency Hub → Nearby Facilities (browse) */
+.db-grid__side > .db-card:nth-child(1) { order: 3; } /* Nearby Facilities  → last   */
+.db-grid__side > .db-card:nth-child(2) { order: 2; } /* Emergency Hub card → middle */
+.db-grid__side > .db-card:nth-child(3) { order: 1; } /* Today's Focus      → first  */
+
+/* db-card--grow kept for reference but no longer applied —
+   growing the card creates an empty dark box when content is sparse */
+.db-card--grow { /* flex: 1; removed intentionally */ }
+
+/* Med panel — min height so it doesn’t look tiny when empty */
+.db-grid__main > .db-med-panel { flex-shrink: 0; }
 
 /* ── Cards ──────────────────────────────────────────────────── */
 .db-card {
@@ -627,6 +1336,18 @@ html.dark-mode .db-advisory {
   border: 1px solid var(--hc-border);
   border-radius: 18px;
   overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,0.05) inset;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+html.dark-mode .db-card {
+  background: rgba(7, 24, 40, 0.72);
+  border-color: rgba(0, 210, 255, 0.10);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.28), 0 1px 0 rgba(0,210,255,0.05) inset;
+}
+html:not(.dark-mode) .db-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.07);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(255,255,255,0.9) inset;
 }
 .db-card__header {
   display: flex; align-items: center; justify-content: space-between;
@@ -645,12 +1366,12 @@ html.dark-mode .db-advisory {
   margin-left: 4px;
 }
 .db-card__action {
-  display: flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 10px; border-radius: 8px;
   background: none; border: 1px solid var(--hc-border);
   color: var(--hc-text2);
   font-family: inherit; font-size: 11px; font-weight: 500;
-  cursor: pointer;
+  cursor: pointer; white-space: nowrap;
   transition: background 0.18s, color 0.18s, border-color 0.18s;
 }
 .db-card__action:hover {
@@ -659,12 +1380,202 @@ html.dark-mode .db-advisory {
 }
 .db-card__action:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Facilities card — two-row header ──────────────────────────── */
+.db-card--facilities .db-card__header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 18px 12px;
+}
+.db-fac-header__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.db-fac-header__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Segmented tab rail */
+.db-fac-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: var(--hc-surface2);
+  border: 1.5px solid var(--hc-border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+.db-fac-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  color: var(--hc-text2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.db-fac-tab:hover:not(.db-fac-tab--active) {
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+}
+.db-fac-tab--active {
+  background: var(--hc-teal);
+  color: #021820;
+  font-weight: 700;
+  box-shadow: 0 1px 8px rgba(0, 210, 255, 0.40);
+}
+html:not(.dark-mode) .db-fac-tab--active {
+  background: #0284c7;
+  color: #fff;
+  box-shadow: 0 1px 8px rgba(2, 132, 199, 0.35);
+}
+.db-fac-tab:active { transform: scale(0.94); }
+
+/* View All button — matches db-card__action for consistency */
+.db-fac-viewall {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hc-border);
+  background: none;
+  color: var(--hc-teal);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+  white-space: nowrap;
+}
+.db-fac-viewall:hover {
+  background: var(--hc-teal-dim);
+  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent);
+}
+
+/* ── Facility header: actions group (refresh + view all) ── */
+.db-fac-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── Refresh button ── */
+.db-fac-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--hc-border);
+  background: none;
+  color: var(--hc-text2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.db-fac-refresh:hover:not(:disabled) { background: var(--hc-teal-dim); color: var(--hc-teal); border-color: rgba(0,210,255,.35); }
+.db-fac-refresh:disabled { opacity: .35; cursor: default; }
+
+/* ── Saved count badge on tab ── */
+.db-fac-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(0, 210, 255, 0.18);
+  color: var(--hc-teal);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 1px;
+}
+.db-fac-tab--active .db-fac-tab__badge {
+  background: rgba(2, 24, 32, 0.25);
+  color: #021820;
+}
+html:not(.dark-mode) .db-fac-tab--active .db-fac-tab__badge {
+  background: rgba(255,255,255,.30);
+  color: #fff;
+}
+
+/* ── Text-label action buttons (Call, Directions) ── */
+.db-facility-item__btn--text {
+  width: auto !important;
+  padding: 0 9px !important;
+  gap: 4px !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+/* ── Save / bookmark button ── */
+.db-facility-item__btn--save:hover {
+  background: var(--hc-teal-dim) !important;
+  color: var(--hc-teal) !important;
+  border-color: rgba(0,210,255,.35) !important;
+}
+.db-facility-item__btn--save--saved {
+  color: var(--hc-teal) !important;
+  border-color: rgba(0,210,255,.35) !important;
+  background: var(--hc-teal-dim) !important;
+}
+html:not(.dark-mode) .db-facility-item__btn--save:hover {
+  background: rgba(2,132,199,.08) !important;
+  color: #0284c7 !important;
+  border-color: rgba(2,132,199,.25) !important;
+}
+html:not(.dark-mode) .db-facility-item__btn--save--saved {
+  color: #0284c7 !important;
+  border-color: rgba(2,132,199,.25) !important;
+  background: rgba(2,132,199,.08) !important;
+}
+
 /* Emergency card */
 .db-card--emergency {
-  background: color-mix(in srgb, var(--hc-red) 5%, var(--hc-surface));
-  border-color: color-mix(in srgb, var(--hc-red) 22%, transparent);
+  background: linear-gradient(145deg,
+    rgba(255, 40, 70, 0.14) 0%,
+    rgba(220, 0, 40, 0.06) 50%,
+    var(--hc-surface) 100%
+  );
+  border-color: rgba(255, 77, 109, 0.32);
+  box-shadow:
+    0 4px 24px rgba(255, 40, 70, 0.12),
+    0 1px 0 rgba(255, 100, 120, 0.08) inset;
   padding: 20px;
   display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+}
+html:not(.dark-mode) .db-card--emergency {
+  background: linear-gradient(145deg,
+    rgba(255, 40, 70, 0.08) 0%,
+    rgba(255, 255, 255, 0.95) 70%
+  );
+  border-color: rgba(220, 38, 38, 0.22);
+  box-shadow: 0 4px 24px rgba(220, 38, 38, 0.08);
+}
+html.dark-mode .db-card--emergency {
+  background: linear-gradient(145deg,
+    rgba(255, 40, 70, 0.18) 0%,
+    rgba(7, 24, 40, 0.80) 70%
+  );
+  border-color: rgba(255, 77, 109, 0.35);
 }
 
 /* Top row: icon + title/desc side by side */
@@ -674,35 +1585,52 @@ html.dark-mode .db-advisory {
 .db-card__emergency-body { flex: 1; min-width: 0; }
 
 .db-card__emergency-icon {
-  width: 38px; height: 38px; border-radius: 11px;
-  background: rgba(239,68,68,0.12);
+  width: 42px; height: 42px; border-radius: 12px;
+  background: rgba(255, 77, 109, 0.16);
+  border: 1.5px solid rgba(255, 77, 109, 0.35);
   display: flex; align-items: center; justify-content: center;
-  color: var(--hc-red); flex-shrink: 0;
+  color: #ff4d6d; flex-shrink: 0;
+  box-shadow: 0 0 14px rgba(255, 40, 70, 0.20);
+}
+html:not(.dark-mode) .db-card__emergency-icon {
+  background: rgba(220, 38, 38, 0.10);
+  border-color: rgba(220, 38, 38, 0.24);
+  color: #dc2626;
+  box-shadow: none;
 }
 .db-card__emergency-title  { font-size: 15px; font-weight: 700; color: var(--hc-text); margin: 0 0 2px; }
-.db-card__emergency-desc   { font-size: 11.5px; color: var(--hc-text2); line-height: 1.5; margin: 0; }
+.db-card__emergency-desc   { font-size: 12px; color: var(--hc-text2); line-height: 1.5; margin: 0; }
 
 /* Medical ID completeness section */
 .db-card__emergency-medid {
   width: 100%;
   padding: 10px 12px;
-  background: rgba(0,0,0,0.04);
-  border: 1px solid var(--hc-border);
+  background: rgba(255, 40, 70, 0.06);
+  border: 1px solid rgba(255, 77, 109, 0.18);
   border-radius: 10px;
 }
 html.dark-mode .db-card__emergency-medid {
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 40, 70, 0.08);
+  border-color: rgba(255, 77, 109, 0.22);
+}
+html:not(.dark-mode) .db-card__emergency-medid {
+  background: rgba(220, 38, 38, 0.05);
+  border-color: rgba(220, 38, 38, 0.14);
 }
 
 /* Progress bar */
 .db-card__emergency-medid-bar {
-  height: 4px; border-radius: 100px;
-  background: var(--hc-border);
+  height: 5px; border-radius: 100px;
+  background: rgba(255, 77, 109, 0.15);
   overflow: hidden; margin-bottom: 8px;
+}
+html:not(.dark-mode) .db-card__emergency-medid-bar {
+  background: rgba(220, 38, 38, 0.10);
 }
 .db-card__emergency-medid-fill {
   height: 100%; border-radius: 100px;
-  background: var(--hc-red);
+  background: linear-gradient(90deg, #ff4d6d, #e8002d);
+  box-shadow: 0 0 8px rgba(255, 40, 70, 0.50);
   transition: width 0.6s ease;
   min-width: 4px;
 }
@@ -712,42 +1640,87 @@ html.dark-mode .db-card__emergency-medid {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .db-card__emergency-medid-label {
-  font-size: 11.5px; font-weight: 600;
+  font-size: 12px; font-weight: 600;
   color: var(--hc-text2); flex: 1; min-width: 0;
 }
 .db-card__emergency-medid-cta {
   font-size: 11px; font-weight: 700;
-  color: var(--hc-red);
-  background: none; border: none; cursor: pointer;
-  padding: 0; font-family: inherit;
+  color: #ff4d6d;
+  background: rgba(255, 77, 109, 0.12);
+  border: 1px solid rgba(255, 77, 109, 0.28);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 3px 10px;
+  font-family: inherit;
   white-space: nowrap; flex-shrink: 0;
-  transition: opacity 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-.db-card__emergency-medid-cta:hover { opacity: 0.7; }
+.db-card__emergency-medid-cta:hover {
+  background: rgba(255, 77, 109, 0.22);
+  border-color: rgba(255, 77, 109, 0.45);
+}
+html:not(.dark-mode) .db-card__emergency-medid-cta {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.24);
+}
+html:not(.dark-mode) .db-card__emergency-medid-cta:hover {
+  background: rgba(220, 38, 38, 0.14);
+}
 .db-emergency-open-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 100%; padding: 11px; border-radius: 11px;
-  background: var(--hc-red); color: #fff;
-  font-family: inherit; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 12px; border-radius: 12px;
+  background: linear-gradient(135deg, #ff4d6d 0%, #e8002d 100%);
+  color: #fff;
+  font-family: inherit; font-size: 13px; font-weight: 800;
+  letter-spacing: 0.2px;
   border: none; cursor: pointer; margin-top: 2px;
-  transition: opacity 0.18s, transform 0.18s;
+  box-shadow: 0 6px 20px rgba(255, 40, 70, 0.40), 0 1px 0 rgba(255,120,140,0.30) inset;
+  transition: filter 0.18s, transform 0.18s, box-shadow 0.18s;
 }
-.db-emergency-open-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.db-emergency-open-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(255, 40, 70, 0.50), 0 1px 0 rgba(255,120,140,0.30) inset;
+}
+.db-emergency-open-btn:active { transform: translateY(0); filter: brightness(0.96); }
 
 /* ── Stats ──────────────────────────────────────────────────── */
 .db-stats {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 1px; background: var(--hc-border2);
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 16px 20px;
+  background: none;
 }
 .db-stat {
-  padding: 18px 20px;
-  background: var(--hc-surface);
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface2);
   display: flex; flex-direction: column; gap: 3px;
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
+html.dark-mode .db-stat {
+  background: rgba(255,255,255,0.04);
+}
+html:not(.dark-mode) .db-stat {
+  background: rgba(0,0,0,0.02);
+}
+.db-stat:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+
+/* FIX audit 5.2: renamed to db-stat__meta-row; db-stat__top kept as alias */
+.db-stat__meta-row,
 .db-stat__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.db-stat--teal   { border-color: rgba(0,210,255,0.18);   }
+.db-stat--violet { border-color: rgba(167,139,250,0.18); }
+.db-stat--red    { border-color: rgba(255,77,109,0.18);  }
 .db-stat--teal   .db-stat__icon { color: var(--hc-teal);   }
 .db-stat--violet .db-stat__icon { color: var(--hc-violet); }
-.db-stat--red    .db-stat__icon { color: var(--hc-red);    }
+.db-stat--red    .db-stat__icon { color: #ff4d6d;           }
+.db-stat--teal:hover   { border-color: rgba(0,210,255,0.36);   }
+.db-stat--violet:hover { border-color: rgba(167,139,250,0.36); }
+.db-stat--red:hover    { border-color: rgba(255,77,109,0.36);  }
+
 .db-stat__trend {
   font-size: 9px; font-weight: 600;
   padding: 2px 7px; border-radius: 100px;
@@ -769,22 +1742,32 @@ html.dark-mode .db-card__emergency-medid {
   transition: background 0.18s;
 }
 .db-activity-item:last-child { border-bottom: none; }
-.db-activity-item:hover { background: var(--hc-nav-hover-bg); }
+.db-activity-item:hover {
+  background: rgba(0, 210, 255, 0.04);
+}
+html.dark-mode .db-activity-item:hover { background: rgba(0, 210, 255, 0.06); }
 .db-activity-item__icon {
   width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
   background: var(--hc-teal-dim);
-  border: 1px solid color-mix(in srgb, var(--hc-teal) 25%, transparent);
+  border: 1px solid rgba(0, 210, 255, 0.20);
   display: flex; align-items: center; justify-content: center;
   color: var(--hc-teal);
 }
 .db-activity-item__body { flex: 1; min-width: 0; }
 .db-activity-item__title { font-size: 13px; font-weight: 500; color: var(--hc-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
 .db-activity-item__time  { font-size: 11px; color: var(--hc-text3); margin: 2px 0 0; }
-.db-activity-item__arrow { color: var(--hc-text3); flex-shrink: 0; }
+.db-activity-item__arrow { color: var(--hc-text3); flex-shrink: 0; transition: transform 0.15s; }
+.db-activity-item:hover .db-activity-item__arrow { transform: translateX(2px); color: var(--hc-teal); }
 
 /* ── Facilities ─────────────────────────────────────────────── */
 .db-facilities { display: flex; flex-direction: column; }
-.db-facility-item { padding: 14px 20px; border-bottom: 1px solid var(--hc-border2); }
+.db-facility-item {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--hc-border2);
+  transition: background 0.18s;
+}
+.db-facility-item:hover { background: rgba(0,210,255,0.03); }
+html.dark-mode .db-facility-item:hover { background: rgba(0,210,255,0.05); }
 .db-facility-item:last-child { border-bottom: none; }
 .db-facility-item__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
 .db-facility-item__name {
@@ -811,7 +1794,7 @@ html.dark-mode .db-card__emergency-medid {
 }
 .db-facility-item__btn:hover {
   background: var(--hc-teal-dim); color: var(--hc-teal);
-  border-color: color-mix(in srgb, var(--hc-teal) 35%, transparent);
+  border-color: rgba(0, 210, 255, 0.35);
 }
 
 /* ── Insights ───────────────────────────────────────────────── */
@@ -878,24 +1861,28 @@ html.dark-mode .db-empty-state__btn { color: #020B14; }
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
 }
 .db-score-insight {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px;
-  color: var(--hc-text2, #aaa);
-  background: var(--hc-glass, rgba(255,255,255,0.03));
-  border: 1px solid var(--hc-border, rgba(255,255,255,0.07));
+  color: var(--hc-teal);
+  background: rgba(0, 210, 255, 0.08);
+  border: 1px solid rgba(0, 210, 255, 0.20);
   border-radius: 20px;
-  padding: 4px 10px;
+  padding: 5px 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.15s, border-color 0.15s;
 }
-.db-card__action--danger {
-  color: #ef4444 !important;
+.db-score-insight:hover {
+  background: rgba(0, 210, 255, 0.14);
+  border-color: rgba(0, 210, 255, 0.35);
 }
-.db-card__action--danger:hover {
-  background: rgba(239,68,68,0.1) !important;
+html:not(.dark-mode) .db-score-insight {
+  color: #0e7490;
+  background: rgba(0, 180, 210, 0.08);
+  border-color: rgba(0, 180, 210, 0.22);
 }
-
 /* ── Card header actions cluster ────────────────────────────
    Replaces the former inline style={{ display:'flex', gap:6, alignItems:'center' }}
    that was on the "Your Health Journey" card. Using a CSS class prevents
@@ -912,8 +1899,7 @@ html.dark-mode .db-empty-state__btn { color: #020B14; }
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 1280px) {
   .db-grid { grid-template-columns: 1fr 320px; }
-  .db-health-card { gap: 24px; padding: 24px; }
-  .db-vitals { padding-left: 24px; }
+  .db-health-card { grid-template-columns: 120px 1fr 200px; gap: 0; padding: 22px 22px 22px 20px; }
 }
 
 @media (max-width: 1024px) {
@@ -921,10 +1907,12 @@ html.dark-mode .db-empty-state__btn { color: #020B14; }
   .db-topbar { padding: 10px 20px; }
   .db-grid { grid-template-columns: 1fr; }
   .db-grid__side { order: -1; }
-  .db-health-card { flex-wrap: wrap; gap: 20px; }
-  .db-vitals { border-left: none; border-top: 1px solid var(--hc-border2); padding: 16px 0 0; flex-wrap: wrap; }
-  .db-vital { min-width: calc(33.33% - 10px); margin-bottom: 8px; }
-  .db-quick-actions { grid-template-columns: repeat(2, 1fr); }
+  /* Tablet: stack ring + center, keep pillars on the right */
+  .db-health-card {
+    grid-template-columns: 110px 1fr 190px;
+    gap: 0; padding: 20px;
+  }
+  .db-quick-action--red { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {
@@ -933,20 +1921,20 @@ html.dark-mode .db-empty-state__btn { color: #020B14; }
   .db-topbar__user-info { display: none; }
   .db-topbar__live { display: none; }
   .db-page-header { flex-direction: column; gap: 12px; }
-  .db-page-header__greeting { font-size: 22px; }
+  .db-page-header__greeting { font-size: 26px; }
   .db-page-header__actions { width: 100%; }
-  .db-page-header__schedule-btn,
-  .db-page-header__sos-btn { flex: 1; justify-content: center; }
-  .db-health-card__score-num { font-size: 48px; }
-  .db-quick-actions { grid-template-columns: 1fr; }
-  .db-stats { grid-template-columns: 1fr; background: none; gap: 1px; }
+  .db-page-header__schedule-btn { flex: 1; justify-content: center; }
+  /* Emergency full-width on mobile */
+  .db-quick-actions { gap: 10px; }
+  .db-quick-action--red { grid-column: 1 / -1; }
+  .db-stats { grid-template-columns: 1fr; gap: 8px; }
   .db-advisory { flex-direction: column; gap: 10px; }
   .db-advisory__cta { align-self: flex-start; }
 }
 
 /* ════════════════════════════════════════════════════════════════
-   NOTIFICATION PANEL  —  shared by dashboard, symptom-checker,
-   and emergency pages. One CSS block, three pages benefit.
+   NOTIFICATION PANEL  —  shared by dashboard and emergency pages.
+   One CSS block, multiple pages benefit.
    Desktop : 340px dropdown anchored below the bell.
    Mobile  : full-width sheet sitting above the tab bar.
 ════════════════════════════════════════════════════════════════ */
@@ -1019,7 +2007,7 @@ html.dark-mode .db-notif-panel__header { border-bottom-color: rgba(255,255,255,0
 
 .db-notif-panel__title {
   flex: 1;
-  font-size: 13.5px; font-weight: 700;
+  font-size: 14px; font-weight: 700;
   color: var(--hc-text, #0f172a);
 }
 .db-notif-panel__count {
@@ -1088,19 +2076,341 @@ html.dark-mode .db-notif-item__icon--violet { background: rgba(139,92,246,0.10);
 /* Text body */
 .db-notif-item__body { flex: 1; min-width: 0; }
 .db-notif-item__title {
-  font-size: 12.5px; font-weight: 700;
+  font-size: 13px; font-weight: 700;
   color: var(--hc-text, #0f172a);
   margin: 0 0 3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .db-notif-item__body-text {
-  font-size: 11.5px; color: var(--hc-text2, #475569);
+  font-size: 12px; color: var(--hc-text2, #475569);
   margin: 0; line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+/* Inner action button — wraps icon + body + arrow, fills available width */
+.db-notif-item__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  min-width: 0;
+}
+.db-notif-item__main:disabled { cursor: default; }
+
 /* Chevron */
 .db-notif-item__arrow { color: var(--hc-text3, #94a3b8); flex-shrink: 0; margin-top: 4px; }
+/* ════════════════════════════════════════════════════════════════
+   TODAY'S FOCUS CARD — actionable daily checklist
+   Replaces the "Health Insights" card which echoed data already
+   shown elsewhere. Each item surfaces a concrete next step.
+════════════════════════════════════════════════════════════════ */
+.db-focus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 4px 4px;
+}
+
+.db-focus-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--hc-surface2, rgba(0,0,0,0.02));
+  border: 1px solid var(--hc-border, rgba(0,0,0,0.07));
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: var(--hc-text);
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+.db-focus-item:hover:not(:disabled) {
+  background: var(--hc-teal-dim);
+  border-color: color-mix(in srgb, var(--hc-teal) 30%, transparent);
+  transform: translateY(-1px);
+}
+.db-focus-item:active:not(:disabled) { transform: scale(0.98); }
+html.dark-mode .db-focus-item {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.07);
+}
+html.dark-mode .db-focus-item:hover:not(:disabled) {
+  background: rgba(0,210,255,0.07);
+  border-color: rgba(0,210,255,0.22);
+}
+
+/* Amber variant — medication reminders */
+.db-focus-item--amber {
+  border-color: rgba(245,158,11,0.22);
+  background: rgba(245,158,11,0.04);
+}
+.db-focus-item--amber:hover:not(:disabled) {
+  background: rgba(245,158,11,0.10);
+  border-color: rgba(245,158,11,0.38);
+}
+html.dark-mode .db-focus-item--amber { background: rgba(245,158,11,0.06); }
+html.dark-mode .db-focus-item--amber:hover:not(:disabled) { background: rgba(245,158,11,0.12); }
+
+/* Red — Tier 1 critical safety items */
+.db-focus-item--red {
+  border-color: rgba(239,68,68,0.22);
+  background: rgba(239,68,68,0.04);
+}
+.db-focus-item--red:hover:not(:disabled) {
+  background: rgba(239,68,68,0.09);
+  border-color: rgba(239,68,68,0.38);
+}
+html.dark-mode .db-focus-item--red { background: rgba(239,68,68,0.06); }
+html.dark-mode .db-focus-item--red:hover:not(:disabled) { background: rgba(239,68,68,0.12); }
+
+/* Done state — no hover effect */
+.db-focus-item--done {
+  cursor: default;
+  opacity: 0.75;
+}
+.db-focus-item--done:hover { transform: none; }
+
+/* Lead icon */
+.db-focus-item__lead-icon {
+  flex-shrink: 0;
+  color: var(--hc-teal);
+}
+.db-focus-item__lead-icon--amber { color: #f59e0b; }
+.db-focus-item__lead-icon--green { color: #10b981; }
+.db-focus-item__lead-icon--red   { color: #ef4444; }
+
+/* Text body */
+.db-focus-item__body { flex: 1; min-width: 0; }
+.db-focus-item__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-text);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.db-focus-item__sub {
+  font-size: 12px;
+  color: var(--hc-text2);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trailing arrow */
+.db-focus-item__arrow { color: var(--hc-text3); flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════
+   SCORE INSIGHT PILLS — now actionable (button variant)
+   The --action modifier turns the static pill into a tappable CTA.
+════════════════════════════════════════════════════════════════ */
+.db-score-insight--action {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+.db-score-insight--action:hover {
+  background: rgba(0, 210, 255, 0.14);
+  border-color: rgba(0, 210, 255, 0.35);
+  transform: translateY(-1px);
+}
+html:not(.dark-mode) .db-score-insight--action:hover {
+  background: rgba(0, 180, 210, 0.13);
+  border-color: rgba(0, 180, 210, 0.30);
+}
+.db-score-insight__text { flex: 1; }
+.db-score-insight__cta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 6px;
+  opacity: 0.85;
+}
+.db-score-insight--action:hover .db-score-insight__cta { opacity: 1; }
+
+/* (score breakdown bars now part of .db-pillar in the health card block) */
+
+/* (badge and bar styles now consolidated in the health card block above) */
+/* ── Recent Activity footer links ───────────────────────────────── */
+/* Inline text-style links used at the bottom of the Recent Activity card.
+   Distinct from db-card__action (ghost button) — these sit in a
+   bordered footer and span the full card width. */
+.db-activity-footer {
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--hc-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.db-activity-footer__link {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: var(--hc-teal);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  text-align: center;
+}
+.db-activity-footer__link:hover {
+  background: var(--hc-teal-dim);
+}
+.db-activity-footer__link--violet {
+  color: #8b5cf6;
+  justify-content: flex-start;
+  text-align: left;
+}
+.db-activity-footer__link--violet:hover {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+/* ── db-card__action danger variant ─────────────────────────────── */
+/* Red border + text, used for destructive or urgent actions.
+   Already referenced in JSX; adding explicit color rule so it also
+   applies without an inline style override. */
+.db-card__action--danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.30);
+}
+.db-card__action--danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.50);
+  color: #ef4444;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RECENT VITALS CARD — dashboard section
+   Metric tiles surfacing last logged readings for BP / weight / glucose.
+   Mirrors Samsung Health / MyChart home-screen pattern.
+════════════════════════════════════════════════════════════════ */
+
+/* Grid wrapper */
+.db-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .db-vitals-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Individual metric tile */
+.db-vitals-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 14px;
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.db-vitals-tile:hover { transform: translateY(-3px) scale(1.012); }
+html.dark-mode .db-vitals-tile {
+  background: rgba(7,24,40,0.72);
+  border: 0.5px solid rgba(0,210,255,0.10);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 3px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.30);
+}
+html:not(.dark-mode) .db-vitals-tile {
+  background: rgba(255,255,255,0.92);
+  border: 0.5px solid rgba(0,0,0,0.07);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* "Log reading" add-tile */
+.db-vitals-tile--add {
+  border-style: dashed;
+  border-color: var(--hc-teal);
+  align-items: center;
+  justify-content: center;
+  min-height: 110px;
+}
+html.dark-mode .db-vitals-tile--add {
+  background: rgba(0,210,255,0.05);
+  border-color: rgba(0,210,255,0.40);
+}
+html:not(.dark-mode) .db-vitals-tile--add {
+  background: rgba(0,195,220,0.06);
+  border-color: rgba(0,180,210,0.40);
+}
+.db-vitals-tile--add:hover {
+  background: rgba(0,210,255,0.10) !important;
+}
+
+/* Icon wrapper inside tile */
+.db-vitals-tile__icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Mono value */
+.db-vitals-tile__value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 22px; font-weight: 700; line-height: 1;
+}
+
+/* Status badge */
+.db-vitals-tile__badge {
+  font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* Animation for nth vitals tile — staggered like quick actions */
+.db-vitals-tile:nth-child(1) { animation: db-qa-fade 0.4s ease 0.06s backwards; }
+.db-vitals-tile:nth-child(2) { animation: db-qa-fade 0.4s ease 0.10s backwards; }
+.db-vitals-tile:nth-child(3) { animation: db-qa-fade 0.4s ease 0.14s backwards; }
+.db-vitals-tile:nth-child(4) { animation: db-qa-fade 0.4s ease 0.18s backwards; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   SHARED BACK BUTTON — .vt-back
+   Used on Vitals, Vaccinations, Documents, and Cycle.
+   Defined here (dashboard.css) so all pages that import it get it.
+════════════════════════════════════════════════════════════════ */
+.vt-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0 0 10px;
+  color: var(--hc-text2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.vt-back:hover { color: var(--hc-teal); }

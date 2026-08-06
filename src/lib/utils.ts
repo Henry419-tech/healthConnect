@@ -56,3 +56,22 @@ export function getTimeBasedGreeting(): string {
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
 }
+
+/**
+ * Short relative time string for feed-style UI (AlertsPanel, notifications).
+ * "just now" / "5m ago" / "3h ago" / "2d ago" / falls back to a short date
+ * once it's more than a week old, since "47d ago" stops being useful.
+ */
+export function formatRelativeTime(date: Date | string): string {
+  const then = typeof date === 'string' ? new Date(date) : date
+  const diffMs = Date.now() - then.getTime()
+  const minutes = Math.floor(diffMs / 60_000)
+  const hours   = Math.floor(diffMs / 3_600_000)
+  const days    = Math.floor(diffMs / 86_400_000)
+
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+  return then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}

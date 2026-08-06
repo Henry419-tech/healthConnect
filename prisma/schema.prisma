@@ -1,5 +1,28 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// HealthConnect Navigator — Prisma Schema
+// Phase 8 — Provider / Find Care system
+//
+// Lineage:
+//   Phase 1–2  Core health profile, medications, allergies, conditions, family,
+//              NHIS, emergency contacts, facilities, emergency brief
+//   Phase 3    VitalLog, LabResult, Vaccination, HealthDocument,
+//              PushSubscription, HealthScoreLog
+//   Phase 4    CycleLog, PasskeyCredential (+ passkeyChallenge on User)
+//   Phase 5    WearableImport  +  VitalLog.source field
+//   Phase 6    User.language field (Twi / English i18n support)
+//   Phase 7    ChatSession / ChatMessage removed — AI symptom checker
+//              retired in favor of facility access, emergency services,
+//              and NHIS as the app's core focus
+//   Phase 8    Provider, Specialty, SymptomTag, SymptomSpecialtyMap,
+//              ProviderReview, ProviderView — two-sided doctor discovery
+//              system (Find Care page + provider portal)
+//   Phase 9    Facility — admin-verified facility DB merged with live OSM
+//              results on /facilities, to cover gaps in OSM coverage
+//              (esp. eye_clinic / ent_clinic / laboratory / maternity,
+//              which depend on sparse OSM specialty tagging)
+//   Phase 10   NotificationRead — server-owned read-state for the unified
+//              bell pipeline (NotificationsContext.tsx), replacing the
+//              client-only localStorage "seen" set for global-scope
+//              notifications so read/unread syncs across devices.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,6 +32,8 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ─── Auth models ──────────────────────────────────────────────────────────────
 
 model Account {
   id                String  @id @default(cuid())
@@ -38,21 +63,47 @@ model Session {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  name              String?
-  email             String             @unique
-  password          String?
-  emailVerified     DateTime?
-  image             String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
+  password         String?
+  emailVerified    DateTime?
+  image            String?
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  notifMuted       Json?
+  privacyPrefs     Json?
+  twoFactorEnabled Boolean   @default(false)
+  passkeyChallenge String?
+  /// UI language preference. Plain string field (not buried in privacyPrefs
+  /// JSON) so it is directly queryable and matches the pattern of scalar
+  /// preference fields like twoFactorEnabled. Valid values: "en" | "tw".
+  language         String    @default("en")
+  /// Opt out of health alert emails (bell panel alerts still show in-app).
+  /// Defaults to true — most users want to be warned about outbreaks etc.
+  alertEmailsEnabled Boolean @default(true)
+  /// Ghana-format phone number, editable from Profile — Section 14.
+  /// Not used for auth or SMS today; display/contact field only.
+  phone              String?
+  /// "Welcome me by name in alerts" toggle (Section 14, Notifications).
+  /// When false, sendHealthAlertEmail() greets with "Hi there," instead of
+  /// the user's name. Defaults to true — most users want the personal touch.
+  alertNamePersonalization Boolean @default(true)
+
   accounts          Account[]
   sessions          Session[]
   activities        UserActivity[]
   emergencyContacts EmergencyContact[]
   healthProfile     HealthProfile?
-  savedFacilities   SavedFacility[]    // ← NEW
-  chatSessions      ChatSession[]
+  savedFacilities   SavedFacility[]
+  emergencyBrief    EmergencyBrief?
+  pushSubscriptions PushSubscription[]
+  passkeys          PasskeyCredential[]
+  providerReviews   ProviderReview[]    // reviews a patient has left for providers
+  symptomFallthroughLogs SymptomFallthroughLog[] // free-text symptom-checker inputs SYNONYMS didn't recognise
+  notificationReads NotificationRead[]
 }
 
 model VerificationToken {
@@ -62,6 +113,64 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+// ─── Health alerts ────────────────────────────────────────────────────────────
+// Bell-icon panel (AlertsPanel.tsx) + Resend email notifications.
+// Manually curated via /admin/alerts — Ghana Health Service has no public API,
+// so publishing an alert is a deliberate human-verified action, not a feed pull.
+//
+// type:     "public_health" (e.g. cholera outbreak, malaria spike)
+//         | "facility"      (e.g. a facility closure or service change)
+//         | "calendar"      (e.g. a vaccination exercise / health calendar event)
+// severity: "info" | "warning" | "critical" — drives the colour used in the bell
+//           panel and email (maps to --hc-teal / --hc-amber / --hc-red).
+// region:   null = Ghana-wide. Otherwise a region/district string, e.g.
+//           "Western Region" — filtered against the user's last known GPS region
+//           where available, shown to everyone otherwise.
+// active:   soft "unpublish" flag; admin can pull an alert without deleting the
+//           record. expiresAt is an optional auto-expiry on top of that.
+
+model HealthAlert {
+  id        String    @id @default(cuid())
+  title     String
+  body      String    @db.Text
+  type      String    @default("public_health") // "public_health"|"facility"|"calendar"
+  severity  String    @default("info")           // "info"|"warning"|"critical"
+  region    String?                              // null = Ghana-wide
+  source    String    @default("Ghana Health Service")
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([active, createdAt])
+  @@index([type, active])
+}
+
+// Per-user read receipt for the bell notification pipeline. Deliberately NOT
+// a copy of notification content — content still comes from HealthAlert (via
+// GET /api/health-alerts) plus the client-computed NHIS-expiry check, same as
+// before. This just tracks which of those ids a given user has seen, so it
+// syncs across devices instead of living in localStorage.
+//
+// notificationId is an AppNotification.id (see src/lib/notifications/types.ts)
+// — either a HealthAlert.id or the fixed "nhis-expiry" id. It intentionally
+// has no FK to HealthAlert: alerts can be deleted/expire while the read
+// receipt harmlessly remains (and "nhis-expiry" isn't a HealthAlert row at
+// all). Only global-scope notifications get a row here — contextual
+// (page-specific) notifications stay session-only in-memory, unchanged, since
+// they're "right now" info rather than something to permanently dismiss.
+model NotificationRead {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  readAt         DateTime @default(now())
+
+  @@unique([userId, notificationId])
+  @@index([userId])
+}
+
+// ─── Activity log ─────────────────────────────────────────────────────────────
 
 model UserActivity {
   id           String    @id @default(cuid())
@@ -80,6 +189,8 @@ model UserActivity {
   @@index([userId, deletedAt])
 }
 
+// ─── Health profile ───────────────────────────────────────────────────────────
+
 model HealthProfile {
   id          String    @id @default(cuid())
   userId      String    @unique
@@ -90,7 +201,7 @@ model HealthProfile {
   heightCm    Float?
   gender      String?
   bmi         Float?
-  healthScore Int       @default(50)
+  healthScore Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -99,67 +210,201 @@ model HealthProfile {
   conditions    MedicalCondition[]
   familyMembers FamilyMember[]
   reminders     MedReminder[]
+  nhisCard      NhisCard?
+
+  vitals       VitalLog[]
+  labResults   LabResult[]
+  vaccinations Vaccination[]
+  documents    HealthDocument[]
+  scoreHistory HealthScoreLog[]
+
+  cycleHistory    CycleLog[]
+  wearableImports WearableImport[]
 }
+
+// ─── Allergies ────────────────────────────────────────────────────────────────
 
 model Allergy {
-  id        String        @id @default(cuid())
-  profileId String
-  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  name      String
-  severity  String        // mild | moderate | severe
-  reaction  String?
-  createdAt DateTime      @default(now())
+  id              String        @id @default(cuid())
+  profileId       String
+  profile         HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name            String
+  severity        String
+  reaction        String?
+  onsetDate       String?
+  notes           String?       @db.Text
+  isNoneConfirmed Boolean       @default(false)
+  createdAt       DateTime      @default(now())
 }
+
+// ─── Medications ──────────────────────────────────────────────────────────────
 
 model Medication {
-  id        String        @id @default(cuid())
-  profileId String
-  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  name      String
-  dose      String?
-  frequency String?
-  startDate DateTime?
-  active    Boolean       @default(true)
-  notes     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id              String        @id @default(cuid())
+  profileId       String
+  profile         HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name            String
+  dose            String?
+  frequency       String?
+  route           String?
+  indication      String?
+  prescribedBy    String?
+  pharmacy        String?
+  startDate       DateTime?
+  endDate         DateTime?
+  active          Boolean       @default(true)
+  notes           String?       @db.Text
+  isNoneConfirmed Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
+
+// ─── Medical conditions ───────────────────────────────────────────────────────
 
 model MedicalCondition {
-  id            String        @id @default(cuid())
-  profileId     String
-  profile       HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  name          String
-  status        String        // managed | active | resolved
-  diagnosedYear String?
-  notes         String?
-  createdAt     DateTime      @default(now())
+  id              String        @id @default(cuid())
+  profileId       String
+  profile         HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name            String
+  status          String
+  diagnosedYear   String?
+  treatedBy       String?
+  category        String?
+  notes           String?       @db.Text
+  isNoneConfirmed Boolean       @default(false)
+  createdAt       DateTime      @default(now())
 }
+
+// ─── Family history ───────────────────────────────────────────────────────────
 
 model FamilyMember {
-  id        String        @id @default(cuid())
-  profileId String
-  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  name      String
-  relation  String
-  age       Int?
-  bloodType String?
-  createdAt DateTime      @default(now())
+  id               String        @id @default(cuid())
+  profileId        String
+  profile          HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  relation         String
+  conditions       String?
+  preferNotToShare Boolean       @default(false)
+  createdAt        DateTime      @default(now())
 }
 
+// ─── Medication reminders & adherence ─────────────────────────────────────────
+
 model MedReminder {
-  id           String        @id @default(cuid())
+  id           String         @id @default(cuid())
   profileId    String
-  profile      HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile      HealthProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   medicationId String?
   name         String
   dose         String?
-  time         String        // "08:00"
-  days         String        // JSON: ["Mon","Tue",...]
-  active       Boolean       @default(true)
+  time         String
+  days         String
+  active       Boolean        @default(true)
   lastTaken    DateTime?
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime       @default(now())
+  logs         AdherenceLog[]
 }
+
+model AdherenceLog {
+  id           String      @id @default(cuid())
+  reminderId   String
+  reminder     MedReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  takenAt      DateTime?
+  skipped      Boolean     @default(false)
+  scheduledFor DateTime
+  createdAt    DateTime    @default(now())
+
+  @@unique([reminderId, scheduledFor])
+  @@index([reminderId, scheduledFor])
+}
+
+// ─── NHIS card ────────────────────────────────────────────────────────────────
+
+model NhisCard {
+  id             String        @id @default(cuid())
+  profileId      String        @unique
+  profile        HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  nhisId         String?
+  membershipType String?
+  expiryDate     DateTime?
+  issuedDate     DateTime?
+  issuingBody    String?
+  notes          String?       @db.Text
+  frontImageUrl  String?       @db.Text
+  backImageUrl   String?       @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+// ─── Phase 3: Vitals, labs, vaccinations, documents ──────────────────────────
+
+model VitalLog {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  metric    String        // "bp_systolic"|"bp_diastolic"|"weight"|"glucose"|"spo2"|"heart_rate"|"temperature"
+  value     Float
+  unit      String        // "mmHg"|"kg"|"mg/dL"|"%"|"bpm"|"°C"
+  note      String?
+  source    String?       // Phase 5: "apple_health_export" | "google_fit" | null (manual)
+  loggedAt  DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  @@index([profileId, metric, loggedAt])
+}
+
+model LabResult {
+  id        String        @id @default(cuid())
+  profileId String
+  profile   HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  testName  String
+  value     Float
+  unit      String
+  refLow    Float?
+  refHigh   Float?
+  testedAt  DateTime
+  lab       String?
+  orderedBy String?
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([profileId, testName, testedAt])
+}
+
+model Vaccination {
+  id          String        @id @default(cuid())
+  profileId   String
+  profile     HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  vaccine     String
+  doseNumber  Int           @default(1)
+  givenAt     DateTime
+  nextDueAt   DateTime?
+  facility    String?
+  batchNumber String?
+  note        String?
+  createdAt   DateTime      @default(now())
+
+  @@index([profileId, givenAt])
+}
+
+model HealthDocument {
+  id           String        @id @default(cuid())
+  profileId    String
+  profile      HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title        String
+  category     String        // "prescription"|"discharge_summary"|"referral"|"lab_report"|"scan"|"other"
+  fileUrl      String        @db.Text
+  cloudinaryId String?       // Cloudinary public_id — used to delete the asset when the document is removed
+  mimeType     String        @default("application/pdf")
+  sizeBytes    Int?
+  linkedTo     String?
+  note         String?
+  uploadedAt   DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+
+  @@index([profileId, category, uploadedAt])
+}
+
+// ─── Emergency contacts & facilities ─────────────────────────────────────────
 
 model EmergencyContact {
   id           String   @id @default(cuid())
@@ -170,7 +415,6 @@ model EmergencyContact {
   number       String
   priority     Int      @default(1)
   email        String?
-  notes        String?  @db.Text
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -178,16 +422,13 @@ model EmergencyContact {
   @@index([userId, createdAt])
 }
 
-// ── NEW MODEL ────────────────────────────────────────────────────
 model SavedFacility {
   id                String   @id @default(cuid())
   userId            String
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // OSM/facility identity
-  facilityId        String   // e.g. "osm_node_12345678"
+  facilityId        String
   name              String
-  type              String   // hospital | clinic | pharmacy | health_center
+  type              String
   address           String?
   city              String?
   region            String?
@@ -195,44 +436,430 @@ model SavedFacility {
   hours             String?
   website           String?
   emergencyServices Boolean  @default(false)
-
-  // Coordinates stored for instant map access without re-querying Overpass
   latitude          Float
   longitude         Float
-  distance          Float?   // km from user at time of save
-
+  distance          Float?
   savedAt           DateTime @default(now())
 
-  @@unique([userId, facilityId])   // one save per facility per user
+  @@unique([userId, facilityId])
   @@index([userId, savedAt])
 }
 
-// ── CHAT HISTORY ─────────────────────────────────────────────────
-model ChatSession {
-  id           String        @id @default(cuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title        String
-  riskLevel    String        @default("low")
-  messageCount Int           @default(0)
-  status       String        @default("active")
-  completedAt  DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  messages     ChatMessage[]
+// ─── Emergency brief ─────────────────────────────────────────────────────────
 
-  @@index([userId, createdAt])
-  @@index([userId, status])
+model EmergencyBrief {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([token])
 }
 
-model ChatMessage {
-  id        String      @id @default(cuid())
-  sessionId String
-  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role      String
-  content   String      @db.Text
-  riskLevel String?
-  createdAt DateTime    @default(now())
+// ─── Phase 3: Push subscriptions & score history ─────────────────────────────
 
-  @@index([sessionId, createdAt])
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model HealthScoreLog {
+  id         String        @id @default(cuid())
+  profileId  String
+  profile    HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  score      Int
+  breakdown  Json?
+  recordedAt DateTime      @default(now())
+
+  @@index([profileId, recordedAt])
+}
+
+// ─── Phase 4: Cycle tracking & passkeys ──────────────────────────────────────
+
+model CycleLog {
+  id           String        @id @default(cuid())
+  profileId    String
+  profile      HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  startDate    DateTime
+  endDate      DateTime?
+  cycleLength  Int?
+  periodLength Int?
+  flow         String?
+  symptoms     String?
+  note         String?       @db.Text
+  createdAt    DateTime      @default(now())
+
+  @@index([profileId, startDate])
+}
+
+model PasskeyCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  deviceType   String?
+  backedUp     Boolean   @default(false)
+  transports   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  name         String?
+
+  @@index([userId])
+}
+
+// ─── Phase 5: Wearable import log ────────────────────────────────────────────
+
+model WearableImport {
+  id          String        @id @default(cuid())
+  profileId   String
+  profile     HealthProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  source      String        // "google_fit" | "apple_health_export" | "fitbit" | "manual_csv"
+  importedAt  DateTime      @default(now())
+  recordCount Int           @default(0)
+  status      String        @default("success") // "success" | "partial" | "failed"
+  notes       String?
+
+  @@index([profileId, importedAt])
+}
+
+// ─── Phase 8: Provider / Find Care system ────────────────────────────────────
+//
+// Two-sided doctor discovery:
+//   Patient side  — picks symptoms → matched to specialty → sees nearby
+//                   registered providers → taps to call / WhatsApp / directions
+//   Provider side — doctors and clinics register, admin verifies, they appear
+//                   in search results with a "HealthConnect Verified" badge
+//
+// Design decisions:
+//   • No AI. Symptom → specialty mapping is a static lookup table in
+//     src/lib/symptomSpecialtyMap.ts. The DB models store the seed data
+//     for that table but the matching itself is client-side / static.
+//   • Provider auth uses a separate email+password on the Provider model
+//     itself (providerEmail / providerPasswordHash). This avoids mixing
+//     provider sessions with patient NextAuth sessions.
+//   • ProviderReview links back to User so a patient can only leave one
+//     review per provider, enforced by @@unique([providerId, userId]).
+//   • ProviderView is a lightweight analytics event — no PII beyond userId
+//     (nullable for unauthenticated views). Queried for the provider
+//     dashboard view-count widget.
+//   • SymptomSpecialtyMap.weight lets the lookup table prefer stronger
+//     signals (e.g. "chest pain" → Cardiologist weight 3 vs GP weight 1).
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum ProviderType {
+  DOCTOR  // individual practitioner
+  CLINIC  // facility with one or more doctors
+}
+
+enum ProviderStatus {
+  PENDING    // submitted, awaiting admin verification — not shown in results
+  VERIFIED   // approved and live in search results
+  SUSPENDED  // delisted; not shown in results but record is preserved
+}
+
+// ── Specialty ─────────────────────────────────────────────────────────────────
+// Seeded once at migration time. Not user-editable.
+// Examples: "General Practitioner", "Neurologist", "Cardiologist"
+
+model Specialty {
+  id          String   @id @default(cuid())
+  name        String   @unique // display name, e.g. "General Practitioner"
+  slug        String   @unique // URL-safe key, e.g. "gp", "neurologist"
+  description String?          // shown on the Find Care results page
+  icon        String?          // lucide-react icon name, e.g. "Stethoscope"
+  createdAt   DateTime @default(now())
+
+  providers   Provider[]
+  symptomMaps SymptomSpecialtyMap[]
+}
+
+// ── SymptomTag ────────────────────────────────────────────────────────────────
+// Individual selectable symptoms on the Find Care page.
+// Seeded once at migration time. Not user-editable.
+// Examples: "headache", "fever", "chest pain"
+
+model SymptomTag {
+  id        String   @id @default(cuid())
+  name      String   @unique // display label, e.g. "Chest pain"
+  slug      String   @unique // lookup key,   e.g. "chest-pain"
+  category  String?          // grouping on UI: "head" | "chest" | "stomach" | "skin" | "general" | ...
+  createdAt DateTime @default(now())
+
+  specialties SymptomSpecialtyMap[]
+}
+
+// ── SymptomSpecialtyMap ───────────────────────────────────────────────────────
+// Many-to-many join: one symptom can map to several specialties with
+// different weights. The static client-side lookup table
+// (src/lib/symptomSpecialtyMap.ts) is generated from this data.
+//
+// weight:  1 = weak signal (GP catch-all)
+//          2 = moderate signal
+//          3 = strong signal (e.g. "tooth pain" → Dentist)
+//
+// gpFirst: true means the UI should show a GP referral note even when
+//          a specialist is the primary match — used for specialties that
+//          are hard to access directly in Ghana (e.g. Rheumatologist).
+
+model SymptomSpecialtyMap {
+  id          String     @id @default(cuid())
+  symptomId   String
+  symptom     SymptomTag @relation(fields: [symptomId], references: [id], onDelete: Cascade)
+  specialtyId String
+  specialty   Specialty  @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  weight      Int        @default(1)
+  gpFirst     Boolean    @default(false) // show "see a GP first" note on this match
+  createdAt   DateTime   @default(now())
+
+  @@unique([symptomId, specialtyId])
+  @@index([symptomId])
+  @@index([specialtyId])
+}
+
+// ── SymptomFallthroughLog ─────────────────────────────────────────────────────
+// Captures free-text symptom-checker inputs that the local SYNONYMS dictionary
+// (src/lib/freeTextSymptomMatch.ts) failed to match, forcing a Gemini API call
+// (src/app/api/symptom-match/route.ts). This is the durable version of what
+// used to be a console.log-only fallthrough trace — real user phrasing plus
+// what it actually resolved to, so SYNONYMS can be grown from real misses
+// instead of guessed patterns.
+//
+// facilityType / source are nullable because they're written after the
+// initial insert: the fallthrough row is created the moment local matching
+// comes up empty, then filled in once Gemini (or the response cache) resolves
+// it. A null facilityType after some time has passed means the Gemini call
+// itself failed or timed out — worth knowing too, since that phrase never
+// got an answer at all.
+//
+// Cascades with the user (same as UserActivity) since this is a record of
+// what a specific person typed into a health tool, not anonymous analytics
+// like ProviderView.
+
+model SymptomFallthroughLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text         String   @db.Text // raw free text; SYNONYMS found zero local matches for this
+  facilityType String?           // Gemini's resolved facility-type slug, filled in after resolution
+  source       String?           // "cache" | "gemini" — how facilityType was resolved; null until resolved
+  createdAt    DateTime @default(now())
+  resolvedAt   DateTime?         // when facilityType was filled in; null while still unresolved
+
+  @@index([userId, createdAt])
+  @@index([facilityType])
+  @@index([createdAt])
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+// A registered doctor or clinic. Appears in Find Care search results
+// only when status = VERIFIED and active = true.
+//
+// Location:
+//   lat + lng   — GPS coordinates for Haversine distance sorting
+//   district    — Ghana district name for text-based filtering
+//   region      — defaults to "Greater Accra" for v1 launch
+//
+// Contact:
+//   phone       — always required; used for tel: deep link
+//   whatsapp    — optional; defaults to phone if blank; used for wa.me/ link
+//   email       — optional; not exposed publicly in v1
+//
+// Provider portal auth:
+//   providerEmail        — separate from patient User.email
+//   providerPasswordHash — bcrypt hash; never store plaintext
+//   providerResetToken   — for password reset flow on the provider portal
+//
+// Photos:
+//   photos[] — Cloudinary URLs; first item used as the profile/hero image
+
+model Provider {
+  id                   String         @id @default(cuid())
+  type                 ProviderType   @default(DOCTOR)
+  status               ProviderStatus @default(PENDING)
+  name                 String
+  specialtyId          String
+  specialty            Specialty      @relation(fields: [specialtyId], references: [id])
+  bio                  String?        @db.Text
+  licenceNumber        String?        // Ghana Medical Council registration number
+
+  // Contact (all used for patient-facing CTAs)
+  phone                String
+  whatsapp             String?        // wa.me/ deep link; falls back to phone if null
+  email                String?        // not shown publicly in v1
+
+  // Location
+  address              String
+  district             String         // e.g. "Osu", "Labone", "East Legon"
+  region               String         @default("Greater Accra")
+  lat                  Float
+  lng                  Float
+
+  // Capabilities
+  languages            String[]       @default(["English"])
+  insuranceAccepted    String[]       @default(["NHIS"])
+  /// Working hours as a JSON object keyed by day abbreviation.
+  /// Example: { "mon": "08:00-17:00", "tue": "08:00-17:00", "sat": "08:00-13:00", "sun": "closed" }
+  workingHours         Json?
+
+  // Media
+  photos               String[]       @default([]) // Cloudinary URLs; [0] = hero image
+
+  // Verification
+  verifiedAt           DateTime?
+  verifiedById         String?        // admin User.id who approved this listing
+
+  // Listing state
+  active               Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  // Provider portal credentials (separate from patient NextAuth)
+  providerEmail        String?        @unique
+  providerPasswordHash String?
+  providerResetToken   String?        @unique
+  providerResetExpiry  DateTime?
+
+  reviews              ProviderReview[]
+  views                ProviderView[]
+
+  // Indexes chosen for the three main query patterns:
+  //   1. Find by specialty + status (search results)
+  //   2. Browse by district (filter)
+  //   3. Distance sort is done in application code via Haversine on lat/lng
+  @@index([specialtyId, status, active])
+  @@index([district, status, active])
+  @@index([status, active, createdAt])
+}
+
+// ── ProviderReview ────────────────────────────────────────────────────────────
+// Patient-submitted rating and optional comment for a provider.
+// One review per patient per provider, enforced by @@unique.
+// Reviews are always linked to a real User — no anonymous reviews.
+
+model ProviderReview {
+  id         String   @id @default(cuid())
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating     Int      // 1–5 inclusive; validated at API layer
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([providerId, userId])
+  @@index([providerId, createdAt])
+  @@index([userId])
+}
+
+// ── ProviderView ──────────────────────────────────────────────────────────────
+// Lightweight analytics event recorded each time a provider profile is opened.
+// userId is nullable to allow unauthenticated views (e.g. direct URL share).
+// The provider dashboard queries this table for 7-day and 30-day view counts.
+// No PII is stored beyond the userId reference.
+
+model ProviderView {
+  id         String   @id @default(cuid())
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  userId     String?  // null = unauthenticated view
+  viewedAt   DateTime @default(now())
+
+  @@index([providerId, viewedAt])
+}
+
+// ─── Facility (Phase 9) ─────────────────────────────────────────────────────
+// Admin-verified facility records that merge with live Overpass/OSM results
+// on /facilities. Exists because OSM coverage in Ghana is incomplete —
+// especially eye_clinic / ent_clinic / laboratory / maternity, which rely on
+// the sparse healthcare:speciality free-text tag (see constants.ts comment
+// on FACILITY_TYPE_OPTIONS). This table is the durable fallback: once a
+// facility is verified here, it no longer depends on OSM tagging to surface
+// in search.
+//
+// type: one of the FACILITY_TYPE_OPTIONS slugs (hospital, clinic, dentist,
+//       eye_clinic, ent_clinic, pharmacy, laboratory, maternity,
+//       mental_health) — kept as a plain string, not a relation, matching
+//       the fixed/non-user-editable string-taxonomy pattern already used by
+//       HealthAlert.type / HealthAlert.severity. The taxonomy itself lives
+//       in one place (constants.ts) and is validated at the API layer.
+//
+// source: where this record came from —
+//   "admin"        — entered directly by an admin
+//   "user"         — submitted via the app, awaiting/received admin review
+//   "datagovgh"    — one-time seed import from the Ghana Open Data
+//                     Initiative facilities dataset
+//
+// nhis: mirrors the frontend's detectNhis() output shape — "confirmed"
+//       (explicit NHIS tag/field) | "likely" (public/government operator)
+//       | "none". Plain string, same reasoning as `type` above.
+//
+// submittedById / verifiedById: plain string User.id references, no formal
+// Prisma relation — same lightweight convention as Provider.verifiedById.
+// submittedById is null for admin- or seed-sourced records.
+
+enum FacilityStatus {
+  PENDING    // submitted, awaiting admin verification — not shown in results
+  VERIFIED   // approved and live in search results, merged with OSM data
+  SUSPENDED  // delisted; not shown in results but record is preserved
+}
+
+model Facility {
+  id             String         @id @default(cuid())
+  status         FacilityStatus @default(PENDING)
+  source         String         @default("admin") // "admin" | "user" | "datagovgh"
+
+  name           String
+  type           String         // FACILITY_TYPE_OPTIONS slug — see comment above
+  typeLabel      String?        // display label snapshot, e.g. "Eye Care"
+
+  // Contact
+  phone          String?
+  whatsapp       String?
+  website        String?
+
+  // Location
+  address        String?
+  city           String?
+  region         String?
+  district       String?
+  lat            Float
+  lng            Float
+
+  // Capabilities
+  emergencyServices Boolean     @default(false)
+  hours             String?     // free text or OSM-style opening_hours string
+  nhis              String      @default("none") // "confirmed" | "likely" | "none"
+  services          String[]    @default([])
+
+  // Verification
+  submittedById  String?        // patient/user User.id who submitted this, if source = "user"
+  verifiedAt     DateTime?
+  verifiedById   String?        // admin User.id who approved this listing
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Indexes chosen for the two main query patterns, mirroring Provider:
+  //   1. Merge query on /facilities: type + status scoped to a lat/lng radius
+  //      (radius filtering itself is done in application code via Haversine,
+  //      same as the existing Overpass-result merge)
+  //   2. Admin queue: status + createdAt for the Pending/Verified/Suspended
+  //      tabs pattern already used on /admin/providers
+  @@index([type, status])
+  @@index([status, createdAt])
+  @@index([district, status])
 }

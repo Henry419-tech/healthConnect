@@ -1,0 +1,723 @@
+/* ================================================================
+   src/styles/landing-phone-mockup.css
+   HealthConnect Navigator — Realistic Phone Case Hero Mockup
+   
+   Replaces .lp-preview-phone with a real-looking iPhone 14 Pro-style
+   phone frame. Import AFTER landing.css.
+   
+   Usage in JSX — replace the .lp-hero__preview block with:
+   
+   <div className="lp-hero__preview">
+     <div className="lp-phone-mockup">
+       <div className="lp-phone-frame">
+         <!-- Side buttons -->
+         <div className="lp-phone-frame__btn lp-phone-frame__btn--power" />
+         <div className="lp-phone-frame__btn lp-phone-frame__btn--vol-up" />
+         <div className="lp-phone-frame__btn lp-phone-frame__btn--vol-dn" />
+         <div className="lp-phone-frame__btn lp-phone-frame__btn--mute" />
+         <!-- Screen -->
+         <div className="lp-phone-screen">
+           <div className="lp-phone-island" />
+           <div className="lp-phone-content">
+             <!-- your dashboard content here -->
+           </div>
+         </div>
+       </div>
+     </div>
+     <!-- Floating pills stay the same -->
+     ...
+   </div>
+   ================================================================ */
+
+/* ── Phone mockup wrapper ──────────────────────────────────────── */
+.lp-phone-mockup {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+  /* Subtle ambient glow beneath the phone */
+  filter: drop-shadow(0 40px 80px rgba(0,0,0,.65))
+          drop-shadow(0 0 60px rgba(0,212,255,.10));
+}
+
+/* ── Phone frame (outer body) ─────────────────────────────────── */
+.lp-phone-frame {
+  position: relative;
+  width: 244px;
+  height: 494px;
+  /* Real phones have tighter corner radii — not as extreme */
+  border-radius: 40px;
+
+  /* Deep space black — almost no reflective sheen, like anodised aluminium */
+  background: linear-gradient(
+    160deg,
+    #242426 0%,
+    #1a1a1c 20%,
+    #111112 45%,
+    #0d0d0f 55%,
+    #141416 72%,
+    #1e1e20 88%,
+    #242426 100%
+  );
+
+  /* Slimmer shadow stack — real phones don't have thick silver rings */
+  box-shadow:
+    0 24px 56px rgba(0,0,0,.85),
+    0 6px  18px rgba(0,0,0,.65),
+    inset 1px 1px 0 rgba(255,255,255,.05),
+    inset -1px -1px 0 rgba(0,0,0,.60),
+    0 0 0 1px rgba(255,255,255,.06);
+
+  /* Slim, realistic bezel */
+  padding: 10px 7px 12px;
+  box-sizing: border-box;
+
+  isolation: isolate;
+}
+
+/* Specular sheen — barely visible on matte anodised finish */
+.lp-phone-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    125deg,
+    rgba(255,255,255,.04) 0%,
+    rgba(255,255,255,.01) 25%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Side buttons ─────────────────────────────────────────────── */
+.lp-phone-frame__btn {
+  position: absolute;
+  border-radius: 2px;
+  /* Slightly lighter than body = raised metal button */
+  background: linear-gradient(180deg, #4a4a4c 0%, #303032 50%, #484848 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    inset 0 -1px 0 rgba(0,0,0,.40),
+    -1px 0 3px rgba(0,0,0,.50);
+}
+
+/* Power button (right side) */
+.lp-phone-frame__btn--power {
+  right: -3px;
+  top: 130px;
+  width: 4px;
+  height: 72px;
+  border-radius: 0 2px 2px 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -1px 0 rgba(0,0,0,.40),
+    2px 0 3px rgba(0,0,0,.50);
+}
+
+/* Volume up (left side) */
+.lp-phone-frame__btn--vol-up {
+  left: -3px;
+  top: 110px;
+  width: 4px;
+  height: 44px;
+  border-radius: 2px 0 0 2px;
+}
+
+/* Volume down (left side) */
+.lp-phone-frame__btn--vol-dn {
+  left: -3px;
+  top: 164px;
+  width: 4px;
+  height: 44px;
+  border-radius: 2px 0 0 2px;
+}
+
+/* Mute/silent toggle (left side, smaller) */
+.lp-phone-frame__btn--mute {
+  left: -3px;
+  top: 80px;
+  width: 4px;
+  height: 26px;
+  border-radius: 2px 0 0 2px;
+}
+
+/* ── Screen bezel ─────────────────────────────────────────────── */
+.lp-phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 32px;
+  background: #050e1d;
+  overflow: hidden;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,.95),
+    inset 0 2px 6px rgba(0,0,0,.70);
+}
+
+/* Screen inner glow (the OLED lit edge) */
+.lp-phone-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    rgba(0,212,255,.04) 0%,
+    transparent 70%
+  );
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* Subtle glass reflection over the screen */
+.lp-phone-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    160deg,
+    rgba(255,255,255,.05) 0%,
+    transparent 40%
+  );
+  z-index: 21;
+  pointer-events: none;
+}
+
+/* ── Dynamic Island ──────────────────────────────────────────── */
+.lp-phone-island {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Real iPhone Dynamic Island: ~126×37pt at 1x → scaled down proportionally */
+  width: 72px;
+  height: 22px;
+  background: #000;
+  border-radius: 14px;
+  z-index: 22;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04),
+    0 2px 6px rgba(0,0,0,.90);
+  /* Small camera dot inside */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+}
+.lp-phone-island::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0a0a0a;
+  border: 1px solid rgba(255,255,255,.05);
+  box-shadow:
+    inset 0 0 2px rgba(0,0,0,.9),
+    0 0 3px rgba(56,189,248,.12);
+}
+
+/* ── Scrollable content inside the screen ────────────────────── */
+.lp-phone-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Flex column: scroll area fills top, nav pins to bottom */
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+/* The inner scroll track that contains the dashboard preview */
+.lp-phone-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Hide scrollbar — phone UX */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* smooth momentum scrolling on iOS if embedded */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+.lp-phone-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Dashboard content scale-down ─────────────────────────────
+   KEY FIX: CSS transform does NOT affect layout — the element
+   still occupies its original 390px × height space. To fix the
+   giant empty-space problem we must:
+   1. Give .lp-phone-dashboard-wrap the POST-scale dimensions
+   2. Let the inner .lp-phone-dashboard transform freely inside it
+
+   Scale = 0.590  →  post-scale width = 390 × 0.590 = 230px
+   Post-scale height of each "screen" of content ≈ 494 × 0.590 ≈ 292px
+   ─────────────────────────────────────────────────────────── */
+
+/* Wrapper: sized to the post-scale footprint so scroll works correctly */
+.lp-phone-dashboard-wrap {
+  width: 230px;           /* 390 × 0.590 */
+  /* height grows with content — overflow is clipped by .lp-phone-scroll */
+  transform-origin: top left;
+  /* NO transform here — wrapper is at native size */
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Inner dashboard: full design width, scaled down visually */
+.lp-phone-dashboard-wrap .lp-phone-dashboard {
+  transform: scale(0.590);
+  transform-origin: top left;
+  width: 390px;
+}
+
+/* Standalone .lp-phone-dashboard (when used without wrap) */
+.lp-phone-dashboard {
+  width: 390px;
+  transform: scale(0.590);
+  transform-origin: top left;
+  min-height: 1200px;
+  position: relative;
+  background: #050e1d;
+  font-family: 'DM Sans', sans-serif;
+  color: rgba(255,255,255,.92);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Auto-scroll animates translateY on the INNER dashboard,
+   so we animate it on the wrap's child, not the wrap itself */
+@keyframes lp-phone-scroll {
+  0%   { transform: scale(0.590) translateY(0); }
+  15%  { transform: scale(0.590) translateY(0); }
+  55%  { transform: scale(0.590) translateY(-520px); }
+  70%  { transform: scale(0.590) translateY(-520px); }
+  100% { transform: scale(0.590) translateY(0); }
+}
+
+.lp-phone-dashboard--animated {
+  animation: lp-phone-scroll 18s ease-in-out infinite;
+}
+
+/* Responsive scale overrides */
+@media (max-width: 640px) {
+  .lp-phone-dashboard-wrap { width: 199px; } /* 390 × 0.510 */
+  .lp-phone-dashboard-wrap .lp-phone-dashboard { transform: scale(0.510); }
+  .lp-phone-dashboard { transform: scale(0.510); }
+  @keyframes lp-phone-scroll {
+    0%   { transform: scale(0.510) translateY(0); }
+    15%  { transform: scale(0.510) translateY(0); }
+    55%  { transform: scale(0.510) translateY(-520px); }
+    70%  { transform: scale(0.510) translateY(-520px); }
+    100% { transform: scale(0.510) translateY(0); }
+  }
+}
+@media (max-width: 380px) {
+  .lp-phone-dashboard-wrap { width: 180px; } /* 390 × 0.462 */
+  .lp-phone-dashboard-wrap .lp-phone-dashboard { transform: scale(0.462); }
+  .lp-phone-dashboard { transform: scale(0.462); }
+}
+
+/* ── Re-scoped dashboard preview styles (inside phone) ────────
+   All scoped under .lp-phone-dashboard so they don't leak.
+   These mirror the real dashboard CSS but simplified for preview.
+   ─────────────────────────────────────────────────────────── */
+
+/* Top bar inside phone */
+.lp-pd-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 38px 16px 10px;
+  background: rgba(5,14,29,.95);
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0,212,255,.08);
+}
+.lp-pd-topbar__logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 900;
+  background: linear-gradient(90deg, #00d4ff 0%, #00d4ff 48%, #fff 48%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.lp-pd-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lp-pd-topbar__btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.09);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: rgba(255,255,255,.55);
+}
+.lp-pd-topbar__avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: rgba(0,212,255,.15);
+  border: 2px solid rgba(0,212,255,.35);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; color: #00d4ff;
+}
+
+/* Page content */
+.lp-pd-page {
+  padding: 16px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+/* Greeting */
+.lp-pd-greeting__sub {
+  font-size: 13px;
+  color: rgba(255,255,255,.45);
+  margin-bottom: 2px;
+}
+.lp-pd-greeting__name {
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.7px;
+  line-height: 1.1;
+}
+
+/* Health score card */
+.lp-pd-score-card {
+  background: linear-gradient(135deg, #002844 0%, #003858 100%);
+  border: 1px solid rgba(0,212,255,.18);
+  border-radius: 20px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.lp-pd-score-card::before {
+  content: '';
+  position: absolute;
+  top: -30px; right: -30px;
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,212,255,.07), transparent 70%);
+}
+.lp-pd-score-card__label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(0,212,255,.65);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.lp-pd-score-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.lp-pd-score-card__left { display: flex; flex-direction: column; gap: 6px; }
+.lp-pd-score-card__num-row { display: flex; align-items: flex-end; gap: 2px; }
+.lp-pd-score-card__num {
+  font-size: 42px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.lp-pd-score-card__denom {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255,255,255,.40);
+  margin-bottom: 6px;
+}
+.lp-pd-score-card__status {
+  font-size: 10px;
+  color: rgba(255,255,255,.38);
+}
+.lp-pd-score-card__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.lp-pd-score-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(0,212,255,.10);
+  border: 1px solid rgba(0,212,255,.22);
+  color: #00d4ff;
+  display: flex; align-items: center; gap: 4px;
+}
+.lp-pd-score-badge--grey {
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.38);
+}
+
+/* Ring */
+.lp-pd-ring {
+  position: relative;
+  width: 64px; height: 64px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lp-pd-ring svg { position: absolute; inset: 0; }
+.lp-pd-ring__pct {
+  font-size: 11px;
+  font-weight: 800;
+  color: #00d4ff;
+  position: relative;
+  z-index: 1;
+}
+
+/* Vitals row */
+.lp-pd-vitals {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid rgba(0,212,255,.08);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.lp-pd-vital {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-right: 1px solid rgba(255,255,255,.07);
+}
+.lp-pd-vital:last-child { border-right: none; }
+.lp-pd-vital__val { font-size: 14px; font-weight: 800; color: #fff; line-height: 1; }
+.lp-pd-vital__unit { font-size: 9px; color: rgba(255,255,255,.30); }
+.lp-pd-vital__label { font-size: 7.5px; font-weight: 700; letter-spacing: .5px; color: rgba(255,255,255,.30); text-transform: uppercase; }
+
+/* Quick actions */
+.lp-pd-section__title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 10px;
+  letter-spacing: -.3px;
+}
+.lp-pd-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.lp-pd-action {
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-height: 88px;
+}
+.lp-pd-action--teal   { background: linear-gradient(145deg, rgba(0,212,255,.14), rgba(0,180,220,.06)); border: 1px solid rgba(0,212,255,.22); }
+.lp-pd-action--violet { background: linear-gradient(145deg, rgba(167,139,250,.14), rgba(140,110,240,.06)); border: 1px solid rgba(167,139,250,.22); }
+.lp-pd-action--amber  { background: linear-gradient(145deg, rgba(251,191,36,.12), rgba(220,160,20,.05)); border: 1px solid rgba(251,191,36,.20); }
+.lp-pd-action--red    { background: linear-gradient(145deg, rgba(255,77,109,.14), rgba(220,40,80,.06)); border: 1px solid rgba(255,77,109,.22); }
+
+.lp-pd-action__icon {
+  width: 36px; height: 36px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+}
+.lp-pd-action--teal   .lp-pd-action__icon { background: rgba(0,212,255,.15); color: #00d4ff; }
+.lp-pd-action--violet .lp-pd-action__icon { background: rgba(167,139,250,.15); color: #a78bfa; }
+.lp-pd-action--amber  .lp-pd-action__icon { background: rgba(251,191,36,.15); color: #fbbf24; }
+.lp-pd-action--red    .lp-pd-action__icon { background: rgba(255,77,109,.15); color: #ff4d6d; }
+
+.lp-pd-action__title { font-size: 12px; font-weight: 700; color: #fff; line-height: 1.2; }
+.lp-pd-action__sub   { font-size: 9.5px; color: rgba(255,255,255,.42); line-height: 1.4; }
+
+/* Nearby facilities mini card */
+.lp-pd-facilities-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.lp-pd-facilities-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.lp-pd-facilities-card__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lp-pd-facilities-card__action {
+  font-size: 11px;
+  font-weight: 600;
+  color: #00d4ff;
+}
+.lp-pd-location-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 8px;
+  text-align: center;
+}
+.lp-pd-location-prompt__icon {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(0,212,255,.08);
+  border: 1px solid rgba(0,212,255,.14);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: rgba(0,212,255,.55);
+}
+.lp-pd-location-prompt__title { font-size: 12px; font-weight: 700; color: #fff; }
+.lp-pd-location-prompt__sub   { font-size: 10px; color: rgba(255,255,255,.38); }
+.lp-pd-location-btn {
+  background: rgba(0,212,255,.10);
+  border: 1px solid rgba(0,212,255,.22);
+  border-radius: 20px;
+  padding: 7px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #00d4ff;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+/* Emergency card */
+.lp-pd-emergency-card {
+  background: linear-gradient(135deg, rgba(255,77,109,.10), rgba(200,30,60,.05));
+  border: 1px solid rgba(255,77,109,.22);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.lp-pd-emergency-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.lp-pd-emergency-card__icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(255,77,109,.15);
+  border: 1px solid rgba(255,77,109,.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #ff4d6d;
+}
+.lp-pd-emergency-card__title { font-size: 13px; font-weight: 700; color: #fff; }
+.lp-pd-emergency-card__desc  { font-size: 10px; color: rgba(255,255,255,.40); line-height: 1.5; }
+.lp-pd-emergency-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #ff3355, #ff1a3c);
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: .3px;
+  box-shadow: 0 4px 16px rgba(255,50,80,.35);
+}
+
+/* Bottom nav bar inside phone — static, sits at end of content flow */
+/* NOTE: position:fixed/sticky both break inside CSS transform context.
+   The nav is placed at the bottom of .lp-phone-dashboard (flex column),
+   so it naturally sits at the bottom of the scrollable content. */
+.lp-pd-bottom-nav {
+  display: none; /* replaced by static version below */
+}
+
+/* Static nav — sits OUTSIDE the scroll container, pinned at bottom of .lp-phone-content.
+   It lives at the native screen pixel width (no transform needed here).
+   The .lp-phone-content flex column pushes it to the very bottom. */
+.lp-pd-bottom-nav-static {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px 4px 14px;
+  background: rgba(5,14,29,.97);
+  border-top: 1px solid rgba(255,255,255,.09);
+}
+.lp-pd-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  cursor: pointer;
+}
+.lp-pd-nav-item__icon {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  color: rgba(255,255,255,.32);
+}
+.lp-pd-nav-item__icon--active { color: #00d4ff; filter: drop-shadow(0 0 4px rgba(0,212,255,.55)); }
+.lp-pd-nav-item__label {
+  font-size: 7.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,.28);
+}
+.lp-pd-nav-item__label--active { color: #00d4ff; }
+.lp-pd-nav-item__emergency {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  cursor: pointer;
+}
+.lp-pd-nav-item__emergency-icon {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff3355, #ff1a3c);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #fff;
+  box-shadow: 0 2px 8px rgba(255,50,80,.40);
+  margin-top: -2px;
+}
+.lp-pd-nav-item__emergency-label {
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #ff4d6d;
+}
+
+/* ── Floating pills (anchored to .lp-phone-mockup) ─────────────── */
+/* These reuse existing .lp-preview-pill styles from landing.css    */
+/* Just ensure .lp-phone-mockup is position:relative (it is above)  */
+
+/* ── Responsive: frame shrink on small screens ────────────────── */
+@media (max-width: 640px) {
+  .lp-phone-frame {
+    width: 210px;
+    height: 438px;
+    border-radius: 34px;
+  }
+  .lp-phone-screen { border-radius: 26px; }
+  .lp-phone-island { width: 58px; height: 18px; top: 7px; }
+}
+@media (max-width: 380px) {
+  .lp-phone-frame { width: 190px; height: 396px; border-radius: 30px; }
+  .lp-phone-screen { border-radius: 22px; }
+}

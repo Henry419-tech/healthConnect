@@ -1,0 +1,108 @@
+/* ── Language pill (DashboardHeader topbar + sidebar) ──────────── */
+
+.hc-lang-pill {
+  display:         inline-flex;
+  align-items:     center;
+  gap:             4px;
+  padding:         3px 8px;
+  border-radius:   99px;
+  border:          1px solid var(--hc-border);
+  background:      var(--hc-surface2);
+  color:           var(--hc-text2);
+  font-size:       11px;
+  font-weight:     600;
+  letter-spacing:  0.5px;
+  cursor:          pointer;
+  transition:      background 0.15s, color 0.15s, border-color 0.15s;
+  white-space:     nowrap;
+  flex-shrink:     0;
+}
+
+.hc-lang-pill:hover {
+  background:   var(--hc-teal-dim);
+  color:        var(--hc-teal);
+  border-color: var(--hc-teal);
+}
+
+/* Sidebar language row */
+.hc-sidebar__lang-row {
+  display:      flex;
+  align-items:  center;
+  gap:          10px;
+  padding:      8px 16px;
+  color:        var(--hc-text2);
+  font-size:    13px;
+}
+
+.hc-sidebar__lang-row .hc-lang-pill {
+  margin-left: auto;
+}
+
+/* Drawer language row */
+.hc-drawer__lang-row {
+  display:      flex;
+  align-items:  center;
+  gap:          12px;
+  padding:      12px 16px;
+  color:        var(--hc-text2);
+  font-size:    14px;
+  border-top:   1px solid var(--hc-border);
+}
+
+.hc-drawer__lang-row .hc-lang-pill {
+  margin-left:  auto;
+  font-size:    12px;
+  padding:      4px 10px;
+}
+
+/* ── Language sub-panel in AccountSettings ─────────────────────── */
+
+.as2-lang-options {
+  display:        flex;
+  flex-direction: column;
+  gap:            8px;
+  padding:        4px 0 8px;
+}
+
+.as2-lang-option {
+  display:      flex;
+  align-items:  center;
+  gap:          12px;
+  width:        100%;
+  padding:      12px 14px;
+  border-radius: 10px;
+  border:       1.5px solid var(--hc-border);
+  background:   transparent;
+  color:        var(--hc-text);
+  cursor:       pointer;
+  font-size:    14px;
+  font-weight:  500;
+  text-align:   left;
+  transition:   border-color 0.15s, background 0.15s;
+}
+
+.as2-lang-option:hover {
+  background:   var(--hc-teal-dim);
+  border-color: var(--hc-teal);
+}
+
+.as2-lang-option--active {
+  border-color: var(--hc-teal);
+  background:   var(--hc-teal-dim);
+  color:        var(--hc-teal);
+}
+
+.as2-lang-option__flag {
+  font-size:   20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.as2-lang-option__name {
+  flex: 1;
+}
+
+.as2-lang-option__check {
+  color:       var(--hc-teal);
+  flex-shrink: 0;
+}

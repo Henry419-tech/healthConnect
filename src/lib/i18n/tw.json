@@ -1,0 +1,317 @@
+{
+  "common": {
+    "save": "Sie",
+    "cancel": "Gyae",
+    "back": "San Kɔ",
+    "edit": "Sesa",
+    "done": "Awie",
+    "loading": "Ɛreloado…",
+    "error": "Asɛm bi asi",
+    "retry": "Yɛ bio",
+    "close": "To mu",
+    "confirm": "Dane",
+    "delete": "Yi fi hɔ",
+    "search": "Hwehwɛ",
+    "filter": "Sift",
+    "share": "Kyɛ",
+    "download": "Download",
+    "upload": "Upload",
+    "yes": "Aane",
+    "no": "Daabi",
+    "or": "anaa",
+    "and": "ne",
+    "settings": "Nhyehyɛe",
+    "profile": "Hom",
+    "notifications": "Amanneɛ"
+  },
+  "nav": {
+    "home": "Fie",
+    "find": "Hwehwɛ",
+    "more": "Pii",
+    "profile": "Wo Ho Nsɛm",
+    "findFacilities": "Hwehwɛ Asupɔnhɔ",
+    "emergency": "Ɔhaw Kɛse",
+    "healthProfile": "Me Ahoɔden Ho Nimdeɛ"
+  },
+  "dashboard": {
+    "title": "Nhyehyɛe",
+    "greetingMorning": "Maakye",
+    "greetingAfternoon": "Maaha",
+    "greetingEvening": "Maadwo",
+    "healthScore": "Ahoɔden Nkontaabu",
+    "recentActivity": "Nneɛma a Woyɛɛ",
+    "quickActions": "Nneɛma a Wubɛyɛ",
+    "upcomingReminders": "Nkae a Ɛreba",
+    "medications": "Aduro",
+    "noMedications": "Aduro biara nni hɔ ɛnnɛ",
+    "healthAdvisory": "Ahoɔden Ho Kɔmhyɛ",
+    "viewAll": "Hwɛ Nyinaa",
+    "seeMore": "Hwɛ Pii"
+  },
+  "emergency": {
+    "title": "Ɔhaw Kɛse Fie",
+    "subtitle": "Ɔhaw kɛse sohwɛfoɔ, yadeɛ a wubɛyɛ ne wo nnipa a wobɛtso wo wɔ baako.",
+    "callNow": "Frɛ Seesei",
+    "firstAid": "Yadeɛ Mmoa Nkyerɛkyerɛ",
+    "services": {
+      "ambulance": {
+        "name": "Oman Ambulance Sohwɛ",
+        "description": "Ɔhaw kɛse ambulance wɔ Ghana nyinaa"
+      },
+      "fire": {
+        "name": "Oman Ogya Sohwɛ",
+        "description": "Ogya ɔhaw ne nkorɔnkorɔ ho mmoa"
+      },
+      "police": {
+        "name": "Polisi Ɔhaw Kɛse",
+        "description": "Polisi ɔhaw kɛse frɛ noma"
+      },
+      "disaster": {
+        "name": "NADMO",
+        "description": "Asase so ɔhaw ne mmoa"
+      },
+      "kath": {
+        "name": "KATH Ɔhaw Kɛse",
+        "description": "Komfo Anokye Asorowsopɔ"
+      },
+      "korle": {
+        "name": "Korle Bu Asupɔn",
+        "description": "Asorowsopɔ — Accra"
+      }
+    },
+    "contacts": "Ɔhaw Kɛse Nnipa",
+    "searchGuides": "Hwehwɛ yadeɛ nkyerɛkyerɛ…",
+    "noResults": "Nkyerɛkyerɛ biara nnhu wɔ",
+    "breathing": "Ahome Nkyerɛkyerɛ",
+    "breatheIn": "Home Fa",
+    "hold": "Sie",
+    "breatheOut": "Home Pue",
+    "rest": "Homa",
+    "startBreathing": "Hyɛ ahome nhyehyɛe ase",
+    "stopBreathing": "Gyae",
+    "bloodType": "Mogya Suban",
+    "canReceiveFrom": "Tumi gye fi",
+    "canDonateTo": "Tumi de kɔ",
+    "warning": "Kɔkɔbɔ",
+    "steps": "Nnankɔsoɔ",
+    "personalGuides": "Wo Nkyerɛkyerɛ a Wɔde Ayɛ Ma Wo",
+    "offlineAvailable": "Edin wɔ hɔ a internet nni",
+    "callService": "Frɛ",
+    "critical": "Ɔhaw Kɛse",
+    "high": "Ɔhaw",
+    "medium": "Nteasɛɛ",
+    "guides": {
+      "cpr": {
+        "title": "Koma Ho Mmoa — Ɔbarima/Ɔbaa",
+        "warning": "Frɛ 193 ANSA. Yɛ koma ho mmoa saa a onipa no nnyinii na ɔnhome mpofirim.",
+        "steps": [
+          {
+            "instruction": "Hwɛ sɛ babi no ho hɔ yɛ krado, afei hwɛ onipa no. Bɔ ne mfomso denden na teɛ sɛ \"Wo ho yɛ wo sɛn?\""
+          },
+          {
+            "instruction": "Frɛ 193 (Oman Ambulance) ntɛmntɛm anaa bisa biribi bi obi wɔ hɔ a okye frɛ no. Sie speaker mu."
+          },
+          {
+            "instruction": "Da onipa no akyi wɔ babi a ehow yɛ papa, baabi a eho a emu yɛ sɛn. Fa ne ti sɛ n'akyi kɔ mpofirim na twe ne abotenten so ama nsuahu aba mu."
+          },
+          {
+            "instruction": "Hwɛ sɛ ɔhome mpofirim no. Na meresua so akyi a ɔhome mpofirim. Hwɛ sɛ waguru wɔ koma anim, tie na fa w'anopɔ hwɛ.",
+            "tip": "Homehome a ɛba mpofirim mpofirim no NA home mpofirim — hyɛ koma ho mmoa ase."
+          },
+          {
+            "instruction": "Si w'anopɔ baabi a eguru wɔ koma anim (wɔ anaafo fa). Si nsa fofor so, fa wɔ nyinaa bɔ mu, na tena a wo nsa mu yɛ sɛn."
+          },
+          {
+            "instruction": "Piem denden na ntɛm — piem bɔ 5 sentimita (inkyi 2) ketewaa wɔ homehome dɔn 100–120.",
+            "tip": "Susu Stayin' Alive dwom a ɔhome mu no — ɛno na ɛyɛ ntɛm a ɛsɛ."
+          },
+          {
+            "instruction": "Wɔ akyi a wupiem ntam 30, ma ahome agu 2: twe n'afi so, si w'anom so n'anom so, home kosi sɛ n'abrewa goro. Dwuma 30:2 no siw kɔsi sɛ mmoa ba.",
+            "tip": "Sɛ w'ani gyina ahome agu so a, piem a ɛnyɛ nsɛe gu bi bɔ ho mmoa."
+          }
+        ]
+      },
+      "choking": {
+        "title": "Aguare Wɔ Emu — Heimlich",
+        "warning": "Sɛ onipa no tumi twitwa denden a, kyerɛ no sɛ ɔntwitwa ntɛm. Hyɛ ase wɔ saa nna a onipa no ntumi ntwitwa, nkasa anaa nhome no.",
+        "steps": [
+          {
+            "instruction": "Bisabisa denden sɛ \"Woguan emu?\" Sɛ ɔntumi nkasa, ntwitwa, anaa nhome no a — yɛ saa ntɛmntɛm."
+          },
+          {
+            "instruction": "Gyina n'akyi, fa no si n'anim kɔ so mpofirim, fa w'anopɔ yi ne mfomso so fa w'anopɔ gyamma bɔ ne afie anim bɔ 5. Hwɛ n'anom wɔ akyi bɔ biara."
+          },
+          {
+            "instruction": "Sɛ mfomso bɔ no anyɛ adwuma a, gyina n'akyi na fa wo nsa bɔ n'afoa ho."
+          },
+          {
+            "instruction": "Fa wo nsa bɔ mufuo na si — akokonin fa — wɔ nufinam a ɛwɔ asafoano a etia koma no ase."
+          },
+          {
+            "instruction": "Fa wo nsa fofor fa wo mufuo so. Twe denden a ɛkɔ mu na ɛkɔ soɔ — bɔ ntam 5.",
+            "tip": "Bɔ biara wɔ mu na ɛwɔ no ntɛm, ɛbɔ sɛ ɛkɔ bɔ nea ɛsi mu no gu."
+          },
+          {
+            "instruction": "Paapae mfomso bɔ 5 ne nsa ho twe 5 kosi sɛ nea ɛsi mu no gu anaa onipa no hwie ase."
+          },
+          {
+            "instruction": "Sɛ ɔhwie ase a, fa no gu ase mma na hyɛ koma ho mmoa ase. Frɛ 193 ntɛmntɛm."
+          }
+        ]
+      },
+      "bleeding": {
+        "title": "Mogya A Ɛpue Denden",
+        "warning": "Frɛ 193 wɔ mogya a epue denden anaa ɛnso. MFA nea ɛhyɛ mogya mu no.",
+        "steps": [
+          {
+            "instruction": "Hwe do — fa ntamadan sɛ wowɔ, anaasɛ fa fidie anaa ntama ketewa a epɔ yɛ dee sɛ ɔdan."
+          },
+          {
+            "instruction": "Si denden, atitire wɔ mogya mu baabi no ho a wotumi fa ntama a efi ne so, koto anaa ntama. Piem denden na tena saa."
+          },
+          {
+            "instruction": "MFA ntama no ho na w'ani hwɛ — eyi mogya ho siw. Sɛ mogya de ntama no so a, fa ntama fofor si so na piem denden.",
+            "tip": "Sie dua a ɛkɔ bɔ 10–15 miniti a wonfa mu."
+          },
+          {
+            "instruction": "Sɛ mogya mu baabi no wɔ owonkyerɛni na ɛtɔn gyina a, si kama wɔ 5–7 sentimita wɔ mogya mu baabi no soro. Hyɛ kɔsi sɛ mogya no gyina. Twe berɛ a wosiɛe no ase."
+          },
+          {
+            "instruction": "Sie onipa no na ma no hyia. Da no ase na boro n'anammuo (gyina a onipa no ti/kon a ɛtɔ so na a wosusuw saa a) na eyi shocks ɔhaw no mfiase."
+          }
+        ]
+      },
+      "burns": {
+        "title": "Ɔgya Mu Yadeɛ",
+        "warning": "Frɛ 193 wɔ ɔgya mu yadeɛ a ɛboro onipa no ntam so, anaa n'aniwa/nsa/mmaredwa baabi, anaa ɔgya a ɛba fi asɛe anaa ogya a ɛba fi ɔhankra.",
+        "steps": [
+          {
+            "instruction": "Fa onipa no fi ɔhaw no mu. Wɔ asɛe ɔgya a ɛba, piam asɛe a ɛyɛ dede no ansa na woyi ntama (bɔ sɛ ɛhia, mfa n'eti so nkɔ)."
+          },
+          {
+            "instruction": "Si ɔgya mu baabi no wɔ nsu a ɛyɛ ya (ɛnsɛ nsutene anaa nsu a eye dwo) kosi sɛ miniti 20 apue.",
+            "tip": "Hyɛ ase wɔ dɔnhwere 3 mu. Mmoa koro yi yɛ adwuma pa sen biribi fofor."
+          },
+          {
+            "instruction": "Bere a wosi su no mu, yi fam, saa ne ntama a ɛbɛn ɔgya mu baabi no — GYINA sɛ ɛhyɛ wɔ ho no."
+          },
+          {
+            "instruction": "NNFA ngo, dafuruwa ho aduro, ɔkɔtɔbere, nkukuu, anaa aduro a ɛfiri fie. MMPAE su adepam."
+          },
+          {
+            "instruction": "Kata ho maa mma na ɛnhyɛ — fa fidie a emu yɛ krado, ɛnsɛ totoɛ. Da so na kata ma."
+          },
+          {
+            "instruction": "Hyɛ onipa no hyia wɔ ntama (gya ɔgya mu baabi no ho) na wɔanhome wɔ nsu so dɔn a ɛwɔ."
+          }
+        ]
+      },
+      "seizure": {
+        "title": "Adwene Ho Ɔhaw Mmoa",
+        "warning": "Frɛ 193 sɛ: adwene ho ɔhaw no yɛ ɔhaw tenten, ɛtwa 5 miniti, onipa no nnyae, anaa wɔabuae no.",
+        "steps": [
+          {
+            "instruction": "Tena asomdwoe mu. Hwɛ berɛ a adwene ho ɔhaw no hyɛ ase. Adwene ho ɔhaw pii a ɛwie wɔ wɔn ankasa mu wɔ miniti 1–3 mu."
+          },
+          {
+            "instruction": "Bɔ onipa no ho ban — si biribi a eho yɛ mema ne ti ase. Fa nea ehow na ɛyɛ nwonwa yi fi ne ho."
+          },
+          {
+            "instruction": "MMFA ne mu. MMPUE ne gyinabeha. MMFA biribi nto n'anom mu.",
+            "tip": "Nnipa ntumi ntɔ wɔn tεtεa. Biribi a watɔ n'anom mu yɛ ɔhaw na ɛnyɛ no."
+          },
+          {
+            "instruction": "Sɛ wobɛtumi a, fa no fa dane n'akyi kɔ so ne abotenten (adwene ho ɔhaw baabi) na nsuahu no ntwa."
+          },
+          {
+            "instruction": "Tena ne ho kɔsi sɛ ɔsan bɛnya n'adwene. Kasa asomdwoe mu na ma no gyina — ɔbɛyɛ abofra amanfraani na ɔbɛsuro wɔ miniti kakra akyi."
+          }
+        ]
+      },
+      "eye": {
+        "title": "Aniwa Mu Yadeɛ",
+        "warning": "Hwehwɛ ntɛm na woakɔ aniwa mu yadeɛ biara, asɛe mu nwura, anaa aniwa ho hunu da ne kwan so.",
+        "steps": [
+          {
+            "instruction": "MMFA aniwa no — eyi yadeɛ biara bɛboro. Sie onipa no sɛ ɔtenabena asomdwoe mu."
+          },
+          {
+            "instruction": "Asɛe a egu aniwa no ho: ntɛm nsu a efi pɔn mu de ho hwi aniwa mu wɔ miniti 15–20, fa anifutuo no tete. Fa ti no gu a nsu no trɛw fi aniwa fofor no so."
+          },
+          {
+            "instruction": "Biribi a atɔ aniwa mu: gyina bɔne mu ntɛm anaa fa nsu de ho hwi. MMFA biribi a ahyɛ aniwa mu yi fi hɔ."
+          },
+          {
+            "instruction": "Kata aniwa a ɛwɔ yadeɛ mu no maa mma wɔ ntama a efi ne so — mmpiem so. Kata aniwa mmienu wɔ aniwa a nwura abɔ mu ho na ɛni gyinabeha."
+          },
+          {
+            "instruction": "Kɔ asupɔn anaa aniwa klinki ntɛmntɛm, na yadeɛ no amaa n'ase da."
+          }
+        ]
+      },
+      "fracture": {
+        "title": "Asɛe a Wosusuw Osiw",
+        "steps": [
+          {
+            "instruction": "Gyina yadeɛ mu baabi no koraa. MMPAE ano yere. Sie mu wɔ baabi a wohuu no so wɔ wo nsa anaa ntama a wotoɔ."
+          },
+          {
+            "instruction": "Hwɛ mogya a ɛtrɛw wɔ yadeɛ mu baabi no ase: hwɛ no ho, hwɛ wɔ no anwɔnwɔ ne ne nso, na bisabisa sɛ ne ho yɛ no ahusam anaa ɔhome.",
+            "tip": "Wɔ anwɔnwɔ anaa ntini bi wɔ yadeɛ mu baabi no ase no yɛ sign sɛ mogya a ɛtrɛw nso daa — eyi yɛ ntɛm."
+          },
+          {
+            "instruction": "Sɛ osiw a wɔhuu bone no (asiw no huu): kata maa mma wɔ ntama a efi ne so — MMPIEM asiw no so. Piem mogya wɔ mu baabi no ho, na ɛnyɛ n'ani so."
+          },
+          {
+            "instruction": "Sie osiw a ɛhia na wukɔ: fa biribi a emu yɛ sɛn (bankye, krataa a wotoɔ) a wototo ntama so. Sie wɔ osiw no soro ne ase — mfri n'ani so."
+          },
+          {
+            "instruction": "Si dɔɔso a emu yɛ ya (a wototo ntama so) na eyi nteteɛ. Hyɛ onipa no hyia, bɔ shocks ho mmoa, na tie kɔsi sɛ mmoa ba."
+          }
+        ]
+      },
+      "poisoning": {
+        "title": "Nseɛ / Aduro Tumi A Ɛboro",
+        "warning": "Frɛ 193 ntɛmntɛm. MMFA ho kosi sɛ dokota bi ɔkyerɛ wo — eyi ɔhaw fofor bɛtumi aba.",
+        "steps": [
+          {
+            "instruction": "Frɛ 193 ntɛmntɛm anaa fa onipa no kɔ asupɔn a ɛbɛn. Ka nseɛ no din, dɛm, ne berɛ a wode no sɛ wuhu."
+          },
+          {
+            "instruction": "Sɛ wanyinii na n'adwene wɔ n'ani so a, bisabisa sɛ ɔde deɛn. Sie na kyerɛ dokota a ɔba no fidie, toɔtu, anaa nseɛ no."
+          },
+          {
+            "instruction": "MMFA biribi ma no wɔ aduan anaa nsu. MMFA ho kosi sɛ dokota bi ɔka saa."
+          },
+          {
+            "instruction": "Sɛ ɔhwie ase nanso ɔhome a, da no akyi kɔ so ne abotenten (n'akyi kɔ soɔ) na ɔnhome ahu nea ɛguro."
+          },
+          {
+            "instruction": "Sɛ onhome biara a, hyɛ koma ho mmoa ase. Hwɛ n'ahome ne n'adwene a ɛwɔ n'ani so kɔsi sɛ mmoa ba."
+          },
+          {
+            "instruction": "Wɔ ho/aniwa asɛe mu nwura a: yi ntama a asɛe agu mu no na de nsu pɔn de si ho wɔ miniti 20 mpofirim."
+          }
+        ]
+      }
+    },
+    "tabs": {
+      "contacts": "Ɔhaw Kɛse Nnipa",
+      "firstAid": "Yadeɛ Mmoa Nkyerɛkyerɛ",
+      "qrCode": "QR Code"
+    }
+  },
+  "settings": {
+    "title": "Akaunte & Nhyehyɛe",
+    "language": "Kasa",
+    "languageSubtitle": "App kasa",
+    "english": "Borɔfo",
+    "twi": "Twi",
+    "appearance": "Nhoahoa",
+    "darkMode": "Sumina Suban",
+    "lightMode": "Hann Suban",
+    "followingSystem": "Ɛdi system akyi",
+    "manualOverride": "Woyɛɛ no wɔ do",
+    "auto": "Ankasa"
+  }
+}

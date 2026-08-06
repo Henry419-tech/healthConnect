@@ -1,387 +1,1060 @@
 /* ================================================================
    src/styles/landing-mobile-hero.css
-   HealthConnect Navigator — Mobile Splash Hero
-   Import AFTER landing.css
+   HealthConnect Navigator — Mobile Hero Splash
+   Import AFTER landing.css and landing-light.css
+   Only activates at ≤ 640px
    ================================================================ */
 
-/* ── Mobile Splash Hero (≤ 640px only) ─────────────────────────── */
-
-/* Hidden on desktop — desktop uses the standard nav + hero */
-.lp-mobile-splash {
-  display: none;
-}
+/* ── Mobile Splash Shell ────────────────────────────────────── */
+/* .lp-mobile-splash is rendered INSIDE .lp-hero on mobile.     */
+/* On desktop it is hidden. On mobile the desktop hero children  */
+/* (.lp-hero__left, .lp-hero__preview) are hidden.              */
 
 @media (max-width: 640px) {
 
-  /* Hide the standard desktop nav & hero on mobile */
-  .lp-nav,
-  .lp-hero {
+  /* ── Hide feature cards — carousel covers the same content ─ */
+  .lp-cards {
     display: none !important;
   }
 
-  /* Show the mobile splash */
+  /* ── Collapse desktop nav on mobile ─────────────────────── */
+  .lp-nav {
+    display: none !important;
+  }
+
+  /* Make the hero a flex-column full-viewport container */
+  .lp-hero {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    min-height: 100svh !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    grid-template-columns: unset !important;
+    max-width: 100% !important;
+  }
+
+  /* Hide the desktop left column and phone preview */
+  .lp-hero__left,
+  .lp-hero__preview {
+    display: none !important;
+  }
+}
+
+/* ── Splash component (always rendered, controlled by display) ─ */
+.lp-mobile-splash {
+  display: none; /* hidden on desktop */
+}
+
+@media (max-width: 640px) {
   .lp-mobile-splash {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     min-height: 100svh;
+    width: 100%;
     position: relative;
-    z-index: 10;
     overflow: hidden;
-    padding: 0 0 40px;
   }
 
-  /* ── Ambient gradient layers ─────────────────────────────────── */
-  .lp-splash-bg {
+  /* ── Background layers ─────────────────────────────────── */
+  .lp-mobile-splash__bg {
     position: absolute;
     inset: 0;
-    pointer-events: none;
     z-index: 0;
+    pointer-events: none;
   }
 
-  /* Deep radial glow from center-top */
-  .lp-splash-bg::before {
+  .lp-mobile-splash__bg::before {
     content: '';
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(ellipse 120% 55% at 50% -5%,  rgba(0,212,255,.28) 0%, transparent 60%),
-      radial-gradient(ellipse 80%  60% at 15%  80%, rgba(0,150,255,.18) 0%, transparent 55%),
-      radial-gradient(ellipse 70%  50% at 85%  70%, rgba(167,139,250,.14) 0%, transparent 50%),
-      radial-gradient(ellipse 100% 80% at 50%  50%, rgba(4,10,22,.70) 0%, transparent 100%);
+      radial-gradient(ellipse 90% 50% at 50% -5%,  rgba(0,212,255,.20) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 45% at 10% 85%,  rgba(0,153,187,.13) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 45% at 90% 65%,  rgba(167,139,250,.10) 0%, transparent 55%),
+      linear-gradient(175deg, #050e1d 0%, #071525 45%, #050e1d 100%);
   }
 
-  /* Animated top arc glow */
-  .lp-splash-bg::after {
+  /* Top corona glow */
+  .lp-mobile-splash__bg::after {
     content: '';
     position: absolute;
-    top: -60px;
+    top: -140px;
     left: 50%;
     transform: translateX(-50%);
-    width: 340px;
-    height: 340px;
+    width: 440px;
+    height: 440px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,212,255,.22) 0%, transparent 70%);
-    filter: blur(40px);
-    animation: lp-splash-pulse 4s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(0,212,255,.14) 0%, transparent 65%);
+    animation: lp-ms-pulse 4.5s ease-in-out infinite;
   }
 
-  @keyframes lp-splash-pulse {
+  @keyframes lp-ms-pulse {
     0%, 100% { opacity: .7; transform: translateX(-50%) scale(1); }
-    50%       { opacity: 1;  transform: translateX(-50%) scale(1.08); }
+    50%       { opacity: 1;  transform: translateX(-50%) scale(1.09); }
   }
 
-  /* Diagonal streak lines for depth */
-  .lp-splash-streaks {
+  .lp-mobile-splash__grid {
     position: absolute;
     inset: 0;
-    pointer-events: none;
     z-index: 0;
-    overflow: hidden;
-  }
-  .lp-splash-streaks::before,
-  .lp-splash-streaks::after {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 60%;
-    background: linear-gradient(to bottom, transparent, rgba(0,212,255,.12), transparent);
-    border-radius: 2px;
-    animation: lp-streak-fall 6s linear infinite;
-  }
-  .lp-splash-streaks::before {
-    left: 18%;
-    top: -30%;
-    animation-delay: -2s;
-    opacity: .6;
-  }
-  .lp-splash-streaks::after {
-    right: 22%;
-    top: -50%;
-    animation-delay: -4.5s;
-    opacity: .4;
-    height: 45%;
-  }
-  @keyframes lp-streak-fall {
-    0%   { transform: translateY(-10%) rotate(15deg); opacity: 0; }
-    20%  { opacity: 1; }
-    80%  { opacity: 1; }
-    100% { transform: translateY(110vh) rotate(15deg); opacity: 0; }
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,212,255,.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.020) 1px, transparent 1px);
+    background-size: 44px 44px;
   }
 
-  /* ── Status bar area ─────────────────────────────────────────── */
-  .lp-splash-statusbar {
+  /* ── Top brand bar ─────────────────────────────────────── */
+  .lp-mobile-splash__topbar {
     position: relative;
-    z-index: 10;
+    z-index: 5;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 24px 0;
-    font-size: 11px;
-    font-weight: 700;
-    color: rgba(255,255,255,.35);
-    letter-spacing: .4px;
-  }
-  .lp-splash-statusbar__time {
-    font-variant-numeric: tabular-nums;
-    color: rgba(255,255,255,.45);
-  }
-  .lp-splash-statusbar__icons {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .lp-splash-statusbar__dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--lp-teal, #00d4ff);
-    box-shadow: 0 0 6px rgba(0,212,255,.6);
-  }
-
-  /* ── Logo container ──────────────────────────────────────────── */
-  .lp-splash-logo-wrap {
-    position: relative;
-    z-index: 10;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 48px;
-    animation: lp-splash-rise .8s cubic-bezier(.22,1,.36,1) both;
+    padding: 56px 24px 0;
+    animation: lp-ms-rise .60s ease both;
   }
 
-  /* Glowing ring behind the logo */
-  .lp-splash-logo-ring {
+  .lp-mobile-splash__brand-name {
+    font-family: 'Outfit', 'DM Sans', sans-serif;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #00d4ff 0%, rgba(255,255,255,.50) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .lp-mobile-splash__brand-rule {
+    width: 36px;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,.45), transparent);
+    border-radius: 2px;
+  }
+
+  /* ── Logo area ─────────────────────────────────────────── */
+  .lp-mobile-splash__center {
     position: relative;
-    width: 168px;
-    height: 168px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    padding: 0 28px;
+    flex: 1;
+    justify-content: center;
+    animation: lp-ms-rise .68s .08s ease both;
+  }
+
+  .lp-mobile-splash__logo-wrap {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  .lp-splash-logo-ring::before {
+  /* Outer ambient glow */
+  .lp-mobile-splash__logo-wrap::before {
     content: '';
     position: absolute;
-    inset: -8px;
+    inset: -30px;
     border-radius: 50%;
-    background: conic-gradient(
-      from 0deg,
-      rgba(0,212,255,.55),
-      rgba(0,150,255,.30),
-      rgba(167,139,250,.25),
-      rgba(0,212,255,.55)
-    );
-    filter: blur(14px);
-    animation: lp-ring-spin 8s linear infinite;
-    opacity: .8;
+    background: radial-gradient(circle, rgba(0,212,255,.18) 0%, transparent 70%);
+    animation: lp-ms-pulse 3.5s ease-in-out infinite;
   }
 
-  @keyframes lp-ring-spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .lp-splash-logo-ring::after {
-    content: '';
+  /* Slow-spin dashed ring */
+  .lp-mobile-splash__logo-ring {
     position: absolute;
-    inset: 0;
+    inset: -16px;
     border-radius: 50%;
-    border: 1.5px solid rgba(0,212,255,.22);
-    box-shadow:
-      0 0 0 6px rgba(0,212,255,.06),
-      inset 0 0 20px rgba(0,212,255,.08);
+    border: 1px dashed rgba(0,212,255,.25);
+    animation: lp-ms-spin 14s linear infinite;
   }
 
-  /* The actual logo image */
-  .lp-splash-logo-img {
-    width: 148px;
-    height: 148px;
+  @keyframes lp-ms-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* The real logo is 689x420 (landscape) — displayed inside a circular container */
+  .lp-mobile-splash__logo-bg {
+    width: 210px;
+    height: 210px;
     border-radius: 50%;
-    object-fit: cover;
+    background: radial-gradient(circle at 45% 42%, #0d2240, #071525 70%);
+    border: 1px solid rgba(0,212,255,.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: relative;
-    z-index: 1;
-    filter: drop-shadow(0 0 28px rgba(0,212,255,.50));
-    animation: lp-logo-float 5s ease-in-out infinite;
+    z-index: 2;
+    animation: lp-ms-float 5.5s ease-in-out infinite;
+    box-shadow: 0 0 0 1px rgba(0,212,255,.08), inset 0 1px 0 rgba(255,255,255,.06);
   }
 
-  @keyframes lp-logo-float {
+  .lp-mobile-splash__logo-svg {
+    width: 192px;
+    height: auto;
+    filter: drop-shadow(0 0 20px rgba(0,212,255,.70)) drop-shadow(0 0 8px rgba(0,212,255,.50));
+  }
+
+  @keyframes lp-ms-float {
     0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(-7px); }
+    50%       { transform: translateY(-9px); }
   }
 
-  /* App name beneath logo */
-  .lp-splash-app-name {
-    margin-top: 22px;
-    font-family: 'Outfit', 'DM Sans', sans-serif;
-    font-size: 30px;
-    font-weight: 900;
-    letter-spacing: -0.8px;
+  /* ── Headline ──────────────────────────────────────────── */
+  .lp-mobile-splash__headline {
     text-align: center;
-    animation: lp-splash-rise .9s .1s cubic-bezier(.22,1,.36,1) both;
   }
-  .lp-splash-app-name span:first-child {
-    background: linear-gradient(90deg, #00d4ff, #00a8ff);
+
+  .lp-mobile-splash__title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 33px;
+    line-height: 1.15;
+    letter-spacing: -0.4px;
+    color: rgba(255,255,255,.95);
+    margin: 0 0 13px;
+  }
+
+  .lp-mobile-splash__title em {
+    font-style: italic;
+    background: linear-gradient(125deg, #00d4ff 20%, #a78bfa 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .lp-splash-app-name span:last-child {
-    color: rgba(255,255,255,.92);
-  }
 
-  .lp-splash-tagline {
-    margin-top: 8px;
-    font-size: 13px;
-    font-weight: 500;
+  .lp-mobile-splash__sub {
+    font-size: 13.5px;
+    line-height: 1.7;
     color: rgba(255,255,255,.42);
-    text-align: center;
-    letter-spacing: .2px;
-    animation: lp-splash-rise .9s .2s cubic-bezier(.22,1,.36,1) both;
+    max-width: 275px;
+    margin: 0 auto;
   }
 
-  /* ── Trust pills row ─────────────────────────────────────────── */
-  .lp-splash-pills {
+  /* ── CTA buttons ───────────────────────────────────────── */
+  .lp-mobile-splash__cta {
     position: relative;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 28px;
-    flex-wrap: wrap;
-    justify-content: center;
-    padding: 0 24px;
-    animation: lp-splash-rise .9s .3s cubic-bezier(.22,1,.36,1) both;
-  }
-  .lp-splash-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    color: rgba(255,255,255,.48);
-    background: rgba(255,255,255,.05);
-    border: 1px solid rgba(255,255,255,.09);
-    padding: 5px 11px;
-    border-radius: 20px;
-    letter-spacing: .2px;
-  }
-  .lp-splash-pill svg { flex-shrink: 0; }
-  .lp-splash-pill--teal {
-    color: rgba(0,212,255,.75);
-    background: rgba(0,212,255,.07);
-    border-color: rgba(0,212,255,.15);
-  }
-
-  /* ── Spacer to push buttons toward bottom ────────────────────── */
-  .lp-splash-spacer { flex: 1; min-height: 32px; }
-
-  /* ── CTA buttons ─────────────────────────────────────────────── */
-  .lp-splash-cta {
-    position: relative;
-    z-index: 10;
+    z-index: 5;
+    width: 100%;
+    padding: 0 26px 56px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    width: 100%;
-    padding: 0 28px;
-    animation: lp-splash-rise .9s .45s cubic-bezier(.22,1,.36,1) both;
+    gap: 11px;
+    animation: lp-ms-rise .75s .18s ease both;
   }
 
-  /* Primary — Get Started */
-  .lp-splash-btn-primary {
+  .lp-mobile-splash__btn-primary {
     width: 100%;
     padding: 16px 24px;
     border-radius: 16px;
     border: none;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    font-size: 15.5px;
+    font-size: 15px;
     font-weight: 700;
-    letter-spacing: -.1px;
+    letter-spacing: .15px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    background: linear-gradient(135deg, #00d4ff 0%, #0099bb 100%);
+    color: #050e1d;
+    box-shadow: 0 4px 28px rgba(0,212,255,.30), inset 0 1px 0 rgba(255,255,255,.22);
+    transition: all .22s ease;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 60%, #006fa8 100%);
-    color: #030c18;
-    box-shadow:
-      0 6px 30px rgba(0,212,255,.40),
-      0 2px 8px rgba(0,0,0,.30),
-      inset 0 1px 0 rgba(255,255,255,.30);
-    transition: all .22s;
-  }
-  .lp-splash-btn-primary::before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent);
-    transition: left .45s;
-  }
-  .lp-splash-btn-primary:hover::before,
-  .lp-splash-btn-primary:active::before { left: 100%; }
-  .lp-splash-btn-primary:active {
-    transform: scale(.98);
-    box-shadow: 0 3px 16px rgba(0,212,255,.35);
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* Secondary — Sign In */
-  .lp-splash-btn-secondary {
+  /* Shimmer sweep on tap */
+  .lp-mobile-splash__btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -120%;
+    width: 80%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.20), transparent);
+    transform: skewX(-15deg);
+    transition: left .45s ease;
+  }
+
+  .lp-mobile-splash__btn-primary:active::after {
+    left: 140%;
+  }
+
+  .lp-mobile-splash__btn-primary:active {
+    transform: scale(.982);
+    box-shadow: 0 2px 14px rgba(0,212,255,.24);
+  }
+
+  .lp-mobile-splash__btn-secondary {
     width: 100%;
     padding: 15px 24px;
     border-radius: 16px;
-    border: 1px solid rgba(255,255,255,.14);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
+    letter-spacing: .10px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: rgba(255,255,255,.06);
-    backdrop-filter: blur(12px);
-    color: rgba(255,255,255,.82);
-    transition: all .22s;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.07);
-  }
-  .lp-splash-btn-secondary:active {
-    background: rgba(255,255,255,.10);
-    transform: scale(.98);
+    background: rgba(255,255,255,.055);
+    color: rgba(255,255,255,.80);
+    border: 1px solid rgba(255,255,255,.12);
+    transition: all .22s ease;
+    backdrop-filter: blur(10px);
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* ── Bottom safe area hint ───────────────────────────────────── */
-  .lp-splash-bottom-hint {
-    position: relative;
-    z-index: 10;
-    margin-top: 24px;
+  .lp-mobile-splash__btn-secondary:active {
+    background: rgba(255,255,255,.10);
+    border-color: rgba(255,255,255,.22);
+    transform: scale(.982);
+  }
+
+  /* ── Trust micro-strip ─────────────────────────────────── */
+  .lp-mobile-splash__trust {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: rgba(255,255,255,.22);
-    font-weight: 500;
-    animation: lp-splash-rise .9s .55s cubic-bezier(.22,1,.36,1) both;
-  }
-  .lp-splash-bottom-hint::before,
-  .lp-splash-bottom-hint::after {
-    content: '';
-    height: 1px;
-    width: 32px;
-    background: rgba(255,255,255,.10);
+    justify-content: center;
+    gap: 14px;
+    margin-top: 6px;
   }
 
-  /* ── Keyframes ───────────────────────────────────────────────── */
-  @keyframes lp-splash-rise {
-    from { opacity: 0; transform: translateY(20px); }
+  .lp-mobile-splash__trust-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,.26);
+    letter-spacing: .3px;
+  }
+
+  .lp-mobile-splash__trust-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(0,212,255,.50);
+    flex-shrink: 0;
+  }
+
+  /* ── Rise keyframe ─────────────────────────────────────── */
+  @keyframes lp-ms-rise {
+    from { opacity: 0; transform: translateY(22px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* ── Second counter-rotating orbit ring ────────────────── */
+  .lp-mobile-splash__logo-ring-outer {
+    position: absolute;
+    inset: -28px;
+    border-radius: 50%;
+    border: 1px solid rgba(167,139,250,.14);
+    border-top-color: rgba(167,139,250,.40);
+    animation: lp-ms-spin-rev 22s linear infinite;
+  }
+
+  @keyframes lp-ms-spin-rev {
+    from { transform: rotate(360deg); }
+    to   { transform: rotate(0deg); }
+  }
+
+  /* ── Heartbeat ECG line (inside logo-bg, behind SVG) ───── */
+  .lp-mobile-splash__heartbeat {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 130px;
+    height: 24px;
+    z-index: 1;
+    opacity: .55;
+  }
+
+  .lp-mobile-splash__heartbeat-path {
+    stroke: #00d4ff;
+    stroke-width: 1.8;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: lp-ms-ecg 2.4s ease-in-out infinite;
+  }
+
+  @keyframes lp-ms-ecg {
+    0%   { stroke-dashoffset: 220; opacity: 0; }
+    10%  { opacity: 1; }
+    60%  { stroke-dashoffset: 0; opacity: .9; }
+    85%  { stroke-dashoffset: 0; opacity: .4; }
+    100% { stroke-dashoffset: 0; opacity: 0; }
+  }
+
+  /* ── Floating feature chips ─────────────────────────────── */
+  .lp-mobile-splash__chips {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: -8px;
+    animation: lp-ms-rise .72s .12s ease both;
+  }
+
+  .lp-mobile-splash__chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border-radius: 99px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(12px);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,.65);
+    letter-spacing: .2px;
+    white-space: nowrap;
+  }
+
+  .lp-mobile-splash__chip:nth-child(1) {
+    animation: lp-ms-rise .65s .20s ease both;
+    border-color: rgba(0,212,255,.18);
+    color: rgba(0,212,255,.80);
+  }
+
+  .lp-mobile-splash__chip:nth-child(2) {
+    animation: lp-ms-rise .65s .30s ease both;
+    border-color: rgba(167,139,250,.18);
+    color: rgba(167,139,250,.85);
+  }
+
+  .lp-mobile-splash__chip:nth-child(3) {
+    animation: lp-ms-rise .65s .40s ease both;
+    border-color: rgba(248,113,113,.18);
+    color: rgba(248,113,113,.80);
+  }
+
+  .lp-mobile-splash__chip-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  /* ── Stats bar ──────────────────────────────────────────── */
+  .lp-mobile-splash__stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 100%;
+    padding: 0 26px;
+    margin-bottom: -4px;
+    animation: lp-ms-rise .78s .14s ease both;
+  }
+
+  .lp-mobile-splash__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    padding: 10px 8px;
+    position: relative;
+  }
+
+  .lp-mobile-splash__stat + .lp-mobile-splash__stat::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    height: 60%;
+    width: 1px;
+    background: rgba(255,255,255,.08);
+  }
+
+  .lp-mobile-splash__stat-num {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #00d4ff 0%, rgba(255,255,255,.75) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+
+  .lp-mobile-splash__stat-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,.28);
+    letter-spacing: .35px;
+    text-transform: uppercase;
+  }
+
+  /* ── Scrolling ticker strip ─────────────────────────────── */
+  .lp-mobile-splash__ticker-wrap {
+    width: 100%;
+    overflow: hidden;
+    padding: 10px 0;
+    position: relative;
+    animation: lp-ms-rise .70s .10s ease both;
+  }
+
+  .lp-mobile-splash__ticker-wrap::before,
+  .lp-mobile-splash__ticker-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 40px;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .lp-mobile-splash__ticker-wrap::before {
+    left: 0;
+    background: linear-gradient(90deg, #050e1d, transparent);
+  }
+
+  .lp-mobile-splash__ticker-wrap::after {
+    right: 0;
+    background: linear-gradient(270deg, #050e1d, transparent);
+  }
+
+  .lp-mobile-splash__ticker {
+    display: flex;
+    gap: 0;
+    animation: lp-ms-ticker 18s linear infinite;
+    width: max-content;
+  }
+
+  .lp-mobile-splash__ticker-inner {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .lp-mobile-splash__ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 18px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.22);
+    white-space: nowrap;
+  }
+
+  .lp-mobile-splash__ticker-item span {
+    color: rgba(0,212,255,.45);
+    font-size: 8px;
+  }
+
+  @keyframes lp-ms-ticker {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* ── Primary button pulse ring ──────────────────────────── */
+  .lp-mobile-splash__btn-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .lp-mobile-splash__btn-pulse {
+    position: absolute;
+    inset: -4px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1.5px solid rgba(0,212,255,.50);
+    animation: lp-ms-btn-pulse 2.2s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes lp-ms-btn-pulse {
+    0%   { opacity: .7; transform: scale(1);    border-color: rgba(0,212,255,.50); }
+    60%  { opacity: 0;  transform: scale(1.04); border-color: rgba(0,212,255,.0); }
+    100% { opacity: 0;  transform: scale(1.04); }
+  }
+
+  /* ── Light-mode overrides ──────────────────────────────── */
+  .lp-root--light-mode .lp-mobile-splash__bg::before {
+    background:
+      radial-gradient(ellipse 90% 50% at 50% -5%,  rgba(0,180,220,.16) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 45% at 10% 85%,  rgba(0,130,175,.10) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 45% at 90% 65%,  rgba(120,100,200,.07) 0%, transparent 55%),
+      linear-gradient(175deg, #dff0f8 0%, #e8f4fb 45%, #daeef8 100%);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__bg::after {
+    background: radial-gradient(circle, rgba(0,160,200,.12) 0%, transparent 65%);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__grid {
+    background-image:
+      linear-gradient(rgba(0,120,170,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,120,170,.025) 1px, transparent 1px);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__brand-name {
+    background: linear-gradient(90deg, #0077aa 0%, rgba(10,26,48,.48) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__brand-rule {
+    background: linear-gradient(90deg, transparent, rgba(0,130,180,.40), transparent);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__title {
+    color: #0a1a30;
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__title em {
+    background: linear-gradient(125deg, #0077aa 20%, #6d5cb0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__sub {
+    color: rgba(10,26,48,.50);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__btn-secondary {
+    background: rgba(10,26,48,.06);
+    color: rgba(10,26,48,.72);
+    border-color: rgba(10,26,48,.13);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__btn-secondary:active {
+    background: rgba(10,26,48,.10);
+    border-color: rgba(10,26,48,.22);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__trust-item {
+    color: rgba(10,26,48,.32);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__logo-ring {
+    border-color: rgba(0,130,180,.22);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__logo-ring-outer {
+    border-color: rgba(90,70,160,.10);
+    border-top-color: rgba(90,70,160,.28);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__heartbeat-path {
+    stroke: #0077aa;
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__chip {
+    background: rgba(10,26,48,.05);
+    border-color: rgba(10,26,48,.10);
+    color: rgba(10,26,48,.55);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__chip:nth-child(1) {
+    border-color: rgba(0,130,180,.22);
+    color: rgba(0,100,150,.80);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__chip:nth-child(2) {
+    border-color: rgba(100,80,180,.20);
+    color: rgba(80,60,160,.75);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__chip:nth-child(3) {
+    border-color: rgba(200,60,60,.18);
+    color: rgba(180,50,50,.75);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__stat-num {
+    background: linear-gradient(135deg, #0077aa 0%, rgba(10,26,48,.65) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__stat-label {
+    color: rgba(10,26,48,.32);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__stat + .lp-mobile-splash__stat::before {
+    background: rgba(10,26,48,.10);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__ticker-item {
+    color: rgba(10,26,48,.20);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__ticker-item span {
+    color: rgba(0,100,150,.38);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__ticker-wrap::before {
+    background: linear-gradient(90deg, #dff0f8, transparent);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__ticker-wrap::after {
+    background: linear-gradient(270deg, #dff0f8, transparent);
+  }
+
+  .lp-root--light-mode .lp-mobile-splash__btn-pulse {
+    border-color: rgba(0,130,180,.45);
+  }}
+  /* ── ENHANCEMENTS: Carousel, privacy copy, biometric, WCAG ─ */
+
+  /* WCAG fix — sub-text brightened from .42 → .72 (passes 4.5:1) */
+  .lp-mobile-splash__sub {
+    color: rgba(255,255,255,.72) !important;
+  }
+  .lp-root--light-mode .lp-mobile-splash__sub {
+    color: rgba(10,26,48,.65) !important;
+  }
+
+  /* Sign In button — cyan border for visibility */
+  .lp-mobile-splash__btn-secondary {
+    border-color: rgba(0,212,255,.35) !important;
+    color: rgba(255,255,255,.88) !important;
+  }
+  .lp-mobile-splash__btn-secondary:active {
+    border-color: rgba(0,212,255,.60) !important;
+  }
+  .lp-root--light-mode .lp-mobile-splash__btn-secondary {
+    border-color: rgba(0,140,190,.30) !important;
+  }
+
+  /* Biometric icon inside Sign In button */
+  .lp-mobile-splash__biometric-icon {
+    color: rgba(0,212,255,.75);
+    flex-shrink: 0;
+  }
+
+  /* Privacy micro-copy */
+  .lp-mobile-splash__privacy-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: rgba(255,255,255,.38);
+    margin: -2px 0;
+    letter-spacing: .15px;
+  }
+  .lp-mobile-splash__privacy-copy svg {
+    flex-shrink: 0;
+    color: rgba(0,212,255,.50);
+  }
+  .lp-root--light-mode .lp-mobile-splash__privacy-copy {
+    color: rgba(10,26,48,.38);
+  }
+
+  /* ── Benefit carousel ──────────────────────────────────────── */
+  .lp-mobile-splash__carousel {
+    width: 100%;
+    overflow: hidden;       /* clips slides outside the viewport */
+    position: relative;
+    animation: lp-ms-rise .70s .15s ease both;
+  }
+  .lp-mobile-splash__carousel-track {
+    display: flex;
+    /* Each slide is 100% of the carousel container.
+       translateX(-N * 100%) moves exactly N slides.     */
+    transition: transform .50s cubic-bezier(.4,0,.2,1);
+  }
+  .lp-mobile-splash__slide {
+    min-width: 100%;        /* each slide fills the full carousel width */
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 28px 4px;
+    text-align: center;
+  }
+  .lp-mobile-splash__slide-icon {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 2px;
+  }
+  .lp-mobile-splash__slide-icon--teal {
+    background: rgba(0,212,255,.12);
+    border: 1px solid rgba(0,212,255,.22);
+    color: #00d4ff;
+  }
+  .lp-mobile-splash__slide-icon--violet {
+    background: rgba(167,139,250,.12);
+    border: 1px solid rgba(167,139,250,.22);
+    color: #a78bfa;
+  }
+  .lp-mobile-splash__slide-icon--red {
+    background: rgba(248,113,113,.12);
+    border: 1px solid rgba(248,113,113,.22);
+    color: #f87171;
+  }
+  .lp-mobile-splash__slide-icon--green {
+    background: rgba(52,211,153,.12);
+    border: 1px solid rgba(52,211,153,.22);
+    color: #34d399;
+  }
+  .lp-mobile-splash__slide-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -.3px;
+    color: rgba(255,255,255,.92);
+    margin: 0;
+    line-height: 1.2;
+  }
+  .lp-mobile-splash__slide-desc {
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255,255,255,.55);
+    margin: 0;
+    max-width: 260px;
+  }
+  .lp-root--light-mode .lp-mobile-splash__slide-title {
+    color: rgba(10,26,48,.90);
+  }
+  .lp-root--light-mode .lp-mobile-splash__slide-desc {
+    color: rgba(10,26,48,.55);
+  }
+
+  /* Carousel nav row */
+  .lp-mobile-splash__carousel-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 0 4px;
+  }
+  .lp-mobile-splash__carousel-arrow {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.10);
+    color: rgba(255,255,255,.55);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .18s;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+  .lp-mobile-splash__carousel-arrow:active {
+    background: rgba(255,255,255,.14);
+    transform: scale(.92);
+  }
+  .lp-mobile-splash__carousel-dots {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .lp-mobile-splash__carousel-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+    border: none; cursor: pointer; padding: 0;
+    transition: all .25s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lp-mobile-splash__carousel-dot--active {
+    width: 20px;
+    border-radius: 3px;
+    background: rgba(0,212,255,.75);
+  }
+  .lp-root--light-mode .lp-mobile-splash__carousel-arrow {
+    background: rgba(10,26,48,.06);
+    border-color: rgba(10,26,48,.10);
+    color: rgba(10,26,48,.45);
+  }
+  .lp-root--light-mode .lp-mobile-splash__carousel-dot {
+    background: rgba(10,26,48,.15);
+  }
+  .lp-root--light-mode .lp-mobile-splash__carousel-dot--active {
+    background: rgba(0,120,170,.65);
+  }
+/* ================================================================
+   MOBILE — How It Works section
+   Shown only on ≤640px, below the hero splash.
+   Replaces the feature cards which are hidden on mobile.
+   ================================================================ */
+
+.lp-mobile-how {
+  display: none; /* hidden on desktop */
 }
 
-/* On wider screens make absolutely sure the splash is hidden */
-@media (min-width: 641px) {
-  .lp-mobile-splash { display: none !important; }
+@media (max-width: 640px) {
+  .lp-mobile-how {
+    display: block;
+    position: relative;
+    z-index: 10;
+    padding: 36px 20px 40px;
+    animation: lp-ms-rise .70s .20s ease both;
+  }
+
+  /* Section label */
+  .lp-mobile-how__label {
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2.2px;
+    color: rgba(0,212,255,.55);
+    margin-bottom: 10px;
+  }
+
+  /* Section heading */
+  .lp-mobile-how__heading {
+    text-align: center;
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.4px;
+    color: rgba(255,255,255,.95);
+    margin: 0 0 28px;
+  }
+
+  .lp-mobile-how__heading em {
+    font-style: italic;
+    color: #00d4ff;
+  }
+
+  /* Steps list */
+  .lp-mobile-how__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Individual step card */
+  .lp-mobile-how__step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.07);
+    transition: border-color .25s, background .25s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .lp-mobile-how__step:active {
+    background: rgba(0,212,255,.05);
+    border-color: rgba(0,212,255,.18);
+  }
+
+  /* Step number badge */
+  .lp-mobile-how__num {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: rgba(0,212,255,.10);
+    border: 1px solid rgba(0,212,255,.20);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Serif Display', serif;
+    font-size: 18px;
+    color: #00d4ff;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  /* Step text */
+  .lp-mobile-how__body {
+    flex: 1;
+    min-width: 0;
+    padding-top: 1px;
+  }
+
+  .lp-mobile-how__title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    color: rgba(255,255,255,.93);
+    margin: 0 0 5px;
+    line-height: 1.3;
+  }
+
+  .lp-mobile-how__desc {
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255,255,255,.48);
+    margin: 0;
+  }
+
+  /* Connector line between steps */
+  .lp-mobile-how__connector {
+    width: 1px;
+    height: 12px;
+    background: linear-gradient(180deg, rgba(0,212,255,.25), transparent);
+    margin: 0 auto;
+    /* vertically aligns under the number badge centre (19px left pad + 19px = 38px/2) */
+    margin-left: 38px;
+  }
+
+  /* CTA row below the steps */
+  .lp-mobile-how__cta {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── Light mode overrides ─────────────────────────────── */
+  .lp-root--light-mode .lp-mobile-how__label {
+    color: rgba(0,130,180,.65);
+  }
+
+  .lp-root--light-mode .lp-mobile-how__heading {
+    color: #0a1a30;
+  }
+
+  .lp-root--light-mode .lp-mobile-how__heading em {
+    color: #0077aa;
+  }
+
+  .lp-root--light-mode .lp-mobile-how__step {
+    background: rgba(10,26,48,.04);
+    border-color: rgba(10,26,48,.08);
+  }
+
+  .lp-root--light-mode .lp-mobile-how__step:active {
+    background: rgba(0,130,180,.07);
+    border-color: rgba(0,130,180,.22);
+  }
+
+  .lp-root--light-mode .lp-mobile-how__num {
+    background: rgba(0,130,180,.09);
+    border-color: rgba(0,130,180,.20);
+    color: #0077aa;
+  }
+
+  .lp-root--light-mode .lp-mobile-how__title {
+    color: rgba(10,26,48,.92);
+  }
+
+  .lp-root--light-mode .lp-mobile-how__desc {
+    color: rgba(10,26,48,.52);
+  }
+
+  .lp-root--light-mode .lp-mobile-how__connector {
+    background: linear-gradient(180deg, rgba(0,130,180,.22), transparent);
+  }
 }

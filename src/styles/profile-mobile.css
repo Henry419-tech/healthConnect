@@ -1,0 +1,882 @@
+/* ==========================================================================
+   profile-mobile.css  ·  v2
+   Mobile-first overrides for ProfileContent — import AFTER profile.css
+   ==========================================================================
+   Visual thesis: premium native-app feel. Avatar left, info right, edit
+   button floats as a glass chip in the top-right corner. Large avatar
+   carries real weight. Touch interactions feel physical, not accidental.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   ① HERO CARD — IDENTITY ROW REDESIGN
+   On mobile the left section flips from stacked-column to a horizontal
+   row: large avatar anchored left, name / meta / tags filling the right,
+   and the edit button lifted to an absolute glass chip in the top corner.
+   ========================================================================== */
+
+   @media (max-width: 900px) {
+
+    /* Card: needs relative so the edit FAB can be absolutely positioned */
+    .pr-hero-card {
+      position: relative;
+    }
+  
+    /* Hero-left becomes a horizontal row */
+    .pr-hero-card .pr-hero-left {
+      flex-direction:  row;
+      align-items:     flex-start;
+      text-align:      left;
+      padding:         20px 16px 22px;
+      gap:             16px;
+      position:        relative; /* FAB anchors here */
+    }
+  
+    /* Avatar wrap: no centering needed in row layout */
+    .pr-identity__avatar-wrap {
+      flex-shrink: 0;
+      align-self:  flex-start;
+    }
+  
+    /* Avatar: larger on mobile, double-ring glow for depth */
+    .pr-hero-card .pr-identity__avatar {
+      width:         108px;
+      height:        108px;
+      border-radius: 26px;
+      box-shadow:
+        0 0 0 3px var(--hc-surface),
+        0 0 0 5.5px rgba(0, 210, 255, 0.35),
+        0 10px 32px rgba(0, 0, 0, 0.22),
+        0 2px  8px  rgba(0, 0, 0, 0.12);
+    }
+  
+    html.dark-mode .pr-hero-card .pr-identity__avatar {
+      box-shadow:
+        0 0 0 3px rgba(4, 16, 30, 0.90),
+        0 0 0 5.5px rgba(0, 210, 255, 0.42),
+        0 10px 36px rgba(0, 0, 0, 0.55),
+        0 2px  8px  rgba(0, 0, 0, 0.30);
+    }
+  
+    /* Info: left-aligned, fills remaining width */
+    .pr-identity__info {
+      flex:           1;
+      min-width:      0;
+      padding-top:    0;
+      padding-right:  0;
+    }
+  
+    /* Name sits below the edit/export buttons (which are absolutely placed above) */
+    .pr-hero-card .pr-identity__name {
+      font-size:      21px;
+      letter-spacing: -0.6px;
+      margin-bottom:  3px;
+      margin-top:     0;
+      padding-top:    32px;   /* clears the absolutely-positioned action buttons */
+      white-space:    normal; /* allow wrap so long names aren't truncated */
+      overflow:       visible;
+      text-overflow:  unset;
+      line-height:    1.2;
+    }
+  
+    .pr-hero-card .pr-identity__meta {
+      font-size:     12px;
+      margin-bottom: 10px;
+    }
+  
+    /* Tags: left-aligned */
+    .pr-hero-card .pr-identity__tags {
+      justify-content: flex-start;
+    }
+  
+    /* Actions: flow row, pinned to top-right via flex on the info column */
+    .pr-hero-left .pr-identity__actions {
+      position:       absolute;
+      top:            16px;
+      right:          14px;
+      left:           auto;
+      flex-direction: row;
+      align-items:    center;
+      gap:            6px;
+      z-index:        4;
+      padding-left:   0;
+    }
+  
+    /* Mobile edit chip — glass button floating in the corner */
+    .pr-mob-edit {
+      display:       inline-flex;
+      align-items:   center;
+      gap:           4px;
+      padding:       7px 11px;
+      font-size:     11px;
+      font-weight:   700;
+      border-radius: 9px;
+      white-space:   nowrap;
+      /* Glass chip */
+      background:            rgba(255, 255, 255, 0.82);
+      border:                1px solid rgba(0, 210, 255, 0.32);
+      color:                 var(--hc-teal);
+      backdrop-filter:         blur(14px) saturate(1.4);
+      -webkit-backdrop-filter: blur(14px) saturate(1.4);
+      box-shadow:
+        0 1px 3px  rgba(0, 0, 0, 0.08),
+        0 4px 14px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.80);
+      transition:
+        transform    0.16s cubic-bezier(0.23, 1, 0.32, 1),
+        box-shadow   0.16s cubic-bezier(0.23, 1, 0.32, 1),
+        background   0.16s;
+      letter-spacing: 0.1px;
+    }
+  
+    /* Mobile export chip — sits beside Edit chip */
+    .pr-mob-export {
+      display:       inline-flex;
+      align-items:   center;
+      gap:           4px;
+      padding:       7px 11px;
+      font-size:     11px;
+      font-weight:   700;
+      border-radius: 9px;
+      white-space:   nowrap;
+      background:            rgba(255, 255, 255, 0.80);
+      border:                1px solid rgba(0, 0, 0, 0.10);
+      color:                 var(--hc-text);
+      backdrop-filter:         blur(14px) saturate(1.4);
+      -webkit-backdrop-filter: blur(14px) saturate(1.4);
+      box-shadow:
+        0 1px 3px  rgba(0, 0, 0, 0.08),
+        0 4px 14px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.80);
+      transition: transform 0.16s, background 0.16s;
+      letter-spacing: 0.1px;
+    }
+    html.dark-mode .pr-mob-export {
+      background:   rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.12);
+      color:        var(--hc-text-muted);
+      box-shadow:
+        0 1px 3px  rgba(0, 0, 0, 0.35),
+        0 4px 14px rgba(0, 0, 0, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .pr-mob-export:disabled { opacity: 0.6; cursor: not-allowed; }
+  
+    html.dark-mode .pr-mob-edit {
+      background:   rgba(0, 210, 255, 0.10);
+      border-color: rgba(0, 210, 255, 0.32);
+      color:        var(--hc-teal);
+      box-shadow:
+        0 1px 3px  rgba(0, 0, 0, 0.35),
+        0 4px 14px rgba(0, 0, 0, 0.30),
+        inset 0 1px 0 rgba(0, 210, 255, 0.12);
+    }
+  
+    /* Hover on pointer devices */
+    @media (hover: hover) and (pointer: fine) {
+      .pr-mob-edit:hover {
+        background:   rgba(0, 210, 255, 0.14);
+        border-color: rgba(0, 210, 255, 0.50);
+        box-shadow:
+          0 2px 6px  rgba(0, 0, 0, 0.08),
+          0 6px 18px rgba(0, 210, 255, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.80);
+      }
+    }
+  
+    /* EDITING MODE: reset floating layout back to column */
+    .pr-hero-card--editing .pr-hero-left {
+      flex-direction: column;
+      align-items:    stretch;
+      padding:        22px 16px 18px;
+      gap:            14px;
+    }
+  
+    .pr-hero-card--editing .pr-hero-card .pr-identity__avatar {
+      width:         96px;
+      height:        96px;
+      border-radius: 22px;
+    }
+  
+    .pr-hero-card--editing .pr-identity__info {
+      padding-right: 0;
+      padding-top:   0;
+    }
+  
+    .pr-hero-card--editing .pr-identity__avatar-wrap {
+      align-self: center;
+    }
+  
+    /* Save / Cancel buttons: static flow, right-aligned row */
+    .pr-hero-card--editing .pr-hero-left .pr-identity__actions {
+      position:        static;
+      left:            auto;
+      flex-direction:  row;
+      justify-content: flex-end;
+      align-items:     center;
+      gap:             10px;
+      width:           100%;
+      margin-top:      4px;
+    }
+  
+    .pr-hero-card--editing .pr-identity__actions .pr-btn {
+      flex:            1;
+      justify-content: center;
+      max-width:       155px;
+      padding:         10px 14px;
+    }
+  }
+  
+  /* Smaller phones */
+  @media (max-width: 480px) {
+  
+    .pr-hero-left {
+      padding: 18px 14px 20px !important;
+      gap:     14px;
+    }
+  
+    .pr-identity__avatar {
+      width:         96px !important;
+      height:        96px !important;
+      border-radius: 22px !important;
+    }
+  
+    .pr-identity__name { font-size: 19px !important; padding-top: 30px; }
+  
+    .pr-identity__info { padding-top: 0; }
+  
+    .pr-hero-left .pr-identity__actions {
+      top:  18px;
+      left: 124px; /* 96px avatar + 14px gap + 14px padding */
+    }
+  
+    .pr-mob-edit {
+      padding:   7px 12px !important;
+      font-size: 11.5px !important;
+    }
+  }
+  
+  /* Tiny phones (360px and below) */
+  @media (max-width: 380px) {
+  
+    .pr-hero-left {
+      padding: 16px 12px 18px !important;
+      gap:     12px;
+    }
+  
+    .pr-identity__avatar {
+      width:         84px !important;
+      height:        84px !important;
+      border-radius: 20px !important;
+    }
+  
+    .pr-identity__name { font-size: 17px !important; padding-top: 28px; }
+  
+    .pr-identity__info { padding-top: 0; }
+  
+    .pr-hero-left .pr-identity__actions {
+      top:  16px;
+      left: 108px; /* 84px avatar + 12px gap + 12px padding */
+    }
+  
+    .pr-mob-edit {
+      padding:   6px 10px !important;
+      font-size: 11px !important;
+      gap:       4px !important;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ② PAGE HEADER — COMPACT ON MOBILE
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-page-header {
+      padding:        20px 20px 16px;
+      flex-direction: column;
+      align-items:    flex-start;
+      gap:            10px;
+    }
+  
+    .pr-page-header__actions {
+      width:           100%;
+      justify-content: flex-end;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-page-header { padding: 16px 16px 14px; }
+  
+    .pr-page-header__title {
+      font-size:      clamp(22px, 6vw, 30px);
+      letter-spacing: -1px;
+    }
+  
+    .pr-page-header__sub {
+      font-size: 11px;
+      padding:   4px 11px 4px 8px;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ③ ALERT BANNERS
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-alert { margin: 0 16px 14px; }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-alert {
+      margin:    0 12px 10px;
+      padding:   11px 14px;
+      font-size: 12px;
+      gap:       8px;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ④ STATS ROW — 4-col → 2×2
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-stats {
+      grid-template-columns: repeat(2, 1fr);
+      margin: 0 16px 20px;
+      gap:    10px;
+    }
+  
+    .pr-stat { padding: 20px 14px; }
+    .pr-stat__val { font-size: 26px; }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-stats { margin: 0 12px 16px; gap: 8px; }
+  
+    .pr-stat {
+      padding:    16px 10px;
+      gap:        6px;
+      min-height: 44px;
+    }
+  
+    .pr-stat__val   { font-size: 22px; letter-spacing: -0.5px; }
+    .pr-stat__label { font-size: 9px;  letter-spacing: 0.9px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑤ MEDICAL ID BANNER
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-medid-banner {
+      margin:  0 16px 20px;
+      width:   calc(100% - 32px);
+      padding: 18px 20px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-medid-banner {
+      margin:  0 12px 16px;
+      width:   calc(100% - 24px);
+      padding: 16px 16px;
+      gap:     14px;
+    }
+  
+    .pr-medid-banner__icon  { width: 44px; height: 44px; border-radius: 12px; }
+    .pr-medid-banner__title { font-size: 14px; }
+    .pr-medid-banner__sub   { font-size: 11px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑥ HEALTH RECORDS GRID — stays 2-col all the way down (mirrors
+        emergency page tier-2/3 pattern: grid never collapses to 1-col)
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-grid { margin: 0 16px 24px; gap: 10px; }
+    .pr-my-records { margin: 0 16px 24px; }
+  }
+  
+  @media (max-width: 900px) {
+    /*
+     * On mobile, all cards stay in their natural 2-col grid.
+     * Tagged cards (1–4) naturally pair; tagless cards (5–8)
+     * also pair side-by-side — same pattern as the emergency
+     * page's tier-2/3 cards (Share Location ↔ My Medical ID).
+     */
+  
+    /* Cards 1–4: natural order, tagged cards pair fine */
+    .pr-grid .pr-card:nth-child(1) { order: 1; }
+    .pr-grid .pr-card:nth-child(2) { order: 2; }
+    .pr-grid .pr-card:nth-child(3) { order: 3; }
+    .pr-grid .pr-card:nth-child(4) { order: 4; }
+  
+    /* Tagless cards (5–8): all sit naturally in the 2-col grid, side by side */
+    .pr-grid .pr-card:nth-child(5) { order: 5; }
+    .pr-grid .pr-card:nth-child(6) { order: 6; }
+    .pr-grid .pr-card:nth-child(7) { order: 7; }
+    .pr-grid .pr-card:nth-child(8) { order: 8; }
+  }
+  
+  @media (max-width: 560px) {
+    /* Keep 2-col — just tighten margins and card padding for small screens */
+    .pr-grid {
+      margin: 0 12px 20px;
+      gap: 8px;
+    }
+    .pr-my-records { margin: 0 12px 20px; }
+  
+    .pr-card         { padding: 16px 14px 14px; gap: 12px; }
+    .pr-card__header { gap: 10px; }
+    .pr-card__icon   { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; }
+    .pr-card__title  { font-size: 13px; }
+    .pr-card__tags   { gap: 4px; }
+  }
+  
+  @media (max-width: 380px) {
+    /* Tiny phones: slightly looser gap so cards don't feel cramped */
+    .pr-grid        { gap: 7px; margin: 0 10px 18px; }
+    .pr-card        { padding: 14px 12px 12px; }
+    .pr-card__icon  { width: 30px; height: 30px; border-radius: 8px; }
+    .pr-card__title { font-size: 12px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑦ ACCOUNT SETTINGS
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-settings-section { margin: 0 16px 32px; }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-settings-section { margin: 0 12px 24px; }
+  
+    .pr-settings-item { padding: 14px 16px; gap: 12px; }
+    .pr-settings-item__label { font-size: 13.5px; }
+    .pr-settings-item__sub   { font-size: 11.5px; }
+    .pr-settings-item__icon  { width: 32px; height: 32px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑧ MODAL — BOTTOM SHEET ON MOBILE
+     Slides up with the drawer easing. Drag handle, safe-area padding.
+     ========================================================================== */
+  
+  @media (max-width: 600px) {
+    .pr-modal-overlay {
+      align-items: flex-end;
+      padding:     0;
+      background:  rgba(0, 0, 0, 0.65);
+    }
+  
+    .pr-modal {
+      border-radius:  24px 24px 0 0;
+      max-height:     88dvh;
+      animation:      pr-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  
+    /* Drag-handle pill */
+    .pr-modal::before {
+      content:       '';
+      display:       block;
+      width:         36px;
+      height:        4px;
+      border-radius: 2px;
+      background:    var(--hc-border);
+      margin:        10px auto 0;
+      opacity:       0.60;
+    }
+  
+    .pr-modal__header { padding: 12px 18px 14px; }
+    .pr-modal__body   { padding: 18px 18px 24px; }
+  
+    .pr-modal__save,
+    .pr-modal__action {
+      padding:    14px;
+      font-size:  14px;
+      min-height: 48px;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ⑨ TOUCH INTERACTIONS — Emil principle
+     Gate hover animations behind (hover: none). Replace with :active.
+     ========================================================================== */
+  
+  @media (hover: none) {
+    /* Strip hover lifts */
+    .pr-card:hover,
+    .pr-stat:hover,
+    .pr-vitals-panel:hover,
+    .pr-medid-banner:hover,
+    .pr-btn--primary:hover,
+    .pr-btn--ghost:hover     { transform: none; filter: none; }
+  
+    /* Strip secondary hover effects */
+    .pr-card:hover::after             { opacity: 0; }
+    .pr-stat:hover::after             { opacity: 0; }
+    .pr-card:hover .pr-card__arrow    { transform: none; }
+    .pr-medid-banner:hover::after     { opacity: 0; }
+    .pr-medid-banner:hover .pr-medid-banner__icon  { transform: none; }
+    .pr-medid-banner:hover .pr-medid-banner__arrow { transform: none; }
+    .pr-vitals-panel:hover .pr-vitals-cta { opacity: 0.75; color: var(--hc-text3); }
+  
+    .pr-completeness-nudge:hover { background: transparent; border-color: transparent; transform: none; }
+    .pr-completeness-nudge:hover .pr-completeness-nudge__arrow { transform: none; opacity: 0.45; }
+    .pr-completeness-nudge:hover .pr-completeness-nudge__pts   { background: rgba(0,210,255,0.10); transform: none; }
+  
+    /* Physical :active press feedback */
+    .pr-card:active         { transform: scale(0.97); transition-duration: 0.09s; }
+    .pr-stat:active         { transform: scale(0.97); transition-duration: 0.09s; }
+    .pr-medid-banner:active { transform: scale(0.98); transition-duration: 0.09s; }
+    .pr-vitals-panel:active { transform: scale(0.98); transition-duration: 0.09s; }
+    .pr-btn--primary:active { transform: scale(0.97); filter: brightness(0.96); }
+    .pr-btn--ghost:active   { transform: scale(0.97); }
+  
+    .pr-settings-item:active {
+      background:          color-mix(in srgb, var(--hc-teal) 8%, transparent);
+      transition-duration: 0.06s;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ⑩ VITALS PANEL — tiny-screen edge cases
+     ========================================================================== */
+  
+  @media (max-width: 380px) {
+    .pr-vitals-mini-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .pr-vitals-panel     { margin: 0 10px 16px; width: calc(100% - 20px); }
+  }
+  
+  
+  /* ==========================================================================
+     ⑪ COMPLETENESS PANEL — mobile edge cases
+     ========================================================================== */
+  
+  @media (max-width: 380px) {
+    .pr-completeness-nudge       { padding: 6px 8px; }
+    .pr-completeness-nudge__text { font-size: 11.5px; }
+    .pr-completeness-nudge__pts  { font-size: 9.5px; padding: 2px 5px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑫ FORM INPUTS — 16px prevents iOS auto-zoom on focus
+     ========================================================================== */
+  
+  @media (max-width: 600px) {
+    .pr-form-input,
+    .pr-form-select       { padding: 13px 15px; font-size: 16px; }
+    .pr-form-label        { font-size: 10.5px; margin-bottom: 6px; }
+    .pr-form-row          { margin-bottom: 14px; }
+  
+    .pr-edit-health-grid,
+    .pr-nhis-form-grid    { grid-template-columns: 1fr; }
+    .pr-form-row--full    { grid-column: 1; }
+  
+    .pr-hero-vitals__input,
+    .pr-hero-vitals__select { font-size: 16px; padding: 9px 12px; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑬ EMERGENCY CONTACT FORM
+     ========================================================================== */
+  
+  @media (max-width: 480px) {
+    .pr-ec-add__btns               { flex-direction: column-reverse; gap: 8px; }
+    .pr-ec-add__btns .pr-btn       { width: 100%; justify-content: center; }
+    .pr-ec-add__btns .pr-modal__save { margin-top: 0; }
+  }
+  
+  
+  /* ==========================================================================
+     ⑭ GLOBAL: SCROLL SAFETY + SAFE-AREA
+     ========================================================================== */
+  
+  @media (max-width: 860px) {
+    .pr-page { overflow-x: hidden; }
+  }
+  
+  /* ==========================================================================
+     ⑮ PROFILE SUGGESTIONS (AI NUDGE) — standalone card below hero
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-nudge-standalone {
+      margin: 0 16px 18px;
+      width: calc(100% - 32px);
+      padding: 16px 18px;
+      border-radius: 14px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-nudge-standalone {
+      margin: 0 12px 16px;
+      width: calc(100% - 24px);
+      padding: 14px 16px;
+      border-radius: 13px;
+    }
+  
+    .pr-nudge-standalone .pr-ai-insight__tip {
+      font-size: 12.5px;
+    }
+  
+    .pr-nudge-standalone .pr-ai-insight__list {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ⑯ HERO CARD — right side completeness (mobile stacking fixes)
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    /* Hero card: already column from profile.css, tighten margins */
+    .pr-hero-card {
+      margin: 0 12px 16px;
+      border-radius: 20px;
+    }
+  
+    /* Ring section: center ring horizontally, less vertical padding */
+    .pr-hero-right .pr-completeness-ring-wrap {
+      padding: 18px 24px 10px;
+    }
+  
+    /* Completeness body: tighten up */
+    .pr-hero-right .pr-completeness-body {
+      padding: 12px 16px 16px;
+    }
+  
+    /* Category bars: 3-col grid for compact horizontal read */
+    .pr-completeness-cats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px 8px;
+      margin-bottom: 14px;
+    }
+  
+    .pr-completeness-cat__name {
+      font-size: 9.5px;
+      letter-spacing: 0.04em;
+    }
+  
+    .pr-completeness-cat__frac {
+      font-size: 10px;
+      font-weight: 700;
+    }
+  
+    /* Nudge items: full-width, comfortable touch targets */
+    .pr-completeness-nudge {
+      padding: 10px 12px;
+      border-radius: 10px;
+      min-height: 44px;
+      align-items: center;
+    }
+  
+    .pr-completeness-nudge__text {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+  
+    .pr-completeness-nudge__pts {
+      font-size: 10px;
+      padding: 2px 7px;
+      flex-shrink: 0;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-hero-card {
+      margin: 0 10px 14px;
+      border-radius: 18px;
+    }
+  
+    .pr-hero-right .pr-completeness-body {
+      padding: 10px 14px 14px;
+    }
+  
+    .pr-completeness-cats {
+      gap: 8px 6px;
+    }
+  
+    .pr-completeness-nudge {
+      padding: 9px 10px;
+      min-height: 42px;
+    }
+  
+    .pr-completeness-nudge__text {
+      font-size: 11.5px;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ⑰ ACTIVITY HUB — mobile
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-activity-hub {
+      margin: 0 12px 16px;
+      width: calc(100% - 24px);
+      border-radius: 16px;
+    }
+  
+    .pr-activity-hub__main {
+      padding: 16px 18px;
+      min-height: 64px;
+    }
+  
+    .pr-activity-hub__icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+    }
+  
+    .pr-activity-hub__title {
+      font-size: 13.5px;
+    }
+  
+    .pr-activity-hub__sub {
+      font-size: 11.5px;
+    }
+  
+    .pr-activity-hub__timeline {
+      padding: 10px 18px 14px;
+    }
+  
+    .pr-activity-hub__divider {
+      margin: 0 18px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-activity-hub {
+      margin: 0 10px 14px;
+      width: calc(100% - 20px);
+      border-radius: 14px;
+    }
+  
+    .pr-activity-hub__main {
+      padding: 14px 16px;
+      gap: 12px;
+    }
+  
+    .pr-activity-hub__icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+    }
+  
+    .pr-activity-hub__title { font-size: 13px; }
+    .pr-activity-hub__sub   { font-size: 11px; }
+    .pr-activity-hub__tl-label { font-size: 11.5px; }
+    .pr-activity-hub__tl-badge { font-size: 10.5px; }
+    .pr-activity-hub__divider { margin: 0 14px; }
+    .pr-activity-hub__timeline { padding: 9px 16px 13px; }
+  }
+  
+  /* Touch: no hover lifts on activity hub */
+  @media (hover: none) {
+    .pr-activity-hub:hover { transform: none; }
+    .pr-activity-hub__main:hover { background: transparent; }
+    .pr-activity-hub__main:hover .pr-activity-hub__icon { transform: none; box-shadow: none; }
+    .pr-activity-hub__main:hover .pr-activity-hub__arrow { transform: none; opacity: 0.65; }
+    .pr-activity-hub__timeline:hover { background: color-mix(in srgb, var(--hc-teal) 5%, transparent); }
+    .pr-activity-hub__main:active { background: color-mix(in srgb, var(--hc-teal) 10%, transparent); }
+    .pr-activity-hub__timeline:active { background: color-mix(in srgb, var(--hc-teal) 12%, transparent); }
+  }
+  
+  
+  /* ==========================================================================
+     ⑳ VITALS PANEL — full-width on mobile
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-vitals-panel {
+      margin: 0 12px 16px;
+      width: calc(100% - 24px);
+      padding: 18px 16px 22px;
+      border-radius: 18px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .pr-vitals-panel {
+      margin: 0 10px 14px;
+      width: calc(100% - 20px);
+      padding: 16px 14px 18px;
+      border-radius: 16px;
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ㉑ AI INSIGHT CARDS (allergy/condition/coherence) — mobile
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-ai-insight {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+    }
+  
+    .pr-ai-insight__tip { font-size: 12px; }
+    .pr-ai-insight__list { font-size: 11.5px; }
+  }
+  
+  
+  /* ==========================================================================
+     ㉒ PAGE HEADER — already handled; ensure safe area top
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-page {
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ㉓ SETTINGS — already handled; bottom safe area
+     ========================================================================== */
+  
+  @media (max-width: 480px) {
+    .pr-settings-section:last-child {
+      padding-bottom: max(env(safe-area-inset-bottom, 16px), 24px);
+    }
+  }
+  
+  
+  /* ==========================================================================
+     ㉔ DISMISS BUTTON — larger tap target on mobile
+     ========================================================================== */
+  
+  @media (max-width: 900px) {
+    .pr-ai-insight__dismiss {
+      padding: 6px;
+      min-width: 32px;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }

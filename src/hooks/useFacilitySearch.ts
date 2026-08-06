@@ -3,7 +3,7 @@
  * src/hooks/useFacilitySearch.ts
  *
  * Shared hook: search-bar state + navigation to /facilities?q=<term>.
- * Use this in Dashboard, Symptom Checker, Emergency, and Profile pages
+ * Use this in Dashboard, Emergency, and Profile pages
  * so all top bars behave identically.
  *
  * Usage:
@@ -14,27 +14,46 @@
 'use client';
 
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export function useFacilitySearch() {
-  const router = useRouter();
+  const router   = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  /** Navigate to /facilities with the typed query pre-filled. */
+  /**
+   * On submit:
+   *  - Empty query → just focus the input
+   *  - On /facilities already → replace URL in-place (no full navigation,
+   *    page filters live and dropdown opens via the ?q= mount effect)
+   *  - Any other page → push to /facilities?q=<term>
+   */
   const handleSearchSubmit = useCallback(() => {
     const q = searchQuery.trim();
     if (!q) {
       searchInputRef.current?.focus();
       return;
     }
-    router.push(`/facilities?q=${encodeURIComponent(q)}`);
-  }, [searchQuery, router]);
+    const target = `/facilities?q=${encodeURIComponent(q)}`;
+    if (pathname === '/facilities') {
+      router.replace(target, { scroll: false });
+    } else {
+      router.push(target);
+    }
+  }, [searchQuery, pathname, router]);
 
   /** Wire directly to the input's onKeyDown. */
-  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSearchSubmit();
-  };
+  const handleSearchKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearchSubmit();
+    }
+    if (e.key === 'Escape') {
+      setSearchQuery('');
+      searchInputRef.current?.blur();
+    }
+  }, [handleSearchSubmit]);
 
   return {
     searchQuery,

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, relationship, number, priority, email, notes } = body;
+    const { name, relationship, number, priority, email } = body;
 
     if (!name || !relationship || !number) {
       return NextResponse.json(
@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
         number:       number.trim(),
         priority:     assignedPriority,
         email:        email?.trim()  || null,
-        notes:        notes?.trim()  || null,
       },
     });
 
@@ -102,7 +101,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, relationship, number, priority, email, notes } = body;
+    const { id, name, relationship, number, priority, email } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Contact ID is required.' }, { status: 400 });
@@ -145,7 +144,6 @@ export async function PUT(request: NextRequest) {
         number:       number.trim(),
         priority:     priority ?? existingContact.priority,
         email:        email?.trim()  || null,
-        notes:        notes?.trim()  || null,
       },
     });
 

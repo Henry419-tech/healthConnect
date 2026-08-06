@@ -6,6 +6,8 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string
+      /** Biological sex / gender from HealthProfile — null until the user sets it in their profile */
+      gender: string | null
     } & DefaultSession["user"]
   }
 
@@ -20,5 +22,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string
+    gender?: string | null
   }
 }

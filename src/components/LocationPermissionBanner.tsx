@@ -1,3 +1,5 @@
+'use client'
+
 // LocationPermissionBanner.tsx
 // Add this component to your facility finder page
 

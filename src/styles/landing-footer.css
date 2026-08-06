@@ -9,7 +9,7 @@
   z-index: 10;
   background: rgba(4, 10, 22, 0.85);
   border-top: 1px solid rgba(255,255,255,.07);
-  display: block; /* visible on desktop */
+  display: block; /* visible on desktop/tablet only — see 640px media query below */
 }
 .lp-footer-inner {
   max-width: 1200px;
@@ -120,13 +120,12 @@
   .lp-footer-nav-group { min-width: 100px; }
 }
 @media (max-width: 640px) {
+  /* Emergency access is already covered by the dedicated slide in the
+     hero carousel above. The nav links here are all duplicate paths to
+     the same sign-in/sign-up panel the hero CTA already opens, and
+     legal is handled by the in-app modals in the sign-up form, not
+     footer links — so there's nothing left in this footer worth the
+     weight on a phone-width page. .lp-mobile-closer (page.tsx, styled
+     in landing.css) replaces it with a one-line closer instead. */
   .lp-footer { display: none; }
-}
-
-@media (max-width: 480px) {
-  .lp-footer-inner   { padding: 32px 18px 0; }
-  .lp-footer-bottom  { padding: 16px 18px 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
-  .lp-footer-nav     { gap: 16px; }
-  .lp-footer-nav-group { min-width: calc(50% - 8px); }
-  .lp-footer-badges  { gap: 7px; }
 }

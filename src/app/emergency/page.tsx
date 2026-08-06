@@ -1,315 +1,69 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { NextPage } from 'next';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { useTranslation } from '@/contexts/LanguageContext';
+import MobTabBar from '@/components/MobTabBar';
+import dynamic from 'next/dynamic';
+const MobTopbarMenu = dynamic(() => import('@/components/MobTopbarMenu'), { ssr: false });
 import DashboardLayout from '@/components/DashboardLayout';
+import NotificationBell from '@/components/NotificationBell';
+import { useRegisterNotifications } from '@/contexts/NotificationsContext';
+import type { AppNotification } from '@/lib/notifications/types';
+import { HCLogo } from '@/components/HCLogo';
 import { trackActivity, activityTypes } from '@/lib/activityTracker';
 import { useFacilitySearch } from '@/hooks/useFacilitySearch';
+import {
+  FIRST_AID_GUIDES,
+  GHANA_SERVICES,
+  BLOOD_COMPATIBILITY,
+  BREATH_PHASES,
+  buildPersonalisedGuides,
+  type FirstAidGuide,
+  type FirstAidStep,
+  type GhanaService,
+} from '@/constants/emergency';
+import type {
+  HealthProfileData,
+  NearbyFacility,
+  NhisCardData,
+} from '@/types/health';
 import '@/styles/dashboard-header.css';
 import '@/styles/dashboard.css';
+import '@/styles/footer.css';
 import '@/styles/dashboard-mobile.css';
 import '@/styles/emergency.css';
 import {
-  Phone, MapPin, Heart, User, Bell, Moon, Sun,
-  Bot, Shield, AlertTriangle, Copy, Check,
-  Navigation, ChevronRight, ChevronDown, Search,
+  Phone, MapPin, Heart, Moon, Sun, Grid2X2 as _Grid2X2,
+  Bot as _Bot, Shield, AlertTriangle, Copy, Check,
+  Navigation, ChevronRight, ChevronLeft, RotateCcw, Search,
   Loader2, X, Activity, Zap,
   Wind, Droplets, Thermometer, Eye, Flame,
   Plus, BookOpen, ExternalLink, AlertCircle, Info,
   Pill, HeartPulse, ClipboardList, Clock, Edit2,
+  FileText, Printer, Stethoscope, QrCode, RefreshCw, Trash2,
+  Siren, ShieldCheck, Building2, CreditCard, Droplet,
 } from 'lucide-react';
+import QRCode from 'qrcode';
+import type { MedicalIdPdfData } from '@/lib/generateMedicalIdPdf';
 
-/* ─── Types ─────────────────────────────────────────────────── */
-interface EmergencyContact {
-  id: string;
-  name: string;
-  relationship: string;
-  number: string;
-  email?: string;
-  isPrimary?: boolean;
-  priority?: number;
-}
+/* ─── Types (local-only — shared types imported from @/types/health) ─────── */
 
-interface FirstAidStep { instruction: string; tip?: string; }
-interface FirstAidGuide {
-  id: string; title: string;
-  icon: React.ComponentType<{ size: number; className?: string }>;
-  severity: 'critical' | 'high' | 'medium';
-  offline: boolean; warning?: string; steps: FirstAidStep[];
-}
-interface GhanaService {
-  id: string; name: string; description: string; number: string;
-  icon: React.ComponentType<{ size: number }>; color: string;
-}
-interface NearbyFacility { name: string; distance: string; }
-interface HealthProfileData {
-  bloodType?: string;
-  allergies?: { name: string; severity: string }[];
-  medications?: { name: string; dose?: string; active: boolean }[];
-  conditions?: { name: string; status: string }[];
-}
-
-/* ─── First Aid Guide Data ───────────────────────────────────── */
-const FIRST_AID_GUIDES: FirstAidGuide[] = [
-  {
-    id: 'cpr', title: 'CPR — Adult', icon: Heart, severity: 'critical', offline: true,
-    warning: 'Call 193 FIRST. Only perform CPR if the person is unresponsive and not breathing normally.',
-    steps: [
-      { instruction: 'Check the scene is safe, then check the person. Tap their shoulders firmly and shout "Are you okay?"' },
-      { instruction: 'Call 193 (National Ambulance) immediately or ask a bystander to call. Put on speaker.' },
-      { instruction: 'Lay the person on their back on a firm, flat surface. Tilt head back gently and lift chin to open the airway.' },
-      { instruction: 'Check for normal breathing for no more than 10 seconds. Look for chest rise, listen, and feel for breath.', tip: 'Occasional gasps are NOT normal breathing — begin CPR.' },
-      { instruction: 'Place the heel of one hand on the centre of the chest (lower half of breastbone). Place other hand on top, interlock fingers, and keep arms straight.' },
-      { instruction: 'Push hard and fast — compress at least 5 cm (2 inches) deep at 100–120 compressions per minute.', tip: "Think of the beat of \"Stayin' Alive\" — that's the right pace." },
-      { instruction: 'After 30 compressions, give 2 rescue breaths: pinch the nose, seal mouth over theirs, breathe until chest rises. Continue 30:2 cycle until help arrives.', tip: 'If uncomfortable with rescue breaths, continuous chest compressions alone are still effective.' },
-    ],
-  },
-  {
-    id: 'choking', title: 'Choking — Heimlich', icon: Wind, severity: 'critical', offline: true,
-    warning: 'If the person can still cough forcefully, encourage them to keep coughing. Only intervene if they cannot cough, speak, or breathe.',
-    steps: [
-      { instruction: 'Ask clearly "Are you choking?" If they cannot speak, cough, or breathe — act immediately.' },
-      { instruction: 'Stand behind them, lean them forward slightly, and give up to 5 sharp back blows between the shoulder blades with the heel of your hand. Check mouth after each blow.' },
-      { instruction: 'If back blows do not work, stand behind them and wrap your arms around their waist.' },
-      { instruction: 'Make a fist with one hand and place it — thumb side in — just above the belly button, well below the breastbone.' },
-      { instruction: 'Grasp your fist with your other hand. Pull sharply inward and upward — up to 5 times.', tip: 'Each thrust must be a sharp, distinct movement aimed to dislodge the blockage.' },
-      { instruction: 'Alternate 5 back blows with 5 abdominal thrusts until the object clears or the person becomes unconscious.' },
-      { instruction: 'If they become unconscious, lower them carefully to the floor and start CPR. Call 193 immediately.' },
-    ],
-  },
-  {
-    id: 'bleeding', title: 'Severe Bleeding', icon: Droplets, severity: 'high', offline: true,
-    warning: 'Call 193 for severe or uncontrolled bleeding. Do NOT remove objects embedded in a wound.',
-    steps: [
-      { instruction: 'Protect yourself — use gloves if available, otherwise a plastic bag or thick cloth as a barrier.' },
-      { instruction: 'Apply firm, direct pressure to the wound using a clean cloth, dressing, or clothing. Press hard and hold continuously.' },
-      { instruction: 'Do NOT lift the cloth to check — this disrupts clotting. If blood soaks through, add more cloth on top and press harder.', tip: 'Maintain pressure for at least 10–15 minutes without releasing.' },
-      { instruction: 'If the wound is on a limb and bleeding is life-threatening, apply a tourniquet 5–7 cm above the wound. Tighten until bleeding stops. Write down the time applied.' },
-      { instruction: 'Keep the person still and warm. Lay them down and raise their legs (unless head/neck injury suspected) to reduce shock risk.' },
-    ],
-  },
-  {
-    id: 'burns', title: 'Burns Treatment', icon: Thermometer, severity: 'high', offline: true,
-    warning: "Call 193 for burns larger than the person's palm, burns on face/hands/genitals, or any chemical/electrical burn.",
-    steps: [
-      { instruction: 'Remove the person from danger. For chemical burns, brush off dry chemicals first before removing clothing (cut if necessary, do not pull over head).' },
-      { instruction: 'Cool the burn under cool (not cold or iced) running water for at least 20 minutes.', tip: 'Start within 3 hours. This single step reduces tissue damage more than anything else.' },
-      { instruction: 'While cooling, remove jewellery, watches, and clothing near the burn — but NOT if stuck to the skin.' },
-      { instruction: 'Do NOT apply butter, toothpaste, oil, ice, or any home remedies. Do NOT burst blisters.' },
-      { instruction: 'Cover loosely with a clean non-fluffy material — cling film (plastic wrap) is ideal. Layer it rather than wrapping tightly.' },
-      { instruction: 'Keep the person warm with a blanket (avoiding the burn area) to prevent hypothermia from prolonged cooling.' },
-    ],
-  },
-  {
-    id: 'seizure', title: 'Seizure Response', icon: Zap, severity: 'high', offline: true,
-    warning: "Call 193 if: first seizure, lasts more than 5 minutes, they don't regain consciousness, or they are injured.",
-    steps: [
-      { instruction: 'Stay calm. Note the exact time the seizure started. Most seizures end on their own within 1–3 minutes.' },
-      { instruction: 'Protect the person — cushion their head with something soft. Clear hard or sharp objects away from them.' },
-      { instruction: 'Do NOT hold them down or restrain their movements. Do NOT put anything in their mouth.', tip: 'People cannot swallow their tongue. Putting something in the mouth is dangerous and wrong.' },
-      { instruction: 'If possible, gently turn them onto their side (recovery position) to keep the airway clear, especially if vomiting.' },
-      { instruction: 'Stay with them until full consciousness returns. Speak calmly and reassuringly — they may be confused and frightened for several minutes after.' },
-    ],
-  },
-  {
-    id: 'eye', title: 'Eye Injury', icon: Eye, severity: 'medium', offline: true,
-    warning: 'Seek immediate care for any penetrating eye injury, chemical splash, or sudden vision loss.',
-    steps: [
-      { instruction: 'Do NOT rub the eye — this can worsen any injury. Keep the person as still and calm as possible.' },
-      { instruction: 'For chemical splash: immediately flush the eye with clean water for at least 15–20 minutes, holding the eyelid open. Tilt head so water runs away from the other eye.' },
-      { instruction: 'For a foreign object: try blinking rapidly or flushing with clean water. Do NOT try to remove anything embedded in the eye.' },
-      { instruction: 'Cover the injured eye loosely with a clean cloth — do not apply pressure. Cover both eyes for penetrating injuries to reduce movement.' },
-      { instruction: 'Get to a hospital or eye clinic as soon as possible, even if pain seems mild initially.' },
-    ],
-  },
-  {
-    id: 'fracture', title: 'Suspected Fracture', icon: Activity, severity: 'medium', offline: true,
-    steps: [
-      { instruction: 'Keep the injured area completely still. Do NOT try to straighten the limb. Support it in the position found using your hands or rolled clothing.' },
-      { instruction: 'Check circulation below the injury: feel for a pulse, check skin colour, and ask if they feel tingling or numbness.', tip: 'Pale, cold, or bluish skin below the injury means circulation is compromised — this is urgent.' },
-      { instruction: 'For an open fracture (bone visible): cover loosely with a clean cloth — do NOT press on the bone. Treat bleeding by pressing around the wound, not on it.' },
-      { instruction: 'Splint if moving is necessary: use a rigid item (board, rolled newspaper) padded with cloth. Secure above and below the fracture — never directly over it.' },
-      { instruction: 'Apply a cold pack (wrapped in cloth) to reduce swelling. Keep the person warm, treat for shock, and monitor until help arrives.' },
-    ],
-  },
-  {
-    id: 'poisoning', title: 'Poisoning / Overdose', icon: AlertTriangle, severity: 'critical', offline: true,
-    warning: 'Call 193 immediately. Do NOT induce vomiting unless specifically directed by medical staff — it can cause further harm.',
-    steps: [
-      { instruction: 'Call 193 immediately or take the person to the nearest emergency department. Give the substance name, amount, and time taken if known.' },
-      { instruction: 'If conscious and alert, ask what they took. Save and show the container, packaging, or substance to medical staff.' },
-      { instruction: 'Do NOT give anything to eat or drink. Do NOT induce vomiting unless explicitly told by a doctor.' },
-      { instruction: 'If unconscious but breathing, place in the recovery position (on their side) to prevent choking on vomit.' },
-      { instruction: 'If they stop breathing, begin CPR. Check breathing and consciousness continuously until help arrives.' },
-      { instruction: 'For skin/eye chemical contact: remove contaminated clothing and flush the area with large amounts of clean water for at least 20 minutes.' },
-    ],
-  },
-];
-
-const GHANA_SERVICES: GhanaService[] = [
-  { id: 'ambulance', name: 'National Ambulance Service', description: 'Emergency ambulance across Ghana',    number: '193',        icon: Plus,          color: 'red'    },
-  { id: 'fire',      name: 'National Fire Service',      description: 'Fire emergencies and rescue',        number: '192',        icon: Flame,         color: 'orange' },
-  { id: 'police',    name: 'Police Emergency',           description: 'Law enforcement emergency hotline',  number: '191',        icon: Shield,        color: 'blue'   },
-  { id: 'disaster',  name: 'NADMO',                      description: 'Natural disaster & relief',          number: '0302773634', icon: AlertTriangle, color: 'amber'  },
-  { id: 'kath',      name: 'KATH Emergency',             description: 'Komfo Anokye Teaching Hospital',     number: '0322022301', icon: Plus,          color: 'teal'   },
-  { id: 'korle',     name: 'Korle Bu Hospital',          description: 'Teaching Hospital — Accra',          number: '0302674201', icon: Plus,          color: 'teal'   },
-];
-
-/* ─── Blood type compatibility ───────────────────────────────── */
-const BLOOD_COMPATIBILITY: Record<string, { canReceiveFrom: string[]; canDonateTo: string[] }> = {
-  'A+':  { canReceiveFrom: ['A+','A-','O+','O-'],                    canDonateTo: ['A+','AB+'] },
-  'A-':  { canReceiveFrom: ['A-','O-'],                              canDonateTo: ['A+','A-','AB+','AB-'] },
-  'B+':  { canReceiveFrom: ['B+','B-','O+','O-'],                    canDonateTo: ['B+','AB+'] },
-  'B-':  { canReceiveFrom: ['B-','O-'],                              canDonateTo: ['B+','B-','AB+','AB-'] },
-  'AB+': { canReceiveFrom: ['A+','A-','B+','B-','AB+','AB-','O+','O-'], canDonateTo: ['AB+'] },
-  'AB-': { canReceiveFrom: ['A-','B-','AB-','O-'],                   canDonateTo: ['AB+','AB-'] },
-  'O+':  { canReceiveFrom: ['O+','O-'],                              canDonateTo: ['A+','B+','AB+','O+'] },
-  'O-':  { canReceiveFrom: ['O-'],                                   canDonateTo: ['A+','A-','B+','B-','AB+','AB-','O+','O-'] },
-};
-
-/* ─── Personalised guides from Medical ID ────────────────────── */
-// Keywords that map to first aid guide IDs
-const CONDITION_GUIDE_MAP: { keywords: string[]; guideId: string; label: string }[] = [
-  { keywords: ['epilep','seizure','convuls'],        guideId: 'seizure',   label: 'Epilepsy' },
-  { keywords: ['heart','cardiac','coronary','angina'], guideId: 'cpr',     label: 'Heart Condition' },
-  { keywords: ['diabet','hypoglycemi'],              guideId: 'diabetic',  label: 'Diabetes' },
-  { keywords: ['asthm','bronch'],                   guideId: 'asthma',    label: 'Asthma' },
-];
-const ALLERGY_GUIDE_TRIGGERS = ['peanut','nut','bee','wasp','venom','penicill','latex','shellfish','fish','egg','milk','wheat','soy','sesame'];
-
-function buildPersonalisedGuides(
-  allergies: HealthProfileData['allergies'],
-  conditions: HealthProfileData['conditions'],
-  medications: HealthProfileData['medications'],
-): FirstAidGuide[] {
-  const guides: FirstAidGuide[] = [];
-
-  /* Allergy action guide — only if user has severe/critical allergies */
-  const severeAllergies = (allergies || []).filter(a => a.severity === 'severe' || ALLERGY_GUIDE_TRIGGERS.some(t => a.name.toLowerCase().includes(t)));
-  if (severeAllergies.length > 0) {
-    const allergyList = severeAllergies.map(a => a.name).join(', ');
-    const hasEpipen = (medications || []).some(m => m.active && /epipen|epinephrine|adrenaline/i.test(m.name));
-    guides.push({
-      id: 'personal-allergy',
-      title: `⚠️ Your Allergy Alert: ${allergyList}`,
-      icon: AlertTriangle,
-      severity: 'critical',
-      offline: true,
-      warning: `This guide is personalised from your Medical ID. You have recorded severe allergies to: ${allergyList}.`,
-      steps: [
-        { instruction: `You have recorded severe allergies to: ${allergyList}. If you are having a reaction: stay calm, stop contact with the trigger immediately.` },
-        ...(hasEpipen ? [
-          { instruction: 'Use your EpiPen / epinephrine auto-injector immediately — outer thigh, through clothing if needed. Hold for 10 seconds.', tip: 'EpiPen buys time — it does NOT replace emergency care. Call 193 even after using it.' },
-        ] : [
-          { instruction: 'If you have an EpiPen prescribed, use it now. If not, call 193 immediately — anaphylaxis can progress rapidly.', tip: 'Inform the 193 operator of your known allergies so they can prepare the right treatment.' },
-        ]),
-        { instruction: 'Call 193 immediately. State: "I am having an allergic reaction to [trigger]". Lie flat with legs raised unless breathing is difficult — then sit up.' },
-        { instruction: 'Do NOT take antihistamines as a substitute for epinephrine in a severe reaction — they work too slowly for anaphylaxis.' },
-        { instruction: 'If breathing stops or consciousness is lost, begin CPR. A second EpiPen dose can be given after 5–15 minutes if symptoms return.' },
-        { instruction: 'Even if symptoms improve after EpiPen, go to hospital immediately — biphasic reactions can occur hours later.', tip: 'Always seek emergency care after any severe allergic reaction, even if you feel better.' },
-      ],
-    });
-  }
-
-  /* Condition-specific pinned guides */
-  for (const cond of (conditions || []).filter(c => c.status !== 'resolved')) {
-    const match = CONDITION_GUIDE_MAP.find(m => m.keywords.some(kw => cond.name.toLowerCase().includes(kw)));
-    if (match?.guideId === 'diabetic' && !guides.find(g => g.id === 'personal-diabetic')) {
-      guides.push({
-        id: 'personal-diabetic',
-        title: '🩸 Your Diabetes — Emergency',
-        icon: Droplets,
-        severity: 'high',
-        offline: true,
-        warning: 'Personalised from your Medical ID. For diabetic emergencies: low blood sugar (hypoglycaemia) is more immediately dangerous than high blood sugar.',
-        steps: [
-          { instruction: 'LOW blood sugar signs: shaking, sweating, confusion, pale skin, rapid heartbeat, hunger. HIGH blood sugar: extreme thirst, frequent urination, fruity breath, fatigue.' },
-          { instruction: 'If conscious and can swallow — give 15–20g fast-acting sugar: 4 glucose tablets, 150ml fruit juice, or 3–4 teaspoons of sugar in water.', tip: 'Do NOT give food or drink to anyone who is unconscious or unable to swallow safely.' },
-          { instruction: 'Recheck in 15 minutes. If no improvement, give another 15–20g sugar. If still not improving after two doses, call 193.' },
-          { instruction: 'If unconscious, call 193 immediately. Place in recovery position. Do NOT attempt to give anything by mouth.', tip: 'Tell 193 dispatcher the person has diabetes — they can send glucagon.' },
-          { instruction: 'For HIGH blood sugar emergency (diabetic ketoacidosis): drink water, take prescribed insulin if available and conscious, call 193 or go to hospital.' },
-        ],
-      });
-    }
-    if (match?.guideId === 'asthma' && !guides.find(g => g.id === 'personal-asthma')) {
-      const hasInhaler = (medications || []).some(m => m.active && /inhaler|salbutamol|ventolin|albuterol|becotide|symbicort/i.test(m.name));
-      guides.push({
-        id: 'personal-asthma',
-        title: '💨 Your Asthma — Emergency',
-        icon: Wind,
-        severity: 'high',
-        offline: true,
-        warning: 'Personalised from your Medical ID. A severe asthma attack can be life-threatening. Do not delay seeking help.',
-        steps: [
-          { instruction: 'Sit upright — leaning slightly forward with hands on knees. Do NOT lie down. Loosen any tight clothing around the neck and chest.' },
-          ...(hasInhaler ? [
-            { instruction: 'Use your reliever inhaler (usually blue) immediately: shake, exhale fully, seal lips around mouthpiece, press and inhale slowly, hold 10 seconds. Repeat every 30–60 seconds, up to 10 puffs.', tip: 'Using a spacer doubles the amount of medication that reaches your lungs.' },
-          ] : [
-            { instruction: 'If you have a reliever inhaler (blue/Ventolin), use it now — 1 puff every 30–60 seconds, up to 10 puffs. If no inhaler is available, call 193 immediately.' },
-          ]),
-          { instruction: 'If no improvement after 10 puffs, or symptoms are severe (can\'t speak in sentences, lips turning blue), call 193 immediately.' },
-          { instruction: 'Stay calm and encourage slow, controlled breathing. Panic worsens bronchospasm. Try breathing in through the nose and out through pursed lips.' },
-          { instruction: 'Continue giving reliever inhaler every 15 minutes while waiting for emergency services. Note the time and number of puffs given for the paramedics.' },
-        ],
-      });
-    }
-  }
-
-  return guides;
-}
-
-/* ─── Breathing guide phases — outside component to prevent stale
-       closure inside startBreathing useCallback([])            ── */
-const BREATH_PHASES: { phase: 'inhale'|'hold'|'exhale'|'rest'; label: string; secs: number; color: string }[] = [
-  { phase: 'inhale', label: 'Breathe In',  secs: 4, color: '#00D2FF' },
-  { phase: 'hold',   label: 'Hold',        secs: 7, color: '#a78bfa' },
-  { phase: 'exhale', label: 'Breathe Out', secs: 8, color: '#34d399' },
-  { phase: 'rest',   label: 'Rest',        secs: 1, color: '#64748b' },
-];
-
-/* ── HCLogo — inline SVG logo, no CSS text-fill interference ── */
-const HCLogo = ({ size = 24 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="115 55 460 363" fill="none"
-    width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
-    <g fill="#00d2ff">
-      <path d="M330.32 403.63 c-4.20 -1.10 -7.56 -3.15 -11.03 -6.62 -5.78 -5.72 -7.88 -11.13 -7.88 -19.96 0 -2.73 0.32 -6.14 0.74 -7.61 2 -7.56 6.88 -13.55 13.86 -16.91 3.94 -1.89 4.25 -1.94 10.87 -2.15 6.35 -0.16 9.56 0.26 12.87 1.68 0.84 0.32 6.41 -3.99 32.03 -24.79 18.17 -14.81 25.31 -20.80 38.34 -32.30 11.97 -10.61 36.87 -35.19 45.01 -44.48 11.55 -13.18 24.94 -31.04 31.77 -42.22 22.16 -36.45 28.46 -72.63 18.17 -104.77 -8.09 -25.36 -28.15 -45.37 -53.25 -53.04 -7.88 -2.42 -13.13 -3.20 -21.16 -3.20 -18.17 0 -34.56 4.94 -49 14.81 -3.05 2.05 -7.67 6.09 -12.29 10.66 -10.29 10.24 -16.96 19.54 -25.42 35.45 -2.36 4.46 -5.04 8.93 -5.93 9.87 -1.68 1.73 -1.73 1.79 -5.78 1.58 -3.99 -0.16 -4.20 -0.21 -5.78 -2.05 -0.95 -1.05 -3.94 -5.78 -6.67 -10.45 -18.49 -31.61 -42.75 -50.83 -70.63 -55.98 -8.82 -1.63 -24.10 -0.21 -34.24 3.20 -11.45 3.83 -25.05 12.76 -33.03 21.64 -24.42 27.31 -29.04 62.49 -13.08 100.62 l0.79 1.94 25.94 0 c24.26 0 25.94 -0.05 26.21 -0.89 1.16 -4.15 9.66 -36.76 13.76 -52.67 2.78 -10.82 5.30 -20.38 5.62 -21.16 0.89 -2.26 2.36 -2.99 5.93 -2.99 3.31 0 5.04 0.74 6.04 2.63 0.42 0.79 14.60 71.21 20.06 99.41 0.63 3.36 1.31 6.14 1.47 6.14 0.16 0 0.79 -1.73 1.31 -3.78 0.53 -2.10 4.10 -15.18 7.93 -29.04 8.03 -29.04 7.35 -27.57 13.23 -27.57 5.51 0 5.04 -0.63 10.87 14.44 1.89 4.94 3.99 10.35 4.67 12.08 l1.26 3.15 24.21 0.26 24.16 0.26 1.21 1.16 c0.95 0.95 1.21 1.94 1.37 4.83 0.26 4.10 -0.26 5.41 -2.68 6.88 -1.63 1 -2.89 1.05 -28.20 1.05 -16.28 0 -27.26 -0.21 -28.41 -0.53 -2.36 -0.68 -3.20 -1.89 -5.46 -8.03 -1 -2.73 -1.89 -4.46 -2.05 -4.04 -0.16 0.42 -1.37 4.83 -2.68 9.72 -1.37 4.94 -4.83 17.54 -7.72 28.10 -2.89 10.56 -5.62 20.48 -6.04 22.06 -1.58 5.78 -3.10 7.35 -7.14 7.35 -3.05 0 -5.78 -1.16 -6.56 -2.78 -1 -1.94 -2.47 -8.56 -7.46 -33.19 -2.57 -12.97 -4.99 -24.68 -5.25 -26 -0.26 -1.31 -2.31 -11.66 -4.52 -23 -2.21 -11.34 -4.10 -20.59 -4.15 -20.48 -0.16 0.21 -4.46 16.33 -8.19 30.62 -4.20 16.07 -4.67 17.49 -6.35 18.91 l-1.58 1.31 -26.73 0 c-14.70 0 -26.73 0.11 -26.73 0.26 0 1 10.24 16.12 15.44 22.84 28.62 36.92 72.84 77.41 118.89 108.97 l7.46 5.04 6.72 -3.78 c9.45 -5.36 28.41 -18.07 37.13 -24.84 24.26 -18.96 40.96 -37.13 49.84 -54.35 4.46 -8.61 7.61 -18.38 8.51 -26.31 l0.32 -2.99 -3.83 -1.21 c-15.70 -4.73 -30.25 -19.54 -37.81 -38.28 -1.68 -4.25 -2.05 -5.83 -1.94 -7.98 l0.16 -2.73 5.78 -2.26 c4.04 -1.58 6.56 -2.26 8.40 -2.31 2.63 0 2.68 0.05 3.36 2 1.47 4.20 5.88 12.71 8.93 17.28 7.88 11.82 19.43 18.75 28.31 16.96 5.62 -1.16 10.35 -3.89 15.33 -8.88 6.25 -6.30 10.35 -12.71 14.44 -22.69 l1.79 -4.41 2.57 -0.16 c1.89 -0.11 3.62 0.26 6.62 1.47 7.40 2.89 8.19 3.47 8.19 5.51 0 4.52 -6.51 18.17 -12.39 26 -7.93 10.56 -16.44 17.07 -26.73 20.48 l-4.20 1.42 -0.68 5.46 c-2.78 22.95 -14.44 44.11 -36.60 66.43 -19.59 19.69 -44.80 38.28 -75.10 55.35 -3.73 2.10 -8.40 4.73 -10.35 5.83 -5.62 3.31 -6.20 3.15 -16.33 -3.83 -46.74 -32.14 -89.85 -70.16 -118.89 -104.77 -26 -30.98 -40.49 -59.76 -45.06 -89.43 -1.16 -7.61 -1.63 -25 -0.84 -32.82 2.73 -27.26 13.13 -49.31 31.67 -67.27 14.49 -14.02 32.30 -23.05 52.88 -26.73 6.20 -1.16 23.16 -1.63 29.46 -0.84 12.87 1.58 22.32 4.36 33.87 10.03 18.07 8.82 33.40 22.11 46.74 40.54 l3.57 4.94 4.20 -6.25 c6.77 -10.19 16.28 -20.74 25.05 -27.83 11.50 -9.40 26.42 -16.54 41.85 -20.11 5.15 -1.21 7.09 -1.31 21.69 -1.63 15.07 -0.26 16.38 -0.21 22.06 0.84 20.17 3.89 39.23 14.28 53.36 29.04 14.86 15.60 23.79 33.82 27.89 56.87 1.37 7.77 1.37 34.87 0 43.06 -5.25 31.14 -18.01 57.03 -44.69 90.33 -13.60 16.96 -33.56 37.55 -56.24 58.03 -16.54 14.91 -51.73 44.64 -69.58 58.82 -5.25 4.20 -4.94 3.62 -3.99 7.46 1.21 4.83 1.10 13.08 -0.21 17.28 -2.05 6.77 -6.88 12.24 -13.81 15.70 l-4.15 2.10 -6.67 -0.05 c-3.62 0 -7.67 -0.32 -8.98 -0.68z m11.82 -14.97 c3.15 -1.42 5.30 -3.47 6.77 -6.46 1.63 -3.31 1.73 -6.14 0.26 -9.35 -1.42 -3.15 -3.36 -5.15 -6.51 -6.62 -3.36 -1.63 -5.72 -1.58 -9.09 0.11 -2.94 1.47 -4.83 3.36 -6.51 6.67 -2.84 5.62 1.05 13.18 8.24 15.96 2.31 0.89 4.46 0.79 6.83 -0.32z"/>
-      <path d="M387.51 163.48 c-2.15 -5.67 -6.72 -25.78 -8.61 -37.97 -1.37 -8.51 -1.63 -23.47 -0.58 -28.62 2.68 -13.18 12.29 -22.69 25.63 -25.36 3.41 -0.68 4.99 -1.31 6.04 -2.31 2.36 -2.15 3.52 -2.52 8.30 -2.52 4.78 0 6.46 0.53 8.51 2.73 3.99 4.25 3.62 12.76 -0.68 16.80 -2.10 1.94 -3.94 2.52 -7.72 2.52 -3.73 0 -6.98 -1.26 -8.61 -3.31 -0.58 -0.74 -1.26 -1.16 -1.52 -0.95 -0.26 0.26 -1.73 0.84 -3.26 1.37 -3.57 1.16 -8.77 5.88 -10.77 9.82 -2.47 4.99 -3.15 8.82 -2.78 15.91 0.47 9.30 3.68 27.52 7.14 40.54 0.89 3.26 1.58 6.72 1.58 7.72 0 1.79 -0.05 1.84 -4.20 3.41 -5.41 2.10 -7.72 2.15 -8.45 0.21z"/>
-      <path d="M482.88 163.32 c-3.31 -1.31 -3.68 -1.63 -3.83 -3.10 -0.11 -0.84 1.16 -6.83 2.73 -13.29 5.15 -20.69 7.19 -36.97 5.62 -44.64 -1.73 -8.30 -7.30 -14.65 -15.49 -17.75 -1.52 -0.53 -1.52 -0.58 -1.16 -3.78 0.16 -1.73 0.32 -4.57 0.32 -6.25 l0 -3.10 2.52 0 c2.99 0 8.67 1.94 12.55 4.31 4.04 2.42 9.66 8.51 11.66 12.55 2.84 5.83 3.73 10.61 3.73 19.85 0 13.55 -2.57 29.72 -7.61 47.74 l-2.52 9.03 -2.42 -0.05 c-1.31 -0.05 -4.04 -0.74 -6.09 -1.52z"/>
-      <path d="M456.73 87.96 c-1.16 -0.37 -2.63 -1.26 -3.36 -1.94 -4.15 -3.83 -4.41 -12.45 -0.53 -16.59 2.05 -2.21 3.73 -2.73 8.77 -2.73 4.57 0 4.88 0.05 6.30 1.47 1.73 1.79 2.42 5.57 1.94 11.13 -0.58 6.88 -2.84 9.45 -8.24 9.45 -1.58 -0.05 -3.78 -0.37 -4.88 -0.79z"/>
-    </g>
-  </svg>
-);
 
 const EmergencyPage: NextPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { isDarkMode, toggleDarkMode } = useDarkMode();
-
-  /* SOS */
-  const [sosActive,    setSosActive]    = useState(false);
-  const [sosCountdown, setSosCountdown] = useState(3);
-  const [sosSent,      setSosSent]      = useState(false);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const holdTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdStartRef   = useRef<number>(0);
-  // Touch start position — used to cancel hold if user is scrolling
-  const touchStartYRef = useRef<number>(0);
-
-  /* SOS send status */
-  const [sosSending,      setSosSending]      = useState(false);
-  const [sosSendResult,   setSosSendResult]   = useState<{
-    success: boolean;
-    sent: number; total: number; failed: number;
-    emailedCount?: number;
-    smtpMissing?: boolean;
-    noContacts?: boolean;
-    noEmails?: boolean;
-    withoutEmail?: { name: string; number: string }[];
-    contacts?: { name: string; number: string; hasEmail: boolean }[];
-  } | null>(null);
+  const { t, language } = useTranslation();
+  // First-aid translations are draft until reviewed — see TWIFIRSTAID_REVIEW.md
+  const FIRST_AID_APPROVED = process.env.NEXT_PUBLIC_TWI_EMERGENCY_APPROVED === 'true';
+  const tGuide = (key: string, fallback: string) =>
+    language === 'tw' && !FIRST_AID_APPROVED ? fallback : t(key, fallback);
 
   /* Location */
   const [location,          setLocation]          = useState<{ lat: number; lng: number; city?: string; accuracy?: number } | null>(null);
@@ -318,17 +72,35 @@ const EmergencyPage: NextPage = () => {
   const [locationShared,    setLocationShared]    = useState(false);
 
   /* Nearest ER */
-  const [nearestER,   setNearestER]   = useState<NearbyFacility | null>(null);
-  const [isLoadingER, setIsLoadingER] = useState(false);
+  const [nearestER,    setNearestER]    = useState<NearbyFacility | null>(null);
+  const [nearbyERs,    setNearbyERs]    = useState<NearbyFacility[]>([]);  // top 3 options
+  const [selectedER,   setSelectedER]   = useState<NearbyFacility | null>(null);
+  const [showERPicker, setShowERPicker] = useState(false);
+  const [isLoadingER,  setIsLoadingER]  = useState(false);
+
+  /* Location preview modal */
+  const [showLocationPreview, setShowLocationPreview] = useState(false);
+  const [pendingLocation,     setPendingLocation]     = useState<{ lat: number; lng: number; city: string; accuracy?: number } | null>(null);
 
   /* UI */
   const [copiedId,    setCopiedId]    = useState<string | null>(null);
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const guidePanelRef = useRef<HTMLDivElement | null>(null);
+  const locPreviewRef = useRef<HTMLDivElement | null>(null);
+  const erPickerRef = useRef<HTMLDivElement | null>(null);
+  const poisonModalRef = useRef<HTMLDivElement | null>(null);
+  const bystanderModalRef = useRef<HTMLDivElement | null>(null);
 
-  /* SOS elapsed timer */
-  const [sosElapsed,      setSosElapsed]      = useState(0);
-  const sosTimerRef                           = useRef<ReturnType<typeof setInterval> | null>(null);
+  /* Focus the guide modal on open, and let Escape close it instantly */
+  useEffect(() => {
+    if (!activeGuide) return;
+    if (guidePanelRef.current) guidePanelRef.current.focus();
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setActiveGuide(null); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activeGuide]);
+
 
   /* Breathing guide (for panic/anxiety) */
   const [showBreathing,   setShowBreathing]   = useState(false);
@@ -336,14 +108,23 @@ const EmergencyPage: NextPage = () => {
   const [breathCount,     setBreathCount]     = useState(0);
   const breathTimerRef                        = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /* Poison & Overdose modal */
+  const [showPoison,      setShowPoison]      = useState(false);
+  const [poisonStep,      setPoisonStep]      = useState<'triage'|'swallowed'|'inhaled'|'skin'|'eye'>('triage');
+
+  /* Bystander Dispatch modal */
+  const [showBystander,   setShowBystander]   = useState(false);
+  const [bystanderStep,   setBystanderStep]   = useState(0);
+
+  /* CPR Metronome */
+  const [cprActive,       setCprActive]       = useState(false);
+  const [cprCount,        setCprCount]        = useState(0);
+  const [cprPhase,        setCprPhase]        = useState<'compress'|'release'>('compress');
+  const cprTimerRef                           = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cprAudioRef                           = useRef<AudioContext | null>(null);
+
   /* Personal Emergency Card share */
   const [showPersonalCard, setShowPersonalCard] = useState(false);
-  // Notification panel
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
-  const [notifsRead,     setNotifsRead]     = useState(false);
-  const notifBellRef   = useRef<HTMLButtonElement>(null);
-  const notifMobRef    = useRef<HTMLButtonElement>(null);
-  const notifPanelRef  = useRef<HTMLDivElement>(null);
 
   // Top-bar facility search — navigates to /facilities?q=<term>
   const {
@@ -352,36 +133,61 @@ const EmergencyPage: NextPage = () => {
     handleSearchSubmit, handleSearchKeyDown,
   } = useFacilitySearch();
   const [isScrolled,  setIsScrolled]  = useState(false);
-  const [activeTab,   setActiveTab]   = useState<'services' | 'firstaid' | 'contacts'>('services');
+  const [activeTab,   setActiveTab]   = useState<'services' | 'firstaid' | 'qr'>('services');
 
-  /* Contacts — loaded from DB */
-  const [contacts,       setContacts]       = useState<EmergencyContact[]>([]);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
-  const [showAddContact, setShowAddContact] = useState(false);
-  const [newContact,     setNewContact]     = useState({ name: '', relationship: '', number: '', email: '' });
-  const [addingContact,  setAddingContact]  = useState(false);
-  const [addError,       setAddError]       = useState('');
-  const [contactSaveSuccess, setContactSaveSuccess] = useState(false);
-
-  /* Edit contact state */
-  const [editingContactId,  setEditingContactId]  = useState<string | null>(null);
-  const [editContact,       setEditContact]       = useState({ name: '', relationship: '', number: '', email: '' });
-  const [savingEdit,        setSavingEdit]        = useState(false);
-  const [editError,         setEditError]         = useState('');
+  /* Jump-to-First-Aid — used by the "View First Aid Guides" button on the
+     Nearest ER card. Switches tab, then scrolls once the section is visible. */
+  const [pendingScrollToFirstAid, setPendingScrollToFirstAid] = useState(false);
+  const firstAidSectionRef = useRef<HTMLElement | null>(null);
+  const goToFirstAid = useCallback(() => {
+    setPendingScrollToFirstAid(true);
+    setActiveTab('firstaid');
+  }, []);
+  useEffect(() => {
+    if (pendingScrollToFirstAid && activeTab === 'firstaid') {
+      firstAidSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingScrollToFirstAid(false);
+    }
+  }, [pendingScrollToFirstAid, activeTab]);
 
   /* Health profile — loaded from DB for Medical ID */
   const [healthProfile,       setHealthProfile]       = useState<HealthProfileData | null>(null);
   const [isLoadingProfile,    setIsLoadingProfile]    = useState(true);
 
+  /* NHIS card */
+  const [nhisCard,        setNhisCard]        = useState<NhisCardData | null>(null);
+
+  /* PDF generation */
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  /* QR Code — Emergency Brief */
+  const [qrDataUrl,      setQrDataUrl]      = useState<string | null>(null);
+  const [qrBriefUrl,     setQrBriefUrl]     = useState<string | null>(null);
+  const [qrExpiresAt,    setQrExpiresAt]    = useState<string | null>(null);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
+  const [qrError,        setQrError]        = useState('');
+
   const userName     = session?.user?.name  || 'User';
   const userImage    = session?.user?.image || null;
   const userEmail    = session?.user?.email || '';
+  const isFemale     = (session?.user as any)?.gender?.toLowerCase() === 'female';
   const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   /* ── Auth guard ───────────────────────────────────────────── */
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin');
   }, [status, router]);
+
+  /* ── Scroll to #qr anchor if navigated from profile ──────── */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash === '#qr') {
+      setActiveTab('qr');
+      setTimeout(() => {
+        document.getElementById('em-qr-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 600);
+    }
+  }, []);
 
   /* ── Scroll shadow ────────────────────────────────────────── */
   useEffect(() => {
@@ -392,38 +198,92 @@ const EmergencyPage: NextPage = () => {
 
 
 
-  /* ── Load emergency contacts from DB ─────────────────────── */
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    setIsLoadingContacts(true);
-    fetch('/api/emergency-contacts')
-      .then(r => r.json())
-      .then(({ contacts: data }) => {
-        setContacts(
-          (data || []).map((c: any) => ({
-            id:           c.id,
-            name:         c.name,
-            relationship: c.relationship,
-            number:       c.number,
-            email:        c.email || undefined,
-            isPrimary:    c.priority === 1,
-            priority:     c.priority,
-          })),
-        );
-      })
-      .catch(() => {}) // silently fail — don't block the page
-      .finally(() => setIsLoadingContacts(false));
-  }, [status]);
-
   /* ── Load health profile for Medical ID ──────────────────── */
   useEffect(() => {
     if (status !== 'authenticated') return;
     setIsLoadingProfile(true);
+    // Serve cached version instantly if offline or slow
+    try {
+      const cached = localStorage.getItem('hc_em_profile');
+      if (cached) setHealthProfile(JSON.parse(cached));
+    } catch { /* ignore */ }
     fetch('/api/health-profile')
       .then(r => r.json())
-      .then(({ profile }) => setHealthProfile(profile ?? null))
+      .then(({ profile }) => {
+        setHealthProfile(profile ?? null);
+        try { localStorage.setItem('hc_em_profile', JSON.stringify(profile ?? null)); } catch { /* ignore */ }
+      })
       .catch(() => {})
       .finally(() => setIsLoadingProfile(false));
+  }, [status]);
+
+  /* ── Load NHIS card ───────────────────────────────────────── */
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    fetch('/api/nhis-card')
+      .then(r => r.json())
+      .then(({ nhisCard: card }) => {
+        if (card) {
+          setNhisCard({
+            nhisId:         card.nhisId        || undefined,
+            membershipType: card.membershipType || undefined,
+            issuedDate:     card.issuedDate ? card.issuedDate.split('T')[0] : undefined,
+            expiryDate:     card.expiryDate ? card.expiryDate.split('T')[0] : undefined,
+            issuingBody:    card.issuingBody   || undefined,
+            notes:          card.notes         || undefined,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [status]);
+
+  /* ── Auto-detect location on mount ───────────────────────── */
+  /* If the browser already granted geolocation permission, silently
+     get coordinates and start loading the nearest ER immediately —
+     no user action required. This is the core fix:
+     "Nearest ER" should appear as soon as the page loads if GPS
+     permission is already on, not only after "Share Location" is clicked. */
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (!navigator.geolocation) return;
+    // Use permissions API to check without triggering the browser prompt
+    navigator.permissions?.query({ name: 'geolocation' }).then(result => {
+      if (result.state === 'granted') {
+        // Permission already granted — get location silently
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+            // Run geocode + ER lookup in parallel for speed
+            const [city] = await Promise.all([
+              reverseGeocode(lat, lng),
+              findNearestER(lat, lng),
+            ]);
+            setLocation({ lat, lng, city, accuracy });
+            setLocationShared(true);
+          },
+          () => { /* silently fail — user can still click Share Location */ },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+        );
+      }
+      // If 'prompt' or 'denied' — do nothing, wait for user to click Share Location
+    }).catch(() => {
+      // Permissions API not supported — try anyway with a short timeout
+      // maximumAge:30000 so we use a cached position if available (no prompt)
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          const [city] = await Promise.all([
+            reverseGeocode(lat, lng),
+            findNearestER(lat, lng),
+          ]);
+          setLocation({ lat, lng, city, accuracy });
+          setLocationShared(true);
+        },
+        () => { /* silently fail */ },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 },
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   /* ── Reverse geocode via our API route ───────────────────── */
@@ -440,7 +300,7 @@ const EmergencyPage: NextPage = () => {
     }
   }, []);
 
-  /* ── Find nearest ER via Overpass proxy ───────────────────── */
+  /* ── Find nearest ERs via Overpass proxy ──────────────────── */
   const findNearestER = useCallback(async (lat: number, lng: number): Promise<NearbyFacility | null> => {
     setIsLoadingER(true);
     try {
@@ -449,7 +309,6 @@ const EmergencyPage: NextPage = () => {
         way["amenity"="hospital"](around:8000,${lat},${lng});
       );out center body;`;
 
-      // Use our server-side proxy — avoids CORS and browser rate-limiting
       const res = await fetch('/api/overpass', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -472,7 +331,8 @@ const EmergencyPage: NextPage = () => {
           const eLat = el.lat ?? el.center?.lat;
           const eLng = el.lon ?? el.center?.lon;
           if (!eLat || !eLng) return null;
-          return { name: el.tags?.name || 'Hospital', dist: calcDist(lat, lng, eLat, eLng) };
+          // Carry coordinates forward so top3 builder can use them
+          return { name: el.tags?.name || 'Hospital', dist: calcDist(lat, lng, eLat, eLng), eLat, eLng };
         })
         .filter(Boolean)
         .sort((a: any, b: any) => a.dist - b.dist);
@@ -480,22 +340,34 @@ const EmergencyPage: NextPage = () => {
       if (!sorted.length) {
         const fallback: NearbyFacility = { name: 'KATH', distance: 'See Facilities' };
         setNearestER(fallback);
+        setNearbyERs([fallback]);
+        setSelectedER(fallback);
         return fallback;
       }
-      const top = sorted[0] as any;
-      const result: NearbyFacility = { name: top.name, distance: `${top.dist.toFixed(1)} km` };
-      setNearestER(result);
-      return result;
+
+      // Store top 3 as options — use eLat/eLng (the carried-forward coordinates)
+      const top3: NearbyFacility[] = (sorted.slice(0, 3) as any[]).map(er => ({
+        name: er.name,
+        distance: `${er.dist.toFixed(1)} km`,
+        lat: er.eLat,
+        lng: er.eLng,
+      }));
+      setNearbyERs(top3);
+      setNearestER(top3[0]);
+      setSelectedER(top3[0]);
+      return top3[0];
     } catch {
       const fallback: NearbyFacility = { name: 'KATH', distance: 'See Facilities' };
       setNearestER(fallback);
+      setNearbyERs([fallback]);
+      setSelectedER(fallback);
       return fallback;
     } finally {
       setIsLoadingER(false);
     }
   }, []);
 
-  /* ── Share Location ───────────────────────────────────────── */
+  /* ── Share Location — preview first, then confirm ────────── */
   const shareLocation = useCallback(async () => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported on this device.');
@@ -507,16 +379,15 @@ const EmergencyPage: NextPage = () => {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-        const city = await reverseGeocode(lat, lng);
-        setLocation({ lat, lng, city, accuracy });
-        setLocationShared(true);
+        // Run geocode + ER lookup in parallel so neither blocks the other
+        const [city] = await Promise.all([
+          reverseGeocode(lat, lng),
+          findNearestER(lat, lng),   // ER loads while geocode resolves
+        ]);
+        const pending = { lat, lng, city, accuracy };
+        setPendingLocation(pending);
         setIsLoadingLocation(false);
-        findNearestER(lat, lng);
-        try {
-          await navigator.clipboard.writeText(
-            `Emergency location: https://maps.google.com/?q=${lat},${lng}`,
-          );
-        } catch { /* clipboard may be unavailable */ }
+        setShowLocationPreview(true);   // show preview modal — user confirms
       },
       (err) => {
         setIsLoadingLocation(false);
@@ -528,111 +399,27 @@ const EmergencyPage: NextPage = () => {
     );
   }, [reverseGeocode, findNearestER]);
 
-  /* ── Send SOS to contacts via API ────────────────────────────── */
-  const sendSosAlert = useCallback(async (lat?: number, lng?: number, city?: string, nearestERName?: string) => {
-    setSosSending(true);
-    try {
-      const res = await fetch('/api/sos', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lat, lng, city,
-          nearestER: nearestERName,
-        }),
-      });
-      const data = await res.json();
-      setSosSendResult(data);
-    } catch {
-      setSosSendResult({ success: false, sent: 0, total: 0, failed: 0 });
-    } finally {
-      setSosSending(false);
+  /* ── Confirm share — called when user taps Share in preview ── */
+  const confirmShareLocation = useCallback(async () => {
+    if (!pendingLocation) return;
+    const { lat, lng, city, accuracy } = pendingLocation;
+    setLocation({ lat, lng, city, accuracy });
+    setLocationShared(true);
+    setShowLocationPreview(false);
+    setPendingLocation(null);
+    const shareText = `Emergency location: https://maps.google.com/?q=${lat},${lng}`;
+    // Try native share sheet first (mobile-first)
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'My Emergency Location', text: shareText, url: `https://maps.google.com/?q=${lat},${lng}` });
+        return;
+      } catch { /* user dismissed or browser denied — fall through to clipboard */ }
     }
-  }, []);
+    // Fallback to clipboard
+    try { await navigator.clipboard.writeText(shareText); } catch { /* ignore */ }
+  }, [pendingLocation]);
 
-  /* ── SOS Hold ─────────────────────────────────────────────── */
-  const startHold = useCallback(() => {
-    if (sosSent) return;
-    holdStartRef.current = Date.now();
-    setSosActive(true);
-    setSosCountdown(3);
-    setHoldProgress(0);
-
-    holdTimerRef.current = setInterval(() => {
-      const elapsed = (Date.now() - holdStartRef.current) / 3000;
-      setHoldProgress(Math.min(elapsed * 100, 100));
-      setSosCountdown(Math.max(Math.ceil(3 - (Date.now() - holdStartRef.current) / 1000), 0));
-
-      if (elapsed >= 1) {
-        clearInterval(holdTimerRef.current!);
-        setSosSent(true);
-        setSosActive(false);
-        setHoldProgress(100);
-
-        // Track SOS activation
-        trackActivity(
-          activityTypes.EMERGENCY_ACCESSED,
-          'SOS Alert Activated',
-          'Emergency SOS button activated',
-          { sosActivated: true },
-        ).catch(() => {});
-
-        // Get location, find nearest ER, then email contacts — all in sequence
-        // so the email includes the ER name rather than sending before it resolves
-        navigator.geolocation?.getCurrentPosition(
-          async (pos) => {
-            const city = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-            setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, city });
-            // Find nearest ER and capture the result before sending the email
-            const er = await findNearestER(pos.coords.latitude, pos.coords.longitude);
-            const erName = er ? `${er.name} · ${er.distance}` : undefined;
-            await sendSosAlert(pos.coords.latitude, pos.coords.longitude, city, erName);
-          },
-          async () => {
-            // GPS unavailable — still notify contacts immediately without location
-            await sendSosAlert(undefined, undefined, undefined, undefined);
-          },
-        );
-      }
-    }, 50);
-  }, [sosSent, reverseGeocode, findNearestER, sendSosAlert]);
-
-  const endHold = useCallback(() => {
-    if (sosSent) return;
-    if (holdTimerRef.current) clearInterval(holdTimerRef.current);
-    setSosActive(false);
-    setHoldProgress(0);
-    setSosCountdown(3);
-  }, [sosSent]);
-
-  const resetSOS = () => {
-    setSosSent(false);
-    setSosActive(false);
-    setHoldProgress(0);
-    setSosCountdown(3);
-    setSosSendResult(null);
-    setSosSending(false);
-    setSosElapsed(0);
-    if (sosTimerRef.current) clearInterval(sosTimerRef.current);
-  };
-
-  /* ── SOS elapsed timer — starts when SOS is sent ─────────── */
-  useEffect(() => {
-    if (sosSent) {
-      setSosElapsed(0);
-      sosTimerRef.current = setInterval(() => setSosElapsed(s => s + 1), 1000);
-    } else {
-      if (sosTimerRef.current) clearInterval(sosTimerRef.current);
-    }
-    return () => { if (sosTimerRef.current) clearInterval(sosTimerRef.current); };
-  }, [sosSent]);
-
-  const formatElapsed = (secs: number) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  /* ── Breathing guide (4-7-8 calming pattern) ─────────────── */
+  /* ── Breathing guide (box breathing 4-4-4-4 pattern) ────────── */
   const startBreathing = useCallback(() => {
     setShowBreathing(true);
     setBreathPhase('inhale');
@@ -658,6 +445,72 @@ const EmergencyPage: NextPage = () => {
   }, []);
   useEffect(() => () => { if (breathTimerRef.current) clearInterval(breathTimerRef.current); }, []);
 
+  /* ── CPR Metronome — 100 bpm (600ms per beat, 300ms compress / 300ms release) ── */
+  const startCpr = useCallback(() => {
+    setCprActive(true);
+    setCprCount(0);
+    setCprPhase('compress');
+    let tick = 0;
+    if (cprTimerRef.current) clearInterval(cprTimerRef.current);
+    cprTimerRef.current = setInterval(() => {
+      tick++;
+      setCprPhase(tick % 2 === 0 ? 'release' : 'compress');
+      if (tick % 2 === 1) {
+        setCprCount(c => c + 1);
+        // Web Audio API tick — brief click at 100 bpm
+        try {
+          if (!cprAudioRef.current) cprAudioRef.current = new AudioContext();
+          const ctx = cprAudioRef.current;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.35, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.07);
+        } catch { /* AudioContext not available */ }
+      }
+    }, 300); // 300ms half-cycle = 600ms per beat = 100 bpm
+  }, []);
+
+  const stopCpr = useCallback(() => {
+    if (cprTimerRef.current) clearInterval(cprTimerRef.current);
+    setCprActive(false);
+    setCprCount(0);
+    setCprPhase('compress');
+    if (cprAudioRef.current) {
+      cprAudioRef.current.close().catch(() => {});
+      cprAudioRef.current = null;
+    }
+  }, []);
+
+  /* Focus whichever of these modals just opened, and let Escape close it —
+     Location Preview, ER Picker, Poison, and Bystander previously had no
+     focus management or keyboard-close path at all (only overlay click / X button). */
+  useEffect(() => {
+    if (!showLocationPreview && !showERPicker && !showPoison && !showBystander) return;
+    if (showLocationPreview) locPreviewRef.current?.focus();
+    else if (showERPicker) erPickerRef.current?.focus();
+    else if (showPoison) poisonModalRef.current?.focus();
+    else if (showBystander) bystanderModalRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showLocationPreview) { setShowLocationPreview(false); setPendingLocation(null); }
+      else if (showERPicker) setShowERPicker(false);
+      else if (showPoison) setShowPoison(false);
+      else if (showBystander) { setShowBystander(false); stopCpr(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showLocationPreview, showERPicker, showPoison, showBystander, stopCpr]);
+
+  useEffect(() => () => {
+    if (cprTimerRef.current) clearInterval(cprTimerRef.current);
+    if (cprAudioRef.current) cprAudioRef.current.close().catch(() => {});
+  }, []);
+
   /* ── Personalised guides derived from Medical ID ─────────── */
   const personalisedGuides = React.useMemo(
     () => buildPersonalisedGuides(healthProfile?.allergies, healthProfile?.conditions, healthProfile?.medications),
@@ -668,12 +521,11 @@ const EmergencyPage: NextPage = () => {
   /* ── Copy personal emergency card ─────────────────────────── */
   const copyPersonalCard = async () => {
     const lines = [
-      `=== EMERGENCY MEDICAL ID — ${userName} ===`,
+      `=== EMERGENCY MEDICAL ID: ${userName} ===`,
       `Blood Type: ${medIdBloodType}`,
       `Allergies: ${medIdAllergies}`,
       `Conditions: ${medIdConditions}`,
       `Medications: ${medIdMedications}`,
-      `Emergency Contact: ${medIdContact}`,
       location ? `Location: https://maps.google.com/?q=${location.lat},${location.lng}` : '',
       `Generated: ${new Date().toLocaleString()}`,
     ].filter(Boolean).join('\n');
@@ -684,6 +536,103 @@ const EmergencyPage: NextPage = () => {
     } catch { /* ignore */ }
   };
 
+  /* ── Copy a first-aid guide as plain text ─────────────────── */
+  const copyGuide = async (guide: FirstAidGuide) => {
+    const lines = [
+      `=== ${guide.title.replace(/^[^\w]+/, '').trim()}: FIRST AID ===`,
+      guide.warning ? `⚠ ${guide.warning}` : '',
+      '',
+      ...guide.steps.map((s, i) => `${i + 1}. ${s.label ? s.label + ': ' : ''}${s.instruction}${s.tip ? `\n   Tip: ${s.tip}` : ''}`),
+      '',
+      'Call 193 (National Ambulance) for emergencies.',
+    ].filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(lines);
+      setCopiedId(`guide-${guide.id}`);
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch { /* ignore */ }
+  };
+
+  /* ── Build PDF data — mirrors exactly what the Medical ID modal
+         shows, since the modal is now the PDF's on-screen preview ── */
+  const buildEmergencyPdfData = (): MedicalIdPdfData => ({
+    userName,
+    userEmail,
+    bloodType:   medIdBloodType,
+    allergies:   (healthProfile?.allergies ?? []).map(a => ({ name: a.name, severity: a.severity })),
+    medications: (healthProfile?.medications ?? []).filter(m => m.active).map(m => ({ name: m.name, dose: m.dose })),
+    conditions:  (healthProfile?.conditions ?? []).filter(c => c.status !== 'resolved').map(c => ({ name: c.name, status: c.status })),
+    nhis: nhisCard ?? null,
+  });
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { generateMedicalIdPdf } = await import('@/lib/generateMedicalIdPdf');
+      generateMedicalIdPdf(buildEmergencyPdfData());
+    } catch (e) { console.error('PDF error:', e); }
+    finally { setIsGeneratingPdf(false); }
+  };
+
+  const handlePrintPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { printMedicalIdPdf } = await import('@/lib/generateMedicalIdPdf');
+      printMedicalIdPdf(buildEmergencyPdfData());
+    } catch (e) { console.error('Print error:', e); }
+    finally { setIsGeneratingPdf(false); }
+  };
+
+  /* ── QR Code — generate 30-day emergency brief link ────────── */
+  const generateQr = async () => {
+    setIsGeneratingQr(true);
+    setQrError('');
+    try {
+      const res = await fetch('/api/emergency-brief/generate', { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to generate');
+      const { url, expiresAt } = await res.json();
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 240, margin: 2,
+        color: { dark: '#111827', light: '#ffffff' },
+      });
+      setQrDataUrl(dataUrl);
+      setQrBriefUrl(url);
+      setQrExpiresAt(expiresAt);
+    } catch {
+      setQrError('Could not generate QR code. Please try again.');
+    } finally {
+      setIsGeneratingQr(false);
+    }
+  };
+
+  const removeQr = async () => {
+    await fetch('/api/emergency-brief/generate', { method: 'DELETE' });
+    setQrDataUrl(null);
+    setQrBriefUrl(null);
+    setQrExpiresAt(null);
+    setQrError('');
+  };
+
+  /* ── Load existing QR on mount ────────────────────────────── */
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    // Fetch existing brief token (GET) — only renders if one already exists
+    fetch('/api/emergency-brief/status')
+      .then(r => r.ok ? r.json() : null)
+      .then(async (data) => {
+        if (!data?.url) return;
+        const dataUrl = await QRCode.toDataURL(data.url, {
+          width: 240, margin: 2,
+          color: { dark: '#111827', light: '#ffffff' },
+        });
+        setQrDataUrl(dataUrl);
+        setQrBriefUrl(data.url);
+        setQrExpiresAt(data.expiresAt);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   /* ── Copy to clipboard ────────────────────────────────────── */
   const copyPhone = async (id: string, number: string) => {
     try {
@@ -693,177 +642,68 @@ const EmergencyPage: NextPage = () => {
     } catch { /* ignore */ }
   };
 
-  /* ── Add Contact — saves to DB ────────────────────────────── */
-  const handleAddContact = async () => {
-    setAddError('');
-    if (!newContact.name.trim())   { setAddError('Name is required');         return; }
-    if (!newContact.number.trim()) { setAddError('Phone number is required'); return; }
-
-    setAddingContact(true);
-    try {
-      const res = await fetch('/api/emergency-contacts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:         newContact.name.trim(),
-          relationship: newContact.relationship.trim(),
-          number:       newContact.number.trim(),
-          email:        newContact.email.trim() || undefined,
-          priority:     contacts.length + 1,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to save contact');
-      }
-
-      const { contact } = await res.json();
-      setContacts(prev => [
-        ...prev,
-        {
-          id:           contact.id,
-          name:         contact.name,
-          relationship: contact.relationship,
-          number:       contact.number,
-          email:        contact.email || undefined,
-          isPrimary:    contact.priority === 1,
-          priority:     contact.priority,
-        },
-      ]);
-      setNewContact({ name: '', relationship: '', number: '', email: '' });
-      setShowAddContact(false);
-      setContactSaveSuccess(true);
-      setTimeout(() => setContactSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setAddError(err.message || 'Failed to save contact. Please try again.');
-    } finally {
-      setAddingContact(false);
-    }
-  };
-
-  /* ── Remove Contact — deletes from DB ────────────────────── */
-  const removeContact = async (id: string) => {
-    // Optimistic update
-    setContacts(prev => prev.filter(c => c.id !== id));
-    try {
-      await fetch('/api/emergency-contacts', {
-        method:  'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id }),
-      });
-    } catch {
-      fetch('/api/emergency-contacts')
-        .then(r => r.json())
-        .then(({ contacts: data }) => setContacts(data || []));
-    }
-  };
-
-  /* ── Start editing a contact ──────────────────────────────── */
-  const startEditContact = (c: EmergencyContact) => {
-    setEditingContactId(c.id);
-    setEditContact({ name: c.name, relationship: c.relationship, number: c.number, email: c.email || '' });
-    setEditError('');
-    setShowAddContact(false);
-  };
-
-  /* ── Save edited contact to DB ────────────────────────────── */
-  const handleSaveEdit = async () => {
-    setEditError('');
-    if (!editContact.name.trim())   { setEditError('Name is required');         return; }
-    if (!editContact.number.trim()) { setEditError('Phone number is required'); return; }
-    setSavingEdit(true);
-    try {
-      const res = await fetch('/api/emergency-contacts', {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id:           editingContactId,
-          name:         editContact.name.trim(),
-          relationship: editContact.relationship.trim(),
-          number:       editContact.number.trim(),
-          email:        editContact.email.trim() || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to update contact');
-      }
-      const { contact } = await res.json();
-      setContacts(prev => prev.map(c => c.id === editingContactId ? {
-        ...c,
-        name:         contact.name,
-        relationship: contact.relationship,
-        number:       contact.number,
-        email:        contact.email || undefined,
-      } : c));
-      setEditingContactId(null);
-      setContactSaveSuccess(true);
-      setTimeout(() => setContactSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setEditError(err.message || 'Failed to update contact.');
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
   /* ── Derived Medical ID values ────────────────────────────── */
   const medIdBloodType = healthProfile?.bloodType || 'Not set';
   const medIdAllergies = healthProfile?.allergies?.length
     ? healthProfile.allergies.map(a => a.name).join(', ')
-    : 'None recorded';
+    : 'None listed';
   const medIdConditions = healthProfile?.conditions?.filter(c => c.status !== 'resolved').length
-    ? healthProfile.conditions!.filter(c => c.status !== 'resolved').map(c => `${c.name} — ${c.status}`).join(', ')
-    : 'None recorded';
+    ? healthProfile.conditions!.filter(c => c.status !== 'resolved').map(c => `${c.name} (${c.status})`).join(', ')
+    : 'None listed';
   const medIdMedications = healthProfile?.medications?.filter(m => m.active).length
     ? healthProfile.medications!.filter(m => m.active).map(m => m.dose ? `${m.name} ${m.dose}` : m.name).join(', ')
-    : 'None recorded';
-  const medIdContact = contacts[0]
-    ? `${contacts[0].name} · ${contacts[0].number}`
-    : 'Not set — add an emergency contact';
+    : 'None listed';
 
-  // ── Notification panel ──────────────────────────────────────
-  useEffect(() => {
-    if (!showNotifPanel) return;
-    const handler = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (
-        notifPanelRef.current && !notifPanelRef.current.contains(t) &&
-        notifBellRef.current  && !notifBellRef.current.contains(t)  &&
-        notifMobRef.current   && !notifMobRef.current.contains(t)
-      ) setShowNotifPanel(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showNotifPanel]);
-
-  const emNotifications = React.useMemo(() => {
-    type NotifItem = { id: string; icon: React.ComponentType<{size:number}>; color: string; title: string; body: string; action?: () => void };
-    const list: NotifItem[] = [];
-    if (sosSent)
-      list.push({ id:'sos', icon:AlertTriangle, color:'red', title:'SOS Alert Activated', body:`Call 193 now${location?.city ? ` · Location: ${location.city}` : ' · Getting your location…'}`, action:()=>window.open('tel:193','_self') });
+  // ── Notifications ────────────────────────────────────────────
+  // Same three contextual tips as before (nearest ER, location shared,
+  // Medical ID gaps) — now contributed into the single shared bell feed
+  // instead of driving this page's own panel. See NotificationsContext.tsx.
+  const emNotifications = React.useMemo<AppNotification[]>(() => {
+    const nowIso = new Date().toISOString();
+    const list: AppNotification[] = [];
     if (location && nearestER)
-      list.push({ id:'er', icon:Navigation, color:'red', title:`Nearest ER: ${nearestER.name}`, body:`${nearestER.distance} away · Tap to open in Maps`, action:()=>window.open(`https://maps.google.com/maps/search/hospital/@${location.lat},${location.lng},14z`,'_blank') });
+      list.push({
+        id: 'er', icon: Navigation, color: 'red', scope: 'contextual', createdAt: nowIso,
+        title: `Nearest ER: ${nearestER.name}`,
+        body: `${nearestER.distance} away. Tap to open in Maps.`,
+        onSelect: () => window.open(`https://maps.google.com/maps/search/hospital/@${location.lat},${location.lng},14z`, '_blank'),
+      });
     if (locationShared && location)
-      list.push({ id:'loc', icon:MapPin, color:'teal', title:`Location shared — ${location.city||'GPS acquired'}`, body:`${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}${location.accuracy ? ` · ±${Math.round(location.accuracy)}m` : ''}`, action:()=>window.open(`https://maps.google.com/?q=${location.lat},${location.lng}`,'_blank') });
-    if (contacts.length > 0)
-      list.push({ id:'contacts', icon:Phone, color:'teal', title:`${contacts.length} emergency contact${contacts.length>1?'s':''} saved`, body:`Primary: ${contacts[0].name} · ${contacts[0].number}`, action:()=>window.open(`tel:${contacts[0].number}`,'_self') });
-    else
-      list.push({ id:'no-contacts', icon:Plus, color:'amber', title:'No emergency contacts added', body:'Add contacts so they can be notified in emergencies.', action:()=>setShowAddContact(true) });
+      list.push({
+        id: 'loc', icon: MapPin, color: 'teal', scope: 'contextual', createdAt: nowIso,
+        title: `Location shared: ${location.city || 'GPS acquired'}`,
+        body: `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}${location.accuracy ? `, ±${Math.round(location.accuracy)}m` : ''}`,
+        onSelect: () => window.open(`https://maps.google.com/?q=${location.lat},${location.lng}`, '_blank'),
+      });
     if (medIdBloodType === 'Not set')
-      list.push({ id:'medid', icon:BookOpen, color:'amber', title:'Medical ID incomplete', body:'Add your blood type and allergies for first responders.', action:()=>router.push('/profile?modal=medicalId') });
+      list.push({
+        id: 'medid', icon: BookOpen, color: 'amber', scope: 'contextual', createdAt: nowIso,
+        title: 'Your Medical ID needs a few things',
+        body: 'Add your blood type and allergies so first responders know what to do.',
+        onSelect: () => router.push('/profile?modal=medicalId'),
+      });
     return list;
-  }, [sosSent, location, nearestER, locationShared, contacts, medIdBloodType, router]);
+  }, [location, nearestER, locationShared, medIdBloodType, router]);
 
-  const emHasUnread = emNotifications.some(n=>n.id!=='empty') && !notifsRead;
-  const toggleNotifPanel = () => { setShowNotifPanel(p=>!p); setNotifsRead(true); };
+  useRegisterNotifications('emergency', emNotifications);
 
-  const filteredGuides = allFirstAidGuides.filter(g =>
-    searchQuery ? g.title.toLowerCase().includes(searchQuery.toLowerCase()) : true,
-  );
+  const filteredGuides = allFirstAidGuides.filter(g => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      g.title.toLowerCase().includes(q) ||
+      (g.tags ?? []).some((t: string) => t.toLowerCase().includes(q)) ||
+      g.steps.some((s: FirstAidStep) => s.instruction.toLowerCase().includes(q)) ||
+      (g.warning ?? '').toLowerCase().includes(q)
+    );
+  });
 
   const severityLabel = (s: FirstAidGuide['severity']) =>
-    s === 'critical' ? '🔴 Critical' : s === 'high' ? '🟠 High Priority' : '🟡 Medium';
+    s === 'critical'
+      ? `🔴 ${t('emergency.critical', 'Critical')}`
+      : s === 'high'
+      ? `🟠 ${t('emergency.high', 'High Priority')}`
+      : `🟡 ${t('emergency.medium', 'Medium')}`;
   const severityColor = (s: FirstAidGuide['severity']) =>
     s === 'critical' ? 'em-guide--critical' : s === 'high' ? 'em-guide--high' : 'em-guide--medium';
 
@@ -883,6 +723,12 @@ const EmergencyPage: NextPage = () => {
   /* ── Render ───────────────────────────────────────────────── */
   return (
     <DashboardLayout activeTab="/emergency" className="hc-layout--has-mob-topbar">
+
+      {/* ── Fixed background layer — pattern + tint stay pinned to the
+           viewport while everything else scrolls over it. A real
+           position:fixed element, not background-attachment:fixed,
+           since that CSS property is unreliably ignored on iOS Safari. ── */}
+      <div className="em-bg-fixed" aria-hidden="true" />
 
       {/* ── Desktop topbar ─────────────────────────────────── */}
       <div className={`db-topbar${isScrolled ? ' db-topbar--scrolled' : ''}`}>
@@ -921,10 +767,12 @@ const EmergencyPage: NextPage = () => {
                   <button className="db-topbar__icon-btn" type="button" onClick={toggleDarkMode} aria-label="Toggle theme">
                     {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
                   </button>
-                  <button className="db-topbar__icon-btn db-topbar__notif" ref={notifBellRef} type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
-                    <Bell size={18} />{emHasUnread && <span className="db-topbar__notif-dot" />}
-                  </button>
-                  <button className="db-topbar__user" type="button" onClick={() => router.push('/profile')} title="Go to Profile & Settings">
+                  <NotificationBell
+                    className="db-topbar__icon-btn db-topbar__notif"
+                    dotClassName="db-topbar__notif-dot"
+                    aria-label="Notifications"
+                  />
+                  <Link href="/profile" className="db-topbar__user" title="Go to Profile & Settings" style={{ textDecoration: 'none' }}>
                     <div className="db-topbar__user-avatar">
                         {userImage
                           ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" />
@@ -934,7 +782,7 @@ const EmergencyPage: NextPage = () => {
                       <span className="db-topbar__user-name">{userName}</span>
                       <span className="db-topbar__user-id">HC-{userEmail.slice(0,5).toUpperCase()}</span>
                     </div>
-                  </button>
+                  </Link>
                 </div>
       </div>
 
@@ -945,324 +793,313 @@ const EmergencyPage: NextPage = () => {
           <span className="mob-topbar__logo-text">HealthConnect</span>
         </div>
         <div className="mob-topbar__right">
-          <button className="mob-topbar__btn" type="button" onClick={toggleDarkMode}>
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          <button ref={notifMobRef} className="mob-topbar__btn mob-topbar__bell" type="button" aria-label="Notifications" onClick={toggleNotifPanel}>
-            <Bell size={18} />{emHasUnread && <span className="mob-topbar__bell-dot" />}
-          </button>
-          <button className="mob-topbar__avatar-btn" type="button" onClick={() => router.push('/profile')}>
-            <div className="mob-topbar__avatar">
-              {userImage ? <img src={userImage} alt={userName} referrerPolicy="no-referrer" /> : userInitials}
-            </div>
-          </button>
+          <MobTopbarMenu />
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          NOTIFICATION PANEL
-      ══════════════════════════════════════════════════════ */}
-      {showNotifPanel && (
-        <>
-          <div className="db-notif-panel" ref={notifPanelRef} role="dialog" aria-label="Notifications">
-            <div className="db-notif-panel__header">
-              <span className="db-notif-panel__title">Notifications</span>
-              {emNotifications.some(n => n.id !== 'empty') && (
-                <span className="db-notif-panel__count">{emNotifications.filter(n => n.id !== 'empty').length}</span>
-              )}
-              <button className="db-notif-panel__close" onClick={()=>setShowNotifPanel(false)} type="button" aria-label="Close"><X size={15}/></button>
-            </div>
-            <div className="db-notif-panel__list">
-              {emNotifications.map(n => {
-                const Icon = n.icon;
-                return (
-                  <button key={n.id} className={`db-notif-item db-notif-item--${n.color}`}
-                    onClick={()=>{ setShowNotifPanel(false); n.action?.(); }}
-                    type="button" disabled={!n.action}>
-                    <div className={`db-notif-item__icon db-notif-item__icon--${n.color}`}><Icon size={14}/></div>
-                    <div className="db-notif-item__body">
-                      <p className="db-notif-item__title">{n.title}</p>
-                      <p className="db-notif-item__body-text">{n.body}</p>
-                    </div>
-                    {n.action && <ChevronRight size={13} className="db-notif-item__arrow"/>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="db-notif-overlay" onClick={()=>setShowNotifPanel(false)} />
-        </>
-      )}
+      {/* Notifications panel is now the single shared one — see
+          NotificationPanel.tsx, mounted once by DashboardLayout. This
+          page just registers its tips into the feed above (emNotifications
+          + useRegisterNotifications). */}
 
       {/* ── Mobile bottom nav ──────────────────────────────── */}
-      <nav className="mob-tab-bar" aria-label="Main navigation">
-        <div className="mob-tab-bar__inner">
-          <button className="mob-tab-btn" onClick={() => router.push('/dashboard')} type="button" aria-label="Home">
-            <span className="mob-tab-btn__icon"><Heart size={20} /></span>Home
-          </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/facilities')} type="button" aria-label="Find facilities">
-            <span className="mob-tab-btn__icon"><MapPin size={20} /></span>Find
-          </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/symptom-checker')} type="button" aria-label="Symptom Checker">
-            <span className="mob-tab-btn__icon"><Bot size={20} /></span>Check
-          </button>
-          <button
-            className="mob-tab-btn mob-tab-btn--sos active"
-            onClick={() => router.push('/emergency')}
-            type="button"
-            aria-current="page"
-            aria-label="Emergency"
-          >
-            <span className="mob-tab-sos-icon"><Phone size={20} /></span>
-            SOS
-          </button>
-          <button className="mob-tab-btn" onClick={() => router.push('/profile')} type="button" aria-label="Profile">
-            <span className="mob-tab-btn__icon"><User size={20} /></span>Profile
-          </button>
-        </div>
-      </nav>
+      <MobTabBar currentPath="/emergency" />
 
       {/* ═══════════════════════════════════════════════════════
           MAIN CONTENT
       ═══════════════════════════════════════════════════════ */}
       <div className="db-page em-page">
 
+        {/* ── PAGE HEADER ──────────────────────────────────── */}
+        <div className="em-page-header">
+          <div>
+            <h1 className="em-page-header__title">{t('emergency.title', 'Emergency Hub')}</h1>
+            <p className="em-page-header__sub">{t('emergency.subtitle', 'Call for help, share your location, or get first aid guidance in one tap')}</p>
+          </div>
+        </div>
+
         {/* ── HERO ─────────────────────────────────────────── */}
         <div className="em-hero">
-          <div className="em-hero__bg" />
           <div className="em-hero__content">
-            <div className="em-hero__left">
-              <span className="em-hero__badge"><span className="em-hero__badge-dot" />Emergency Hub</span>
-              <h1 className="em-hero__title">Stay Calm.<br />Help Is Nearby.</h1>
-              <p className="em-hero__sub">
-                Instant access to emergency services, first aid guides, and your emergency contacts — all in one place.
-              </p>
 
+            {/* Left — quick action cards */}
+            <div className="em-hero__left">
               {locationError && (
                 <div className="em-loc-error"><AlertCircle size={13} /> {locationError}</div>
               )}
+              <div className="em-action-grid">
 
-              <div className="em-hero__actions">
-                <button
-                  className={`em-hero__loc-btn${locationShared ? ' em-hero__loc-btn--active' : ''}`}
-                  onClick={shareLocation} disabled={isLoadingLocation} type="button"
-                >
-                  {isLoadingLocation ? <Loader2 size={15} className="em-spin" /> : <Navigation size={15} />}
-                  {location?.city || 'Share Location'}
-                </button>
-                {locationShared && location && (
-                  <a
-                    href={`https://maps.google.com/?q=${location.lat},${location.lng}`}
-                    target="_blank" rel="noopener noreferrer" className="em-hero__maps-btn"
-                  >
-                    <ExternalLink size={13} /> Open in Maps
-                  </a>
-                )}
-                <button className="em-hero__medid-btn" onClick={() => setShowPersonalCard(true)} type="button">
-                  <ClipboardList size={15} /> Show Medical ID
-                </button>
-              </div>
-
-              {location && (
-                <p className="em-loc-accuracy">
-                  📍 {location.city}
-                  {location.accuracy ? ` · ±${Math.round(location.accuracy)}m accuracy` : ''}
-                  {locationShared && <span className="em-loc-copy-note"> · Maps link copied</span>}
-                </p>
-              )}
-            </div>
-
-            {/* SOS Button */}
-            <div className="em-sos-wrap">
-              {sosSent ? (
-                <div className="em-sos-sent">
-                  <div className="em-sos-sent__icon"><Check size={36} /></div>
-                  <p className="em-sos-sent__label">SOS Activated</p>
-
-                  {/* Elapsed timer */}
-                  <div className="em-sos-sent__timer">
-                    <Clock size={14} />
-                    <span>{formatElapsed(sosElapsed)}</span>
-                    <span className="em-sos-sent__timer-label">elapsed since activation</span>
-                  </div>
-
-                  {/* Location + nearest ER */}
-                  <p className="em-sos-sent__sub">
-                    {location?.city
-                      ? <><strong>{location.city}</strong><br />Nearest ER: <strong>{nearestER?.name || '…'}{nearestER?.distance ? ` · ${nearestER.distance}` : ''}</strong></>
-                      : 'Getting your location…'}
-                  </p>
-
-                  {/* Email send status */}
-                  <div className="em-sos-sent__sms-status">
-                    {sosSending ? (
-                      <span className="em-sos-sent__sms-status--sending">
-                        <Loader2 size={13} className="em-spin" />
-                        Alerting {contacts.length} emergency contact{contacts.length !== 1 ? 's' : ''}…
-                      </span>
-                    ) : sosSendResult ? (
-                      sosSendResult.noContacts ? (
-                        <span className="em-sos-sent__sms-status--warn">
-                          <AlertCircle size={14} />
-                          No emergency contacts saved.<br />
-                          Add contacts in the Contacts tab so they can be notified.
-                        </span>
-                      ) : sosSendResult.smtpMissing ? (
-                        <span className="em-sos-sent__sms-status--warn">
-                          <AlertCircle size={14} />
-                          Email service not configured.<br />
-                          Call your contacts manually using the buttons below.
-                        </span>
-                      ) : sosSendResult.noEmails ? (
-                        <span className="em-sos-sent__sms-status--warn">
-                          <AlertCircle size={14} />
-                          Your contacts have no email addresses — they weren't notified automatically.
-                        </span>
-                      ) : sosSendResult.success ? (
-                        <span className="em-sos-sent__sms-status--ok">
-                          <Check size={14} />
-                          Alert sent to {sosSendResult.sent}/{sosSendResult.emailedCount} contact{sosSendResult.emailedCount !== 1 ? 's' : ''}
-                          {sosSendResult.withoutEmail && sosSendResult.withoutEmail.length > 0 && (
-                            <span className="em-sos-sent__contact-names">
-                              {sosSendResult.withoutEmail.length} contact{sosSendResult.withoutEmail.length !== 1 ? 's have' : ' has'} no email — call manually
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="em-sos-sent__sms-status--err">
-                          <AlertCircle size={14} />
-                          Email failed — call contacts manually below
-                        </span>
-                      )
-                    ) : null}
-                  </div>
-
-                  {/* Per-contact call buttons with email status badge */}
-                  {contacts.length > 0 && (
-                    <div className="em-sos-sent__contacts">
-                      {contacts.map(c => (
-                        <a
-                          key={c.id}
-                          href={`tel:${c.number}`}
-                          className={`em-sos-sent__contact-call${!c.email ? ' em-sos-sent__contact-call--no-email' : ''}`}
-                        >
-                          <Phone size={13} />
-                          <span className="em-sos-sent__contact-call-name">Call {c.name}</span>
-                          <span className={`em-sos-sent__contact-email-badge ${c.email ? 'em-sos-sent__contact-email-badge--ok' : 'em-sos-sent__contact-email-badge--none'}`}>
-                            {c.email ? '✉ alerted' : '⚠ no email'}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add email nudge — shown when any contact is missing email */}
-                  {contacts.some(c => !c.email) && (
-                    <div className="em-sos-sent__add-email-nudge">
-                      <AlertCircle size={13} style={{ display: 'inline', marginRight: 5 }} />
-                      {contacts.filter(c => !c.email).length} contact{contacts.filter(c => !c.email).length !== 1 ? 's are' : ' is'} missing an email address — they can only be called, not auto-alerted.{' '}
-                      <button onClick={() => router.push('/emergency#contacts')} type="button">
-                        Add emails →
-                      </button>
-                    </div>
-                  )}
-
-                  <a href="tel:193" className="em-sos-sent__call"><Phone size={15} /> Call Ambulance — 193</a>
-                  <button className="em-sos-sent__reset" onClick={resetSOS} type="button">Cancel Alert</button>
+                {/* ── Situation actions — hazard-panel treatment: caution-stripe
+                     rail, dispatcher-style urgency tags, glow-ring icons. This
+                     is the "act now" tier, second only to the Call 193 hero
+                     action on the right. ── */}
+                <div className="em-section-head em-section-head--urgent">
+                  <span className="em-section-head__icon"><Siren size={13} /></span>
+                  <span className="em-section-head__label">Urgent situations</span>
+                  <span className="em-section-head__hint">Act now</span>
                 </div>
-              ) : (
-                <>
-                  <div
-                    className={`em-sos-btn${sosActive ? ' em-sos-btn--active' : ''}`}
-                    onMouseDown={startHold} onMouseUp={endHold} onMouseLeave={endHold}
-                    onTouchStart={e => {
-                      // Record start position — never preventDefault (would break page scroll)
-                      touchStartYRef.current = e.touches[0].clientY;
-                      startHold();
-                    }}
-                    onTouchMove={e => {
-                      // If finger moves >8px vertically the user is scrolling — cancel hold
-                      if (Math.abs(e.touches[0].clientY - touchStartYRef.current) > 8) {
-                        endHold();
-                      }
-                    }}
-                    onTouchEnd={endHold}
-                    onTouchCancel={endHold}
-                    role="button" tabIndex={0} aria-label="Hold to activate SOS"
-                    style={{ '--sos-progress': `${holdProgress}%` } as React.CSSProperties}
-                  >
-                    <div className="em-sos-btn__ring em-sos-btn__ring--1" />
-                    <div className="em-sos-btn__ring em-sos-btn__ring--2" />
-                    <div className="em-sos-btn__ring em-sos-btn__ring--3" />
-                    <div className="em-sos-btn__core">
-                      <span className="em-sos-btn__label">SOS</span>
-                      {sosActive && <span className="em-sos-btn__count">{sosCountdown}</span>}
-                    </div>
-                    {sosActive && (
-                      <svg className="em-sos-btn__progress" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,77,109,0.3)" strokeWidth="4" />
-                        <circle cx="60" cy="60" r="54" fill="none" stroke="#FF4D6D" strokeWidth="4"
-                          strokeLinecap="round"
-                          strokeDasharray={`${(holdProgress / 100) * 339.3} 339.3`}
-                          transform="rotate(-90 60 60)" />
-                      </svg>
-                    )}
+                <button className="em-urgent-jump" onClick={goToFirstAid} type="button">
+                  <span>Don't see your situation? See all {allFirstAidGuides.length} guides</span>
+                  <ChevronRight size={12} />
+                </button>
+                <div className="em-urgent-panel">
+                  <button className="em-action em-action--amber em-action--featured" onClick={() => { setShowPoison(true); setPoisonStep('triage'); }} type="button">
+                    <span className="em-action__scene" style={{ backgroundImage: `url('/images/emergency/poison-overdose-${isDarkMode ? 'dark' : 'light'}.webp')`, backgroundColor: isDarkMode ? '#0c0c0c' : '#d1cbc6' }} aria-hidden="true" />
+                    <span className="em-action__icon"><AlertTriangle size={18} /></span>
+                    <span className="em-action__body">
+                      <span className="em-action__title-row">
+                        <span className="em-action__title">Poison or Overdose</span>
+                        <span className="em-action__tag em-action__tag--amber">Call 193 first</span>
+                      </span>
+                      <span className="em-action__meta">What to do in the first few minutes, step by step</span>
+                    </span>
+                    <ChevronRight size={15} className="em-action__arrow" />
+                  </button>
+                  <button className="em-action em-action--red em-action--featured" onClick={() => { setShowBystander(true); setBystanderStep(0); }} type="button">
+                    <span className="em-action__scene em-action__scene--photo" style={{ backgroundImage: `url('/images/emergency/collapse-photo-${isDarkMode ? 'dark' : 'light'}.webp')` }} aria-hidden="true" />
+                    <span className="em-action__icon"><HeartPulse size={18} /></span>
+                    <span className="em-action__body">
+                      <span className="em-action__title-row">
+                        <span className="em-action__title">Someone Collapsed</span>
+                        <span className="em-action__tag em-action__tag--red">First 60 sec</span>
+                      </span>
+                      <span className="em-action__meta">CPR guide that talks you through it in real time</span>
+                    </span>
+                    <ChevronRight size={15} className="em-action__arrow" />
+                  </button>
+                  <div className="em-er-card">
+                    <button
+                      className="em-action em-action--safe em-action--featured em-action--card-top"
+                      onClick={() => {
+                        if (nearbyERs.length > 1) { setShowERPicker(true); return; }
+                        if (selectedER?.lat && selectedER?.lng) {
+                          window.open(`https://maps.google.com/?q=${selectedER.lat},${selectedER.lng}`, '_blank');
+                        } else if (location) {
+                          window.open(`https://maps.google.com/maps/search/${encodeURIComponent(selectedER?.name || 'hospital')}/@${location.lat},${location.lng},14z`, '_blank');
+                        } else {
+                          shareLocation();
+                        }
+                      }}
+                      type="button"
+                    >
+                      {nearbyERs.length > 1 && (
+                        <span className="em-action__badge">{nearbyERs.length}</span>
+                      )}
+                      <span className="em-action__scene em-action__scene--photo" style={{ backgroundImage: `url('/images/emergency/er-photo-${isDarkMode ? 'dark' : 'light'}.webp')`, backgroundPosition: 'center' }} aria-hidden="true" />
+                      <span className="em-action__icon">
+                        {isLoadingER ? <Loader2 size={18} className="em-spin" /> : <Navigation size={18} />}
+                      </span>
+                      <span className="em-action__body">
+                        <span className="em-action__title">Nearest Emergency Room</span>
+                        <span className="em-action__meta">
+                          {isLoadingER ? 'Locating the closest ER…' : selectedER ? `${selectedER.distance} away · opens driving directions` : 'Turn on location to see distance'}
+                        </span>
+                      </span>
+                      <ChevronRight size={15} className="em-action__arrow" />
+                    </button>
+                    <button className="em-er-card__footer" onClick={goToFirstAid} type="button">
+                      <Plus size={14} />
+                      <span>Still not it? Browse all first aid guides</span>
+                      <ChevronRight size={13} />
+                    </button>
                   </div>
-                  <p className="em-sos-hint">Hold to activate · Sends location to emergency contacts</p>
-                </>
-              )}
-            </div>
-          </div>
+                </div>
 
-          {/* Quick cards */}
-          <div className="em-quick-grid">
-            <a href="tel:193" className="em-quick-card em-quick-card--red">
-              <Phone size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Call 193</span>
-              <span className="em-quick-card__sub">National Ambulance</span>
-            </a>
-            <button className="em-quick-card em-quick-card--teal" onClick={shareLocation} type="button">
-              <MapPin size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">{locationShared ? 'Location Shared ✓' : 'Share Location'}</span>
-              <span className="em-quick-card__sub">
-                {locationShared && location?.city ? location.city : 'Get & copy GPS link'}
-              </span>
-            </button>
-            <button className="em-quick-card em-quick-card--violet" onClick={() => setShowPersonalCard(true)} type="button">
-              <ClipboardList size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">My Medical ID</span>
-              <span className="em-quick-card__sub">Show to paramedics</span>
-            </button>
-            <button
-              className="em-quick-card em-quick-card--amber"
-              onClick={() => location
-                ? window.open(`https://maps.google.com/maps/search/hospital/@${location.lat},${location.lng},14z`, '_blank')
-                : shareLocation()
-              }
-              type="button"
-            >
-              <Navigation size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Nearest ER</span>
-              <span className="em-quick-card__sub">
-                {isLoadingER
-                  ? 'Searching…'
-                  : nearestER
-                  ? `${nearestER.name} · ${nearestER.distance}`
-                  : 'Enable location first'}
-              </span>
-            </button>
-            <button className="em-quick-card em-quick-card--mint" onClick={startBreathing} type="button">
-              <HeartPulse size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Calm Breathing</span>
-              <span className="em-quick-card__sub">4-7-8 guided pattern</span>
-            </button>
-            <button className="em-quick-card em-quick-card--blue" onClick={() => router.push('/facilities')} type="button">
-              <MapPin size={22} className="em-quick-card__icon" />
-              <span className="em-quick-card__title">Find Hospital</span>
-              <span className="em-quick-card__sub">Nearby facilities map</span>
-            </button>
+                {/* ── Support tools — one consolidated, calmer panel instead
+                     of a fourth row of red/amber cards, so the eye reads
+                     "urgent" vs "everything else" at a glance. ── */}
+                <div className="em-section-head em-section-head--calm">
+                  <span className="em-section-head__icon"><ShieldCheck size={13} /></span>
+                  <span className="em-section-head__label">Support tools</span>
+                </div>
+                <div className="em-toolkit">
+                  <button className="em-toolkit__row" onClick={locationShared && location ? () => setShowLocationPreview(true) : shareLocation} type="button">
+                    <span className="em-toolkit__icon">
+                      {isLoadingLocation ? <Loader2 size={17} className="em-spin" /> : <MapPin size={17} />}
+                    </span>
+                    <span className="em-toolkit__body">
+                      <span className="em-toolkit__title">{locationShared ? 'Location Shared' : 'Share Your Location'}</span>
+                      <span className="em-toolkit__meta">
+                        {locationShared ? (location?.city ? `Live, visible from ${location.city}` : 'Live, visible to your contacts') : 'Send your exact GPS position over WhatsApp'}
+                      </span>
+                    </span>
+                    {locationShared && <span className="em-toolkit__status" aria-hidden="true" />}
+                    <ChevronRight size={14} className="em-toolkit__arrow" />
+                  </button>
+                  <button className="em-toolkit__row" onClick={() => setShowPersonalCard(true)} type="button">
+                    <span className="em-toolkit__icon"><ClipboardList size={17} /></span>
+                    <span className="em-toolkit__body">
+                      <span className="em-toolkit__title">My Medical ID</span>
+                      <span className="em-toolkit__meta">Blood type & allergies, ready to show paramedics</span>
+                    </span>
+                    <ChevronRight size={14} className="em-toolkit__arrow" />
+                  </button>
+                  <button className="em-toolkit__row" onClick={startBreathing} type="button">
+                    <span className="em-toolkit__icon em-toolkit__icon--safe"><Wind size={17} /></span>
+                    <span className="em-toolkit__body">
+                      <span className="em-toolkit__title">Calm Breathing</span>
+                      <span className="em-toolkit__meta">Guided 4-4-4-4 box breathing to steady yourself</span>
+                    </span>
+                    <ChevronRight size={14} className="em-toolkit__arrow" />
+                  </button>
+                  <Link href="/facilities" className="em-toolkit__row">
+                    <span className="em-toolkit__icon"><Building2 size={17} /></span>
+                    <span className="em-toolkit__body">
+                      <span className="em-toolkit__title">Find a Hospital</span>
+                      <span className="em-toolkit__meta">Browse hospitals, clinics & pharmacies near you</span>
+                    </span>
+                    <ChevronRight size={14} className="em-toolkit__arrow" />
+                  </Link>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Right — Call 193, the main action on this page */}
+            <div className="em-call193-wrap">
+              <a href="tel:193" className="em-call193-card" aria-label="Call 193, National Ambulance Service, free, available 24 hours">
+                <div className="em-call193-card__ring em-call193-card__ring--1" />
+                <div className="em-call193-card__ring em-call193-card__ring--2" />
+                <div className="em-call193-card__ring em-call193-card__ring--3" />
+                <div className="em-call193-card__icon"><Phone size={28} /></div>
+                <div className="em-call193-card__body">
+                  <span className="em-call193-card__title">Call 193</span>
+                  <span className="em-call193-card__meta">National Ambulance Service</span>
+                  <span className="em-call193-card__tag">24/7 · Free · No airtime needed</span>
+                </div>
+              </a>
+              <span className="em-hero__badge em-call193-calm-badge"><span className="em-hero__badge-dot" />Stay calm. Help is on the way.</span>
+            </div>
           </div>
         </div>
+
+        {/* ── LOCATION PREVIEW MODAL ───────────────────────────── */}
+        {(showLocationPreview && (pendingLocation || location)) && (() => {
+          const loc = pendingLocation || location!;
+          const confirmed = !pendingLocation && locationShared;
+          return createPortal(
+            <div className="em-loc-preview-overlay" onClick={() => { setShowLocationPreview(false); setPendingLocation(null); }}>
+              <div className="em-loc-preview" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="em-loc-preview-title" ref={locPreviewRef} tabIndex={-1}>
+                <div className="em-loc-preview__header">
+                  <div className="em-loc-preview__header-icon">
+                    <MapPin size={18} />
+                  </div>
+                  <div>
+                    <p className="em-loc-preview__title" id="em-loc-preview-title">Your Location</p>
+                    <p className="em-loc-preview__subtitle">{confirmed ? 'Shared. Link copied to clipboard' : 'Confirm before sharing'}</p>
+                  </div>
+                  <button className="em-loc-preview__close" onClick={() => { setShowLocationPreview(false); setPendingLocation(null); }} type="button"><X size={16} /></button>
+                </div>
+
+                <div className="em-loc-preview__body">
+                  <div className="em-loc-preview__map-stub">
+                    <MapPin size={28} style={{ color: '#ff4d6d' }} />
+                    <span className="em-loc-preview__map-city">{loc.city || 'Detecting city…'}</span>
+                  </div>
+                  <div className="em-loc-preview__coords">
+                    <span className="em-loc-preview__coord-label">Latitude</span>
+                    <span className="em-loc-preview__coord-val">{loc.lat.toFixed(5)}°</span>
+                    <span className="em-loc-preview__coord-label">Longitude</span>
+                    <span className="em-loc-preview__coord-val">{loc.lng.toFixed(5)}°</span>
+                    {loc.accuracy && (
+                      <>
+                        <span className="em-loc-preview__coord-label">Accuracy</span>
+                        <span className="em-loc-preview__coord-val">±{Math.round(loc.accuracy)}m</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="em-loc-preview__actions">
+                  <a
+                    href={`https://maps.google.com/?q=${loc.lat},${loc.lng}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="em-loc-preview__btn em-loc-preview__btn--ghost"
+                  >
+                    <ExternalLink size={14} /> Open in Maps
+                  </a>
+                  {!confirmed ? (
+                    <>
+                      <button className="em-loc-preview__btn em-loc-preview__btn--primary" onClick={confirmShareLocation} type="button">
+                        {typeof navigator.share === 'function'
+                          ? <><Navigation size={14} /> Share Location</>
+                          : <><Copy size={14} /> Copy Link</>
+                        }
+                      </button>
+                      <a
+                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`🆘 Emergency location: https://maps.google.com/?q=${loc.lat},${loc.lng}`)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="em-loc-preview__btn em-loc-preview__btn--whatsapp"
+                      >
+                        <Phone size={14} /> WhatsApp
+                      </a>
+                    </>
+                  ) : (
+                    <button className="em-loc-preview__btn em-loc-preview__btn--primary" onClick={() => { navigator.clipboard.writeText(`Emergency location: https://maps.google.com/?q=${loc.lat},${loc.lng}`); }} type="button">
+                      <Check size={14} /> Copy Again
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body
+          );
+        })()}
+
+        {/* ── NEAREST ER PICKER ────────────────────────────────── */}
+        {showERPicker && createPortal(
+          <div className="em-er-picker-overlay" onClick={() => setShowERPicker(false)}>
+            <div className="em-er-picker" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="em-er-picker-title" ref={erPickerRef} tabIndex={-1}>
+              <div className="em-er-picker__header">
+                <div className="em-er-picker__header-icon"><Navigation size={16} /></div>
+                <div>
+                  <p className="em-er-picker__title" id="em-er-picker-title">Nearby Emergency Rooms</p>
+                  <p className="em-er-picker__sub">Choose the one you want to head to</p>
+                </div>
+                <button className="em-loc-preview__close" onClick={() => setShowERPicker(false)} type="button"><X size={16} /></button>
+              </div>
+              <div className="em-er-picker__list">
+                {nearbyERs.map((er, idx) => (
+                  <button
+                    key={er.name + idx}
+                    className={`em-er-picker__item${selectedER?.name === er.name ? ' em-er-picker__item--active' : ''}`}
+                    onClick={() => {
+                      setSelectedER(er);
+                      setNearestER(er);
+                      setShowERPicker(false);
+                      // Open Maps to the specific ER if we have coordinates, else search nearby
+                      if (er.lat && er.lng) {
+                        window.open(`https://maps.google.com/?q=${er.lat},${er.lng}`, '_blank');
+                      } else if (location) {
+                        window.open(`https://maps.google.com/maps/search/${encodeURIComponent(er.name)}/@${location.lat},${location.lng},14z`, '_blank');
+                      }
+                    }}
+                    type="button"
+                  >
+                    <div className="em-er-picker__item-icon">
+                      {idx === 0 ? <Navigation size={15} /> : <MapPin size={15} />}
+                    </div>
+                    <div className="em-er-picker__item-body">
+                      <span className="em-er-picker__item-name">{er.name}</span>
+                      <span className="em-er-picker__item-dist">{er.distance} away</span>
+                    </div>
+                    {idx === 0 && <span className="em-er-picker__item-nearest">Nearest</span>}
+                    {selectedER?.name === er.name && <Check size={15} style={{ color: 'var(--hc-teal)', flexShrink: 0 }} />}
+                  </button>
+                ))}
+              </div>
+              {location && (
+                <a
+                  onClick={() => router.push('/facilities?type=hospital&from=/emergency')}
+                  className="em-er-picker__map-link"
+                >
+                  <MapPin size={13} /> See all hospitals on map
+                </a>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* ── BREATHING GUIDE MODAL ────────────────────────────── */}
         {showBreathing && (() => {
@@ -1271,146 +1108,821 @@ const EmergencyPage: NextPage = () => {
             <div className="em-breathing-overlay" onClick={stopBreathing}>
               <div className="em-breathing-modal" onClick={e => e.stopPropagation()}>
                 <button className="em-breathing-close" onClick={stopBreathing} type="button"><X size={18}/></button>
-                <p className="em-breathing-title">Calm Breathing</p>
+                <p className="em-breathing-title">{t('emergency.breathing', 'Box Breathing')}</p>
                 <p className="em-breathing-cycle">Cycle {breathCount + 1}</p>
                 <div className="em-breathing-circle" style={{ '--breath-color': current.color } as React.CSSProperties}>
                   <div className={`em-breathing-ring em-breathing-ring--${breathPhase}`} />
                   <div className="em-breathing-core">
-                    <span className="em-breathing-phase">{current.label}</span>
+                    <span className="em-breathing-phase">
+                      {current.phase === 'inhale'  ? t('emergency.breatheIn',  current.label)
+                     : current.phase === 'hold'    ? t('emergency.hold',       current.label)
+                     : current.phase === 'exhale'  ? t('emergency.breatheOut', current.label)
+                                                   : t('emergency.rest',       current.label)}
+                    </span>
                     <span className="em-breathing-secs">{current.secs}s</span>
                   </div>
                 </div>
-                <p className="em-breathing-hint">4-7-8 pattern · Tap anywhere to stop</p>
+                <p className="em-breathing-hint">Box breathing 4-4-4-4 · Tap anywhere to stop</p>
               </div>
             </div>
           );
         })()}
 
-        {/* ── PERSONAL EMERGENCY CARD MODAL ───────────────────── */}
-        {showPersonalCard && (
-          <div className="em-card-overlay" onClick={() => setShowPersonalCard(false)}>
-            <div className="em-personal-card" onClick={e => e.stopPropagation()}>
-              <button className="em-card-close" onClick={() => setShowPersonalCard(false)} type="button"><X size={16}/></button>
-
-              <div className="em-personal-card__header">
-                <div className="em-personal-card__logo"><Heart size={18}/></div>
+        {/* ── POISON & OVERDOSE MODAL ─────────────────────────── */}
+        {showPoison && createPortal(
+          <div className="em-poison-overlay" onClick={() => setShowPoison(false)}>
+            <div className="em-poison-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="em-poison-modal-title" ref={poisonModalRef} tabIndex={-1}>
+              <div className="em-poison-modal__header">
+                <div className="em-poison-modal__header-icon">
+                  <AlertTriangle size={18} />
+                </div>
                 <div>
-                  <p className="em-personal-card__brand">HealthConnect</p>
-                  <p className="em-personal-card__label">Emergency Medical ID</p>
+                  <p className="em-poison-modal__title" id="em-poison-modal-title">Poison / Overdose</p>
+                  <p className="em-poison-modal__sub">Select what happened first</p>
                 </div>
+                <button className="em-loc-preview__close" onClick={() => setShowPoison(false)} type="button"><X size={16} /></button>
               </div>
 
-              {/* First responder instruction — the core purpose of this card */}
-              <div className="em-personal-card__responder-banner">
-                <span className="em-personal-card__responder-icon">🚑</span>
-                <div>
-                  <p className="em-personal-card__responder-title">For First Responders</p>
-                  <p className="em-personal-card__responder-sub">Show this screen to paramedics or emergency personnel</p>
-                </div>
+              {/* ── Critical warning banner ── */}
+              <div className="em-poison-modal__warn">
+                <AlertCircle size={14} />
+                <span>Call <strong>Poison Control: 0800-111-222</strong> or <strong>193</strong> immediately. Do NOT wait for symptoms.</span>
               </div>
 
-              <h2 className="em-personal-card__name">{userName}</h2>
-
-              <div className="em-personal-card__rows">
-                <div className="em-personal-card__row em-personal-card__row--highlight">
-                  <Droplets size={14}/><span className="em-personal-card__key">Blood Type</span>
-                  <span className="em-personal-card__val">{medIdBloodType}</span>
-                </div>
-                {medIdAllergies !== 'None recorded' && (
-                  <div className="em-personal-card__row em-personal-card__row--warn">
-                    <AlertTriangle size={14}/><span className="em-personal-card__key">⚠️ Allergies</span>
-                    <span className="em-personal-card__val">{medIdAllergies}</span>
-                  </div>
-                )}
-                <div className="em-personal-card__row">
-                  <Pill size={14}/><span className="em-personal-card__key">Medications</span>
-                  <span className="em-personal-card__val">{medIdMedications}</span>
-                </div>
-                <div className="em-personal-card__row">
-                  <Activity size={14}/><span className="em-personal-card__key">Conditions</span>
-                  <span className="em-personal-card__val">{medIdConditions}</span>
-                </div>
-                <div className="em-personal-card__row">
-                  <Phone size={14}/><span className="em-personal-card__key">Contact</span>
-                  <span className="em-personal-card__val">{medIdContact}</span>
-                </div>
-                {location && (
-                  <div className="em-personal-card__row">
-                    <MapPin size={14}/><span className="em-personal-card__key">Location</span>
-                    <span className="em-personal-card__val">{location.city || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Blood type compatibility */}
-              {BLOOD_COMPATIBILITY[medIdBloodType] && (
-                <div className="em-personal-card__blood-compat">
-                  <p className="em-personal-card__compat-title">Blood Transfusion Compatibility</p>
-                  <div className="em-personal-card__compat-row">
-                    <span className="em-personal-card__compat-label">Can receive from:</span>
-                    <div className="em-personal-card__compat-tags">
-                      {BLOOD_COMPATIBILITY[medIdBloodType].canReceiveFrom.map(t => (
-                        <span key={t} className={`em-personal-card__blood-tag${t === medIdBloodType ? ' em-personal-card__blood-tag--self' : ''}`}>{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="em-personal-card__compat-row">
-                    <span className="em-personal-card__compat-label">Can donate to:</span>
-                    <div className="em-personal-card__compat-tags">
-                      {BLOOD_COMPATIBILITY[medIdBloodType].canDonateTo.map(t => (
-                        <span key={t} className={`em-personal-card__blood-tag${t === medIdBloodType ? ' em-personal-card__blood-tag--self' : ''}`}>{t}</span>
-                      ))}
-                    </div>
+              {/* ── Triage: what type of exposure? ── */}
+              {poisonStep === 'triage' && (
+                <div className="em-poison-triage">
+                  <p className="em-poison-triage__label">How did the exposure happen?</p>
+                  <div className="em-poison-triage__grid">
+                    <button className="em-poison-triage__btn em-poison-triage__btn--orange" onClick={() => setPoisonStep('swallowed')} type="button">
+                      <span className="em-poison-triage__emoji">🤢</span>
+                      <span className="em-poison-triage__name">Swallowed / Ingested</span>
+                      <span className="em-poison-triage__hint">Pills, chemicals, household products, plants</span>
+                    </button>
+                    <button className="em-poison-triage__btn em-poison-triage__btn--purple" onClick={() => setPoisonStep('inhaled')} type="button">
+                      <span className="em-poison-triage__emoji">💨</span>
+                      <span className="em-poison-triage__name">Inhaled / Breathed in</span>
+                      <span className="em-poison-triage__hint">Fumes, gas, smoke, sprays</span>
+                    </button>
+                    <button className="em-poison-triage__btn em-poison-triage__btn--teal" onClick={() => setPoisonStep('skin')} type="button">
+                      <span className="em-poison-triage__emoji">🖐️</span>
+                      <span className="em-poison-triage__name">Skin / Body Contact</span>
+                      <span className="em-poison-triage__hint">Chemical splash, pesticide on skin</span>
+                    </button>
+                    <button className="em-poison-triage__btn em-poison-triage__btn--blue" onClick={() => setPoisonStep('eye')} type="button">
+                      <span className="em-poison-triage__emoji">👁️</span>
+                      <span className="em-poison-triage__name">Eye Contact</span>
+                      <span className="em-poison-triage__hint">Chemical or substance in eye</span>
+                    </button>
                   </div>
                 </div>
               )}
 
-              <div className="em-personal-card__actions">
-                <button className="em-personal-card__copy" onClick={copyPersonalCard} type="button">
-                  {copiedId === 'card' ? <><Check size={14}/>Copied!</> : <><Copy size={14}/>Copy Card</>}
-                </button>
-                <button className="em-personal-card__edit" onClick={() => { setShowPersonalCard(false); router.push('/profile?modal=medicalId'); }} type="button">
-                  <Edit2 size={14}/>Edit Profile
+              {/* ── Swallowed / Ingested ── */}
+              {poisonStep === 'swallowed' && (
+                <div className="em-poison-steps">
+                  <button className="em-poison-back" onClick={() => setPoisonStep('triage')} type="button">← Back</button>
+                  <div className="em-poison-critical-rule">
+                    <span className="em-poison-critical-rule__icon">🚫</span>
+                    <span><strong>Do NOT induce vomiting</strong> unless told to by a medical professional. It can cause more harm with certain chemicals.</span>
+                  </div>
+                  {[
+                    { n: 1, t: 'Call for help immediately', d: 'Call 193 (ambulance) or Poison Control 0800-111-222. Stay on the line.', tip: 'Tell them: what was swallowed, how much, the person\'s age and weight, and when it happened.' },
+                    { n: 2, t: 'Keep the container or packaging', d: 'Do not throw it away. Read the label for the substance name, the responder will need this.', tip: null },
+                    { n: 3, t: 'Keep the person still and upright', d: 'Sit them up if conscious. Do not give food, water, or milk unless instructed by Poison Control.', tip: 'If they are unconscious but breathing, put them in the recovery position on their side.' },
+                    { n: 4, t: 'Watch for warning signs', d: 'Vomiting, seizures, difficulty breathing, loss of consciousness, burns around the mouth. Report these to the dispatcher.', tip: null },
+                    { n: 5, t: 'If they stop breathing', d: 'Begin CPR immediately. 30 chest compressions, then 2 rescue breaths. Continue until help arrives.', tip: 'Use the "Someone Collapsed" card for a step-by-step CPR guide.' },
+                  ].map(s => (
+                    <div key={s.n} className="em-poison-step">
+                      <div className="em-poison-step__num">{s.n}</div>
+                      <div className="em-poison-step__body">
+                        <p className="em-poison-step__title">{s.t}</p>
+                        <p className="em-poison-step__desc">{s.d}</p>
+                        {s.tip && <div className="em-poison-step__tip"><Info size={11} /> {s.tip}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="em-poison-actions">
+                    <a href="tel:193" className="em-poison-cta em-poison-cta--red"><Phone size={14} /> Call 193 Now</a>
+                    <button className="em-poison-cta em-poison-cta--ghost" onClick={() => { setShowPoison(false); setShowBystander(true); setBystanderStep(0); }} type="button"><Activity size={14} /> CPR Guide</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Inhaled ── */}
+              {poisonStep === 'inhaled' && (
+                <div className="em-poison-steps">
+                  <button className="em-poison-back" onClick={() => setPoisonStep('triage')} type="button">← Back</button>
+                  <div className="em-poison-critical-rule">
+                    <span className="em-poison-critical-rule__icon">⚠️</span>
+                    <span><strong>Do NOT enter the area</strong> if you can smell fumes strongly. Call 192 (Fire / Hazmat) before entering.</span>
+                  </div>
+                  {[
+                    { n: 1, t: 'Move to fresh air immediately', d: 'Get the person away from the source. Move to an open area outdoors or a well-ventilated room.', tip: 'Hold your breath if entering briefly. Do not stay in a fume-filled space.' },
+                    { n: 2, t: 'Call 193 or Fire/Hazmat (192)', d: 'Inhaled poisons can cause delayed lung damage even if the person feels okay now.', tip: null },
+                    { n: 3, t: 'Loosen restrictive clothing', d: 'Loosen collar, belt, or anything that restricts breathing. Keep the person calm and still.', tip: null },
+                    { n: 4, t: 'Do not give anything by mouth', d: 'No water, no food, no medication unless instructed by emergency services.', tip: null },
+                    { n: 5, t: 'Monitor breathing closely', d: 'If the person stops breathing, begin CPR. If unconscious but breathing, put them on their side.', tip: null },
+                  ].map(s => (
+                    <div key={s.n} className="em-poison-step">
+                      <div className="em-poison-step__num">{s.n}</div>
+                      <div className="em-poison-step__body">
+                        <p className="em-poison-step__title">{s.t}</p>
+                        <p className="em-poison-step__desc">{s.d}</p>
+                        {s.tip && <div className="em-poison-step__tip"><Info size={11} /> {s.tip}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="em-poison-actions">
+                    <a href="tel:193" className="em-poison-cta em-poison-cta--red"><Phone size={14} /> Call 193</a>
+                    <a href="tel:192" className="em-poison-cta em-poison-cta--orange"><Flame size={14} /> Call 192 (Fire)</a>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Skin contact ── */}
+              {poisonStep === 'skin' && (
+                <div className="em-poison-steps">
+                  <button className="em-poison-back" onClick={() => setPoisonStep('triage')} type="button">← Back</button>
+                  {[
+                    { n: 1, t: 'Remove contaminated clothing', d: 'Take off any clothing or jewellery that has the substance on it. Use gloves if possible, avoid direct contact yourself.', tip: 'Place contaminated clothing in a plastic bag.' },
+                    { n: 2, t: 'Rinse with large amounts of water', d: 'Flush the affected skin with clean running water for at least 15 to 20 minutes. Do not scrub.', tip: 'Avoid hot water: it opens pores and can increase absorption.' },
+                    { n: 3, t: 'Do not apply creams or home remedies', d: 'Do not use butter, toothpaste, or any home remedy. These can trap the chemical against the skin.', tip: null },
+                    { n: 4, t: 'Call Poison Control', d: 'Call 0800-111-222 with the name of the chemical. Even if the skin looks okay, some chemicals absorb through the skin into the bloodstream.', tip: null },
+                  ].map(s => (
+                    <div key={s.n} className="em-poison-step">
+                      <div className="em-poison-step__num">{s.n}</div>
+                      <div className="em-poison-step__body">
+                        <p className="em-poison-step__title">{s.t}</p>
+                        <p className="em-poison-step__desc">{s.d}</p>
+                        {s.tip && <div className="em-poison-step__tip"><Info size={11} /> {s.tip}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="em-poison-actions">
+                    <a href="tel:193" className="em-poison-cta em-poison-cta--red"><Phone size={14} /> Call 193</a>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Eye contact ── */}
+              {poisonStep === 'eye' && (
+                <div className="em-poison-steps">
+                  <button className="em-poison-back" onClick={() => setPoisonStep('triage')} type="button">← Back</button>
+                  <div className="em-poison-critical-rule">
+                    <span className="em-poison-critical-rule__icon">⏱️</span>
+                    <span><strong>Time is critical for the eye.</strong> Flush immediately. Every second reduces damage.</span>
+                  </div>
+                  {[
+                    { n: 1, t: 'Flush the eye immediately', d: 'Use clean running water or an eye-wash station. Hold the eyelid open and let water run from the inner corner outward for 15 to 20 minutes.', tip: 'Tilt the head so the affected eye is lower: this prevents chemical washing into the other eye.' },
+                    { n: 2, t: 'Remove contact lenses first', d: 'If the person wears contact lenses, remove them before flushing if possible.', tip: null },
+                    { n: 3, t: 'Do not rub the eye', d: 'Rubbing spreads the substance and can cause abrasions to the cornea.', tip: null },
+                    { n: 4, t: 'Call Poison Control or go to A&E', d: 'Eye exposure from chemicals always needs medical evaluation even if the eye looks fine after flushing.', tip: null },
+                  ].map(s => (
+                    <div key={s.n} className="em-poison-step">
+                      <div className="em-poison-step__num">{s.n}</div>
+                      <div className="em-poison-step__body">
+                        <p className="em-poison-step__title">{s.t}</p>
+                        <p className="em-poison-step__desc">{s.d}</p>
+                        {s.tip && <div className="em-poison-step__tip"><Info size={11} /> {s.tip}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="em-poison-actions">
+                    <a href="tel:193" className="em-poison-cta em-poison-cta--red"><Phone size={14} /> Call 193</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* ── BYSTANDER DISPATCH MODAL ─────────────────────────── */}
+        {showBystander && (() => {
+          const BYSTANDER_STEPS = [
+            {
+              icon: '👋',
+              label: 'Check responsiveness',
+              instruction: 'Tap their shoulders firmly and shout: "Are you okay? Can you hear me?"',
+              detail: 'Look for eye movement, groaning, or any response. If they respond, keep them still and call 193.',
+              urgent: false,
+            },
+            {
+              icon: '📞',
+              label: 'Call 193 immediately',
+              instruction: 'Do this NOW even if you are not sure. Put the phone on speaker so you can keep helping.',
+              detail: 'Tell the dispatcher: location, number of people affected, whether they are breathing. Stay on the line.',
+              urgent: true,
+            },
+            {
+              icon: '🫁',
+              label: 'Check for breathing',
+              instruction: 'Tilt their head back gently. Look for chest rise. Listen and feel for breath for up to 10 seconds.',
+              detail: 'Occasional gasping (agonal breathing) is NOT normal breathing. Treat it as if they are not breathing.',
+              urgent: false,
+            },
+            {
+              icon: '🤲',
+              label: 'Start chest compressions',
+              instruction: 'Place both hands on the centre of their chest. Push hard and fast: at least 5 cm deep, 100 to 120 times per minute.',
+              detail: 'Let the chest fully rise between compressions. Keep going until help arrives or the person starts breathing normally.',
+              urgent: true,
+            },
+            {
+              icon: '💨',
+              label: 'Give rescue breaths (if trained)',
+              instruction: 'After every 30 compressions, give 2 rescue breaths. Tilt the head, lift the chin, seal your mouth over theirs, and breathe in for 1 second.',
+              detail: 'If you are not trained or uncomfortable, do compression-only CPR. It is still very effective.',
+              urgent: false,
+            },
+            {
+              icon: '🔁',
+              label: 'Keep going until help arrives',
+              instruction: 'Continue the 30:2 cycle (30 compressions, 2 breaths) without stopping. Swap with another bystander if possible to avoid fatigue.',
+              detail: 'If an AED (defibrillator) is nearby, use it as soon as it arrives. Turn it on and follow the voice instructions.',
+              urgent: false,
+            },
+          ];
+          const step = BYSTANDER_STEPS[bystanderStep];
+          const isFirst = bystanderStep === 0;
+          const isLast = bystanderStep === BYSTANDER_STEPS.length - 1;
+          return createPortal(
+            <div className="em-bystander-overlay" onClick={() => { setShowBystander(false); stopCpr(); }}>
+              <div className="em-bystander-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="em-bystander-modal-title" ref={bystanderModalRef} tabIndex={-1}>
+                {/* Header */}
+                <div className="em-bystander-modal__header">
+                  <div className="em-bystander-modal__header-icon">
+                    <Activity size={18} />
+                  </div>
+                  <div>
+                    <p className="em-bystander-modal__title" id="em-bystander-modal-title">Someone Collapsed</p>
+                    <p className="em-bystander-modal__sub">Step {bystanderStep + 1} of {BYSTANDER_STEPS.length}</p>
+                  </div>
+                  <button className="em-loc-preview__close" onClick={() => { setShowBystander(false); stopCpr(); }} type="button"><X size={16} /></button>
+                </div>
+
+                {/* Scrollable region — progress, dots, step content. Header above and
+                    nav below stay pinned so Back / 193 / Next are always reachable. */}
+                <div className="em-bystander-modal__body">
+                  {/* Progress bar */}
+                  <div className="em-bystander-progress">
+                    <div
+                      className="em-bystander-progress__fill"
+                      style={{ width: `${((bystanderStep + 1) / BYSTANDER_STEPS.length) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Step dots */}
+                  <div className="em-bystander-dots">
+                    {BYSTANDER_STEPS.map((_, i) => (
+                      <button
+                        key={i}
+                        className={`em-bystander-dot${i === bystanderStep ? ' em-bystander-dot--active' : i < bystanderStep ? ' em-bystander-dot--done' : ''}`}
+                        onClick={() => { if (i !== 3) stopCpr(); setBystanderStep(i); }}
+                        type="button"
+                        aria-label={`Go to step ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Step content */}
+                  <div className="em-bystander-step">
+                    <div className={`em-bystander-step__emoji${step.urgent ? ' em-bystander-step__emoji--urgent' : ''}`}>
+                      {step.icon}
+                    </div>
+                    <p className="em-bystander-step__label">{step.label}</p>
+                    <p className={`em-bystander-step__instruction${step.urgent ? ' em-bystander-step__instruction--urgent' : ''}`}>
+                      {step.instruction}
+                    </p>
+                    <div className="em-bystander-step__detail">
+                      <Info size={12} />
+                      <span>{step.detail}</span>
+                    </div>
+
+                    {/* CPR Metronome — shown only on the compressions step (index 3) */}
+                    {bystanderStep === 3 && (
+                      <div className="em-cpr-metro">
+                        <div className={`em-cpr-metro__beat${cprActive ? ` em-cpr-metro__beat--${cprPhase}` : ''}`}>
+                          <span className="em-cpr-metro__icon">🤲</span>
+                          {cprActive && (
+                            <span className="em-cpr-metro__phase-label">
+                              {cprPhase === 'compress' ? 'PUSH' : 'RELEASE'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="em-cpr-metro__info">
+                          <span className="em-cpr-metro__bpm">100 bpm</span>
+                          {cprActive && (() => {
+                            const posInSet = cprCount % 30 === 0 ? 30 : cprCount % 30;
+                            const cycleNum = Math.floor((cprCount - 1) / 30) + 1;
+                            const breathCue = cprCount > 0 && cprCount % 30 === 0;
+                            return (
+                              <span className="em-cpr-metro__count">
+                                {breathCue
+                                  ? <span className="em-cpr-metro__breath-cue">→ 2 rescue breaths now!</span>
+                                  : <>{posInSet} / 30 · cycle {cycleNum}</>
+                                }
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <button
+                          className={`em-cpr-metro__btn${cprActive ? ' em-cpr-metro__btn--stop' : ''}`}
+                          onClick={cprActive ? stopCpr : startCpr}
+                          type="button"
+                        >
+                          {cprActive ? '■ Stop' : '▶ Start CPR Beat'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Navigation */}
+                <div className="em-bystander-nav">
+                  <button
+                    className="em-bystander-nav__btn em-bystander-nav__btn--back"
+                    onClick={() => { stopCpr(); setBystanderStep(s => Math.max(0, s - 1)); }}
+                    disabled={isFirst}
+                    type="button"
+                    aria-label="Previous step"
+                  >
+                    <ChevronLeft size={16} strokeWidth={2.5} />
+                    <span className="em-bystander-nav__btn-label">Back</span>
+                  </button>
+                  <a href="tel:193" className="em-bystander-nav__call" aria-label="Call 193">
+                    <span className="em-bystander-nav__call-icon"><Phone size={14} strokeWidth={2.5} /></span>
+                    <span>193</span>
+                  </a>
+                  {!isLast ? (
+                    <button
+                      className="em-bystander-nav__btn em-bystander-nav__btn--next"
+                      onClick={() => { stopCpr(); setBystanderStep(s => Math.min(BYSTANDER_STEPS.length - 1, s + 1)); }}
+                      type="button"
+                      aria-label="Next step"
+                    >
+                      <span className="em-bystander-nav__btn-label">Next</span>
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
+                  ) : (
+                    <button
+                      className="em-bystander-nav__btn em-bystander-nav__btn--restart"
+                      onClick={() => { stopCpr(); setBystanderStep(0); }}
+                      type="button"
+                      aria-label="Restart guide"
+                    >
+                      <RotateCcw size={15} strokeWidth={2.5} />
+                      <span className="em-bystander-nav__btn-label">Restart</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body
+          );
+        })()}
+
+        {/* ── FIRST AID GUIDE MODAL — full step detail, severity-themed,
+               consistent bottom-sheet shell shared with Poison/Bystander ── */}
+        {activeGuide && (() => {
+          const guide = allFirstAidGuides.find(g => g.id === activeGuide);
+          if (!guide) return null;
+          return createPortal(
+            <div className="em-faguide-overlay" onClick={() => setActiveGuide(null)}>
+              <div
+                className={`em-faguide-modal em-faguide-modal--${guide.severity}`}
+                onClick={e => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="em-faguide-title"
+                ref={guidePanelRef}
+                tabIndex={-1}
+              >
+                <div className="em-faguide-modal__handle" aria-hidden="true" />
+
+                <div className="em-faguide-modal__header">
+                  <div className="em-faguide-modal__header-icon"><guide.icon size={18} /></div>
+                  <div className="em-faguide-modal__header-text">
+                    <p className="em-faguide-modal__title" id="em-faguide-title">
+                      {tGuide(`emergency.guides.${guide.id}.title`, guide.title)}
+                    </p>
+                    <p className="em-faguide-modal__sub">{guide.steps.length} steps · {severityLabel(guide.severity)}</p>
+                  </div>
+                  <button
+                    className="em-faguide-modal__icon-btn"
+                    onClick={() => copyGuide(guide)}
+                    type="button"
+                    aria-label="Copy guide as text"
+                  >
+                    {copiedId === `guide-${guide.id}` ? <Check size={15} /> : <Copy size={15} />}
+                  </button>
+                  <button
+                    className="em-faguide-modal__icon-btn em-faguide-modal__close"
+                    onClick={() => setActiveGuide(null)}
+                    type="button"
+                    aria-label="Close guide"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {guide.warning && (
+                  <div className="em-faguide-modal__warning" role="alert">
+                    <AlertTriangle size={14} />
+                    <p>{guide.warning ? tGuide(`emergency.guides.${guide.id}.warning`, guide.warning) : ''}</p>
+                  </div>
+                )}
+
+                {guide.steps.length > 1 && (
+                  <div className="em-faguide-modal__dots" role="tablist" aria-label="Jump to a step">
+                    {guide.steps.map((_, i) => (
+                      <button
+                        key={i}
+                        className="em-faguide-modal__dot"
+                        onClick={() => document.getElementById(`em-fa-step-${guide.id}-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        type="button"
+                        aria-label={`Jump to step ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className="em-faguide-modal__body">
+                  {guide.steps.map((step, idx) => (
+                    <div
+                      key={idx}
+                      id={`em-fa-step-${guide.id}-${idx}`}
+                      className={`em-faguide-step${step.urgent ? ' em-faguide-step--urgent' : ''}`}
+                    >
+                      <div className="em-faguide-step__visual" aria-hidden="true">
+                        <span className="em-faguide-step__emoji">{step.emoji || '•'}</span>
+                        <span className="em-faguide-step__num">{idx + 1}</span>
+                      </div>
+                      <div className="em-faguide-step__content">
+                        {step.label && (
+                          <p className="em-faguide-step__label">
+                            {step.label ? tGuide(`emergency.guides.${guide.id}.steps.${idx}.label`, step.label) : ''}
+                          </p>
+                        )}
+                        <p className="em-faguide-step__text">
+                          {tGuide(`emergency.guides.${guide.id}.steps.${idx}.instruction`, step.instruction)}
+                        </p>
+                        {step.tip && (
+                          <div className="em-faguide-step__tip">
+                            <Info size={12} aria-hidden="true" />
+                            <span>{step.tip ? tGuide(`emergency.guides.${guide.id}.steps.${idx}.tip`, step.tip) : ''}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="em-faguide-modal__footer">
+                  <a href="tel:193" className="em-faguide-modal__call"><Phone size={14} /> Call 193</a>
+                  <button className="em-faguide-modal__done" onClick={() => setActiveGuide(null)} type="button">
+                    <Check size={14} /> Done
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          );
+        })()}
+
+        {/* ── MEDICAL ID MODAL — a single formal medical-record view (no
+               tabs): everything a responder needs, plus copy / edit /
+               download-as-PDF actions. Opens and closes exactly like every
+               other modal on this page (bottom sheet on mobile, centered
+               dialog on desktop, round icon close button). ── */}
+        {showPersonalCard && createPortal(
+          <div className="em-card-overlay" onClick={() => setShowPersonalCard(false)}>
+            <div className="em-personal-card em-medid2" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="em-medid2-title">
+
+              {/* Header */}
+              <div className="em-medid2__header">
+                <span className="em-medid2__header-icon"><ClipboardList size={18} /></span>
+                <span className="em-medid2__header-text">
+                  <span className="em-medid2__header-title" id="em-medid2-title">Medical ID</span>
+                  <span className="em-medid2__header-sub">For first responders — key details at a glance.</span>
+                </span>
+                <button className="em-loc-preview__close" onClick={() => setShowPersonalCard(false)} type="button" aria-label="Close">
+                  <X size={16}/>
                 </button>
               </div>
 
-              <p className="em-personal-card__ts">Generated {new Date().toLocaleTimeString()}</p>
+              {/* ════════════════════════════════════
+                  SINGLE VIEW — everything at a glance
+              ════════════════════════════════════ */}
+              <div className="em-medid2-body">
+
+                  {/* Patient identification — formal document field group */}
+                  <div className="em-medid2-identity">
+                    <div className="em-medid2-identity__info">
+                      <span className="em-medid2-identity__label">Patient</span>
+                      <span className="em-medid2-identity__name">{userName}</span>
+                    </div>
+                    <div className="em-medid2-identity__divider" />
+                    <div className="em-medid2-identity__field">
+                      <span className="em-medid2-identity__label">Blood Type</span>
+                      <span className="em-medid2-identity__blood">
+                        {medIdBloodType !== 'Not set' ? medIdBloodType : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  {(!healthProfile?.bloodType || healthProfile.bloodType === 'Not set') && (
+                    <p className="em-medid2-identity__notice">Blood type not added yet</p>
+                  )}
+
+                  {/* Allergies */}
+                  <div className="em-medid2-panel em-medid2-panel--allergy">
+                    <div className="em-medid2-panel__head">
+                      <span className="em-medid2-panel__icon"><AlertTriangle size={15} /></span>
+                      <span className="em-medid2-panel__text">
+                        <span className="em-medid2-panel__title">Allergies</span>
+                        <span className="em-medid2-panel__sub">Flags reactions before you're given medication or treatment.</span>
+                      </span>
+                      <span className="em-medid2-panel__count">{healthProfile?.allergies?.length ?? 0}</span>
+                    </div>
+                    <div className="em-medid2-panel__body">
+                      {(healthProfile?.allergies?.length ?? 0) > 0 ? (
+                        <div className="em-medid2-tags">
+                          {healthProfile!.allergies!.map((a, i) => (
+                            <span key={i} className={`em-medid2-tag em-medid2-tag--${a.severity === 'severe' ? 'red' : a.severity === 'moderate' ? 'amber' : 'green'}`}>
+                              {a.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="em-medid2-empty">None listed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Medications */}
+                  <div className="em-medid2-panel em-medid2-panel--med">
+                    <div className="em-medid2-panel__head">
+                      <span className="em-medid2-panel__icon"><Pill size={15} /></span>
+                      <span className="em-medid2-panel__text">
+                        <span className="em-medid2-panel__title">Active Medications</span>
+                        <span className="em-medid2-panel__sub">Prevents dangerous drug interactions during treatment.</span>
+                      </span>
+                      <span className="em-medid2-panel__count">
+                        {healthProfile?.medications?.filter(m => m.active).length ?? 0}
+                      </span>
+                    </div>
+                    <div className="em-medid2-panel__body">
+                      {(healthProfile?.medications?.filter(m => m.active).length ?? 0) > 0 ? (
+                        <div className="em-medid2-list">
+                          {healthProfile!.medications!.filter(m => m.active).map((m, i) => (
+                            <div key={i} className="em-medid2-list-row">
+                              <span className="em-medid2-list-row__name">{m.name}</span>
+                              {m.dose && <span className="em-medid2-list-row__meta">{m.dose}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="em-medid2-empty">None listed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Conditions */}
+                  <div className="em-medid2-panel em-medid2-panel--condition">
+                    <div className="em-medid2-panel__head">
+                      <span className="em-medid2-panel__icon"><Stethoscope size={15} /></span>
+                      <span className="em-medid2-panel__text">
+                        <span className="em-medid2-panel__title">Conditions</span>
+                        <span className="em-medid2-panel__sub">Gives context responders need for the right care, fast.</span>
+                      </span>
+                      <span className="em-medid2-panel__count">
+                        {healthProfile?.conditions?.filter(c => c.status !== 'resolved').length ?? 0}
+                      </span>
+                    </div>
+                    <div className="em-medid2-panel__body">
+                      {(healthProfile?.conditions?.filter(c => c.status !== 'resolved').length ?? 0) > 0 ? (
+                        <div className="em-medid2-list">
+                          {healthProfile!.conditions!.filter(c => c.status !== 'resolved').map((c, i) => (
+                            <div key={i} className="em-medid2-list-row">
+                              <span className="em-medid2-list-row__name">{c.name}</span>
+                              <span className={`em-medid2-tag em-medid2-tag--${c.status === 'active' ? 'red' : 'teal'}`}>
+                                {c.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="em-medid2-empty">None listed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Location (if available) */}
+                  {location && (
+                    <div className="em-medid2-panel em-medid2-panel--location">
+                      <div className="em-medid2-panel__head">
+                        <span className="em-medid2-panel__icon"><MapPin size={15} /></span>
+                        <span className="em-medid2-panel__text">
+                          <span className="em-medid2-panel__title">Current Location</span>
+                          <span className="em-medid2-panel__sub">Shared live so help can find you.</span>
+                        </span>
+                        <span className="em-medid2-live">● Live</span>
+                      </div>
+                      <div className="em-medid2-panel__body">
+                        <div className="em-medid2-list-row">
+                          <span className="em-medid2-list-row__name">
+                            {location.city || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                          </span>
+                          <a
+                            href={`https://maps.google.com/?q=${location.lat},${location.lng}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="em-medid2-link"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            Maps →
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Blood type compatibility */}
+                  {BLOOD_COMPATIBILITY[medIdBloodType] && (
+                    <div className="em-medid2-panel em-medid2-panel--blood">
+                      <div className="em-medid2-panel__head">
+                        <span className="em-medid2-panel__icon"><Droplet size={15} /></span>
+                        <span className="em-medid2-panel__text">
+                          <span className="em-medid2-panel__title">{t('emergency.bloodCompatibility', 'Blood Compatibility')}</span>
+                          <span className="em-medid2-panel__sub">Who this blood type can give to and receive from.</span>
+                        </span>
+                      </div>
+                      <div className="em-medid2-panel__body em-medid2-compat">
+                        <div className="em-medid2-compat-row">
+                          <span className="em-medid2-compat-label">{t('emergency.canReceiveFrom', 'Can receive from')}</span>
+                          <div className="em-medid2-tags">
+                            {BLOOD_COMPATIBILITY[medIdBloodType].canReceiveFrom.map(bt => (
+                              <span key={bt} className={`em-medid2-tag em-medid2-tag--blood${bt === medIdBloodType ? ' em-medid2-tag--self' : ''}`}>{bt}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="em-medid2-compat-row">
+                          <span className="em-medid2-compat-label">{t('emergency.canDonateTo', 'Can donate to')}</span>
+                          <div className="em-medid2-tags">
+                            {BLOOD_COMPATIBILITY[medIdBloodType].canDonateTo.map(bt => (
+                              <span key={bt} className={`em-medid2-tag em-medid2-tag--blood${bt === medIdBloodType ? ' em-medid2-tag--self' : ''}`}>{bt}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* NHIS Card — full card, shown inline (no separate tab) */}
+                  <div className="em-medid2-panel em-medid2-panel--nhis">
+                    <div className="em-medid2-panel__head">
+                      <span className="em-medid2-panel__icon"><Shield size={15} /></span>
+                      <span className="em-medid2-panel__text">
+                        <span className="em-medid2-panel__title">NHIS Card</span>
+                        <span className="em-medid2-panel__sub">Confirms your cover without the physical card.</span>
+                      </span>
+                    </div>
+                    <div className="em-medid2-panel__body">
+                      {nhisCard?.nhisId ? (
+                        <>
+                          {/* Card visual — same physical-card treatment as the profile page */}
+                          <div className="em-medid2-nhis-preview">
+                            <div className="em-medid2-nhis-preview__top">
+                              <span className="em-medid2-nhis-preview__scheme">
+                                {nhisCard.issuingBody || 'National Health Insurance Scheme'}
+                              </span>
+                              <CreditCard size={16} className="em-medid2-nhis-preview__chip" />
+                            </div>
+                            <span className="em-medid2-nhis-preview__id">{nhisCard.nhisId}</span>
+                            <div className="em-medid2-nhis-preview__bottom">
+                              <span>
+                                <span className="em-medid2-nhis-preview__label">Member</span>
+                                <span className="em-medid2-nhis-preview__value">{nhisCard.membershipType || '—'}</span>
+                              </span>
+                              <span>
+                                <span className="em-medid2-nhis-preview__label">Expires</span>
+                                <span className="em-medid2-nhis-preview__value">{nhisCard.expiryDate || '—'}</span>
+                              </span>
+                              <span>
+                                <span className="em-medid2-nhis-preview__label">Holder</span>
+                                <span className="em-medid2-nhis-preview__value">{userName}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Extra detail rows not already on the card face */}
+                          {(nhisCard.issuedDate || nhisCard.notes) && (
+                            <div className="em-medid2-detail-rows">
+                              {[
+                                { label: 'Date Issued', val: nhisCard.issuedDate },
+                                { label: 'Notes',       val: nhisCard.notes },
+                              ].filter(r => r.val).map(({ label, val }) => (
+                                <div key={label} className="em-medid2-detail-row">
+                                  <span className="em-medid2-detail-row__key">{label}</span>
+                                  <span className="em-medid2-detail-row__val">{val}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="em-medid2-empty em-medid2-empty--warn">⚠ No NHIS card added — add it from your Health Profile</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions — copy, edit, download or print, all in one place */}
+                  <div className="em-medid2-actions">
+                    <button className="em-medid2-btn em-medid2-btn--ghost" onClick={copyPersonalCard} type="button">
+                      {copiedId === 'card' ? <><Check size={14}/>Copied!</> : <><Copy size={14}/>Copy Text</>}
+                    </button>
+                    <button
+                      className="em-medid2-btn em-medid2-btn--ghost"
+                      onClick={() => { setShowPersonalCard(false); router.push('/profile?modal=medicalId'); }}
+                      type="button"
+                    >
+                      <Edit2 size={14}/>Edit
+                    </button>
+                  </div>
+                  <div className="em-medid2-actions">
+                    <button
+                      className="em-medid2-btn em-medid2-btn--primary"
+                      onClick={handleDownloadPdf}
+                      disabled={isGeneratingPdf}
+                      type="button"
+                    >
+                      {isGeneratingPdf ? <Loader2 size={15} className="em-spin" /> : <FileText size={15} />}
+                      {isGeneratingPdf ? 'Generating…' : 'Download PDF'}
+                    </button>
+                    <button
+                      className="em-medid2-btn em-medid2-btn--ghost"
+                      onClick={handlePrintPdf}
+                      disabled={isGeneratingPdf}
+                      type="button"
+                    >
+                      <Printer size={15} /> Print
+                    </button>
+                  </div>
+                  <p className="em-medid2-ts">Generated {new Date().toLocaleTimeString()}</p>
+                </div>
+
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* ── MOBILE TABS ──────────────────────────────────── */}
+        {/* ── Mobile section tab bar ── */}
         <div className="em-mob-tabs">
-          {(['services', 'firstaid', 'contacts'] as const).map(tab => (
-            <button key={tab}
-              className={`em-mob-tab${activeTab === tab ? ' em-mob-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab)} type="button"
-            >
-              {tab === 'services' ? '🚨 Emergency' : tab === 'firstaid' ? '🩺 First Aid' : '👥 Contacts'}
-            </button>
-          ))}
+          <button
+            className={`em-mob-tab${activeTab === 'services' ? ' em-mob-tab--active' : ''}`}
+            onClick={() => setActiveTab('services')} type="button" aria-label="Emergency services"
+          >
+            <span className="em-mob-tab__icon"><Phone size={15} /></span>
+            <span className="em-mob-tab__label">{t('emergency.tabs.services', 'Emergency')}</span>
+          </button>
+          <button
+            className={`em-mob-tab${activeTab === 'firstaid' ? ' em-mob-tab--active' : ''}`}
+            onClick={() => setActiveTab('firstaid')} type="button" aria-label="First aid guides"
+          >
+            <span className="em-mob-tab__icon"><Heart size={15} /></span>
+            <span className="em-mob-tab__label">{t('emergency.tabs.firstAid', 'First Aid')}</span>
+          </button>
+          <button
+            className={`em-mob-tab${activeTab === 'qr' ? ' em-mob-tab--active' : ''}`}
+            onClick={() => setActiveTab('qr')} type="button" aria-label="QR code"
+          >
+            <span className="em-mob-tab__icon"><QrCode size={15} /></span>
+            <span className="em-mob-tab__label">{t('emergency.tabs.qrCode', 'QR Code')}</span>
+            {qrDataUrl && <span className="em-mob-tab__dot" />}
+          </button>
         </div>
 
         {/* ── MAIN GRID ────────────────────────────────────── */}
         <div className="em-grid">
 
           {/* LEFT: Services + First Aid */}
-          <div className={`em-grid__main${activeTab === 'contacts' ? ' em-mob-hidden' : ''}`}>
+          <div className={`em-grid__main${activeTab === 'qr' ? ' em-mob-hidden' : ''}`}>
 
             {/* Ghana Emergency Services */}
-            <section className={`em-section${activeTab === 'firstaid' ? ' em-mob-hidden' : ''}`}>
+            <section className={`em-section em-section--red${activeTab === 'firstaid' ? ' em-mob-hidden' : ''}`}>
               <div className="em-section__head">
-                <h2 className="em-section__title"><Shield size={18} />Ghana Emergency Services</h2>
+                <h2 className="em-section__title"><Shield size={18} />{t('emergency.services', 'Ghana Emergency Services')}</h2>
                 <span className="em-section__badge">24/7</span>
               </div>
-              <p className="em-section__sub">Tap the phone icon to dial directly · Copy icon saves number to clipboard</p>
+              <p className="em-section__sub">Tap the phone icon to call directly. The copy icon saves the number to your clipboard.</p>
               <div className="em-services-list">
                 {GHANA_SERVICES.map(svc => (
                   <div key={svc.id} className={`em-service em-service--${svc.color}`}>
                     <div className="em-service__icon"><svc.icon size={20} /></div>
                     <div className="em-service__body">
-                      <p className="em-service__name">{svc.name}</p>
-                      <p className="em-service__desc">{svc.description}</p>
+                      <p className="em-service__name">{t(`emergency.services.${svc.id}.name`, svc.name)}</p>
+                      <p className="em-service__desc">{t(`emergency.services.${svc.id}.description`, svc.description)}</p>
                     </div>
                     <div className="em-service__actions">
                       <span className="em-service__num">{svc.number}</span>
@@ -1425,261 +1937,216 @@ const EmergencyPage: NextPage = () => {
             </section>
 
             {/* First Aid Guides */}
-            <section className={`em-section${activeTab === 'services' ? ' em-mob-hidden' : ''}`}>
+            <section ref={firstAidSectionRef} className={`em-section em-section--teal${activeTab === 'services' ? ' em-mob-hidden' : ''}`}>
               <div className="em-section__head">
-                <h2 className="em-section__title"><Plus size={18} />First Aid Guides</h2>
-                <span className="em-badge-offline"><Zap size={11} />Works Offline</span>
+                <h2 className="em-section__title"><Plus size={18} />{t('emergency.firstAid', 'First Aid Guides')}</h2>
+                <span className="em-badge-offline"><Zap size={11} />{t('emergency.offlineAvailable', 'Works Offline')}</span>
               </div>
-              <p className="em-section__sub">Tap any guide to see full step-by-step instructions</p>
+              <p className="em-section__sub">Tap any guide to open clear, step-by-step instructions.</p>
 
               <div className="em-guides-list">
                 {filteredGuides.map(guide => (
                   <div key={guide.id} className={`em-guide-wrap${activeGuide === guide.id ? ' em-guide-wrap--open' : ''}`}>
                     <button
-                      className={`em-guide ${severityColor(guide.severity)}`}
-                      onClick={() => setActiveGuide(activeGuide === guide.id ? null : guide.id)}
+                      className={`em-guide ${severityColor(guide.severity)} ${guide.id}`}
+                      onClick={() => {
+                        setActiveGuide(guide.id)
+                        trackActivity(
+                          'emergency_guide',
+                          guide.title,
+                          `Opened ${guide.title} guide`,
+                          { guideId: guide.id, severity: guide.severity },
+                        ).catch(() => {})
+                      }}
                       type="button"
+                      aria-haspopup="dialog"
+                      aria-label={`Open ${guide.title}, a ${guide.steps.length} step first aid guide`}
                     >
                       <div className="em-guide__icon"><guide.icon size={20} /></div>
                       <div className="em-guide__body">
-                        <p className="em-guide__title">{guide.title}</p>
+                        <p className="em-guide__title">{tGuide(`emergency.guides.${guide.id}.title`, guide.title)}</p>
                         <p className="em-guide__steps">{guide.steps.length} steps · {severityLabel(guide.severity)}</p>
                       </div>
-                      <div className={`em-guide__open${activeGuide === guide.id ? ' em-guide__open--rotated' : ''}`}>
-                        <ChevronDown size={16} />
+                      <div className="em-guide__open" aria-hidden="true">
+                        <ChevronRight size={16} />
                       </div>
                     </button>
-
-                    {activeGuide === guide.id && (
-                      <div className="em-guide-steps">
-                        {guide.warning && (
-                          <div className="em-guide-warning">
-                            <AlertTriangle size={14} /><p>{guide.warning}</p>
-                          </div>
-                        )}
-                        {guide.steps.map((step, idx) => (
-                          <div key={idx} className="em-step">
-                            <div className="em-step__num">{idx + 1}</div>
-                            <div className="em-step__content">
-                              <p className="em-step__text">{step.instruction}</p>
-                              {step.tip && (
-                                <div className="em-step__tip">
-                                  <Info size={12} /><span>{step.tip}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        <div className="em-guide-cta">
-                          <a href="tel:193" className="em-guide-cta__call"><Phone size={14} /> Call Ambulance — 193</a>
-                          <button className="em-guide-cta__close" onClick={() => setActiveGuide(null)} type="button">
-                            <X size={14} /> Close
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
 
                 {filteredGuides.length === 0 && searchQuery && (
                   <div className="em-guides-empty">
                     <Search size={22} />
-                    <p>No guides match "<strong>{searchQuery}</strong>"</p>
-                    <button onClick={() => setSearchQuery('')} type="button">Clear search</button>
+                    <p>{t('emergency.noResults', 'No guides found for')} "<strong>{searchQuery}</strong>"</p>
+                    <button onClick={() => setSearchQuery('')} type="button">{t('common.close', 'Clear search')}</button>
                   </div>
                 )}
               </div>
             </section>
           </div>
 
-          {/* RIGHT: Contacts + Medical ID + Location */}
+          {/* RIGHT: Medical ID + Location */}
           <div className={`em-grid__side${activeTab === 'services' || activeTab === 'firstaid' ? ' em-mob-hidden' : ''}`}>
 
-            {/* Emergency Contacts */}
-            <section className="em-section em-section--contacts">
-              <div className="em-section__head">
-                <h2 className="em-section__title"><User size={18} />Emergency Contacts</h2>
-                <button className="em-section__add" type="button"
-                  onClick={() => { setShowAddContact(v => !v); setAddError(''); }}
-                >
-                  {showAddContact ? <><X size={13} /> Cancel</> : <><Plus size={13} /> Add</>}
-                </button>
-              </div>
-
-              {/* Success message */}
-              {contactSaveSuccess && (
-                <div className="em-contact-success">
-                  <Check size={13} /> Contact saved successfully
-                </div>
-              )}
-
-              {/* Inline add form */}
-              {showAddContact && (
-                <div className="em-add-contact">
-                  {addError && <p className="em-add-contact__error"><AlertCircle size={12} /> {addError}</p>}
-                  <input
-                    className="em-add-contact__input" placeholder="Full name *"
-                    value={newContact.name}
-                    onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))}
-                  />
-                  <input
-                    className="em-add-contact__input" placeholder="Relationship (e.g. Sister)"
-                    value={newContact.relationship}
-                    onChange={e => setNewContact(p => ({ ...p, relationship: e.target.value }))}
-                  />
-                  <input
-                    className="em-add-contact__input" placeholder="Phone number *" type="tel"
-                    value={newContact.number}
-                    onChange={e => setNewContact(p => ({ ...p, number: e.target.value }))}
-                  />
-                  <input
-                    className="em-add-contact__input" placeholder="Email address (for SOS alerts)"
-                    type="email"
-                    value={newContact.email}
-                    onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))}
-                  />
-                  <p className="em-add-contact__email-hint">
-                    Email is used to notify this contact when you activate SOS
-                  </p>
-                  <button
-                    className="em-add-contact__save" onClick={handleAddContact}
-                    disabled={addingContact} type="button"
-                  >
-                    {addingContact ? <Loader2 size={14} className="em-spin" /> : <Check size={14} />}
-                    {addingContact ? 'Saving…' : 'Save Contact'}
-                  </button>
-                </div>
-              )}
-
-              {/* Contacts list */}
-              {isLoadingContacts ? (
-                <div className="em-contacts-loading">
-                  <Loader2 size={18} className="em-spin" />
-                  <span>Loading contacts…</span>
-                </div>
-              ) : contacts.length === 0 ? (
-                <div className="em-contacts-empty">
-                  <User size={24} />
-                  <p>No emergency contacts yet</p>
-                  <span>Add a contact so they can be notified when you activate SOS</span>
-                  <button className="em-contacts-empty__btn" onClick={() => setShowAddContact(true)} type="button">
-                    <Plus size={13} /> Add First Contact
-                  </button>
-                </div>
-              ) : (
-                <div className="em-contacts-list">
-                  {contacts.map(c => (
-                    <div key={c.id} className={`em-contact${c.isPrimary ? ' em-contact--primary' : ''}`}>
-
-                      {/* Inline edit form */}
-                      {editingContactId === c.id ? (
-                        <div className="em-contact__edit-form">
-                          {editError && <p className="em-add-contact__error"><AlertCircle size={12} /> {editError}</p>}
-                          <input className="em-add-contact__input" placeholder="Full name *"
-                            value={editContact.name} onChange={e => setEditContact(p => ({ ...p, name: e.target.value }))} />
-                          <input className="em-add-contact__input" placeholder="Relationship"
-                            value={editContact.relationship} onChange={e => setEditContact(p => ({ ...p, relationship: e.target.value }))} />
-                          <input className="em-add-contact__input" placeholder="Phone number *" type="tel"
-                            value={editContact.number} onChange={e => setEditContact(p => ({ ...p, number: e.target.value }))} />
-                          <input className="em-add-contact__input" placeholder="Email (for SOS alerts)" type="email"
-                            value={editContact.email} onChange={e => setEditContact(p => ({ ...p, email: e.target.value }))} />
-                          <div className="em-contact__edit-actions">
-                            <button className="em-contact__edit-cancel" onClick={() => setEditingContactId(null)} type="button">
-                              <X size={13} /> Cancel
-                            </button>
-                            <button className="em-add-contact__save" onClick={handleSaveEdit} disabled={savingEdit} type="button">
-                              {savingEdit ? <Loader2 size={13} className="em-spin" /> : <Check size={13} />}
-                              {savingEdit ? 'Saving…' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Avatar */}
-                          <div className="em-contact__avatar">
-                            {c.name.slice(0, 2).toUpperCase()}
-                          </div>
-
-                          {/* Info */}
-                          <div className="em-contact__body">
-                            <div className="em-contact__name-row">
-                              <span className="em-contact__name-text">{c.name}</span>
-                              {c.isPrimary && <span className="em-contact__primary-badge">Primary</span>}
-                            </div>
-                            <p className="em-contact__rel">{c.relationship} · {c.number}</p>
-                            {c.email
-                              ? <p className="em-contact__email em-contact__email--set">✉ {c.email}</p>
-                              : <p className="em-contact__email em-contact__email--missing">⚠ No email — won't receive SOS alerts</p>
-                            }
-                          </div>
-
-                          {/* Actions */}
-                          <div className="em-contact__actions">
-                            <button className="em-contact__copy-btn" title="Copy number"
-                              onClick={() => copyPhone(c.id, c.number)} type="button">
-                              {copiedId === c.id ? <Check size={12} /> : <Copy size={12} />}
-                            </button>
-                            <a href={`tel:${c.number}`} className="em-contact__call">
-                              <Phone size={13} /> Call
-                            </a>
-                            <button className="em-contact__edit-btn" onClick={() => startEditContact(c)}
-                              type="button" title="Edit contact">
-                              <Edit2 size={12} />
-                            </button>
-                            <button className="em-contact__remove" onClick={() => removeContact(c.id)}
-                              type="button" title="Remove contact">
-                              <X size={12} />
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Medical ID — desktop sidebar only, collapsed on mobile contacts tab */}
-            <section className="em-section em-med-id em-med-id--sidebar">
+            {/* Medical ID — desktop sidebar, shown on the mobile QR tab */}
+            <section className={`em-section em-med-id em-med-id--sidebar${activeTab === 'qr' ? ' em-mob-hidden' : ''}`}>
               <div className="em-med-id__header">
-                <BookOpen size={16} />
+                <ClipboardList size={16} />
                 <h3>Medical ID</h3>
                 <span className="em-badge-offline"><Zap size={11} />Offline</span>
               </div>
-              <p className="em-med-id__note">Hand your phone to a first responder — they can read this instantly</p>
 
               {isLoadingProfile ? (
                 <div className="em-med-id__loading">
                   <Loader2 size={16} className="em-spin" /> Loading…
                 </div>
               ) : (
-                <div className="em-med-id__body">
-                  {[
-                    { key: 'Name',       val: userName,           highlight: false, warn: false },
-                    { key: 'Blood Type', val: medIdBloodType,     highlight: medIdBloodType !== 'Not set', warn: false },
-                    { key: 'Allergies',  val: medIdAllergies,     highlight: false, warn: medIdAllergies !== 'None recorded' },
-                    { key: 'Conditions', val: medIdConditions,    highlight: false, warn: false },
-                    { key: 'Medications',val: medIdMedications,   highlight: false, warn: false },
-                    { key: 'Contact',    val: medIdContact,       highlight: false, warn: false },
-                  ].map(({ key, val, highlight, warn }) => (
-                    <div key={key} className="em-med-id__row">
-                      <span className="em-med-id__key">{key}</span>
-                      <span className={`em-med-id__val${highlight ? ' em-med-id__val--red' : warn ? ' em-med-id__val--amber' : ''}`}>
-                        {val}
+                <>
+                  {/* Identity strip */}
+                  <div className="em-med-id__identity">
+                    <div className="em-med-id__identity-info">
+                      <p className="em-med-id__name">{userName}</p>
+                      <p className="em-med-id__meta">
+                        {medIdBloodType !== 'Not set'
+                          ? <><span className="em-med-id__blood-badge">{medIdBloodType}</span> {t('emergency.bloodType', 'Blood Type')}</>
+                          : <span className="em-med-id__unset">Blood type not added yet</span>
+                        }
+                      </p>
+                    </div>
+                    {medIdBloodType !== 'Not set' && (
+                      <div className="em-med-id__blood-circle">
+                        <span className="em-med-id__blood-circle-type">{medIdBloodType}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Compact sections */}
+                  <div className="em-med-id__sections">
+                    <div className="em-med-id__section">
+                      <span className="em-med-id__section-label">
+                        <AlertTriangle size={10} style={{ color: 'var(--hc-amber)' }} /> Allergies
+                      </span>
+                      <span className={`em-med-id__section-val${medIdAllergies !== 'None listed' ? ' em-med-id__section-val--warn' : ''}`}>
+                        {medIdAllergies}
                       </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="em-med-id__section">
+                      <span className="em-med-id__section-label">
+                        <Pill size={10} style={{ color: 'var(--hc-teal)' }} /> Medications
+                      </span>
+                      <span className="em-med-id__section-val">{medIdMedications}</span>
+                    </div>
+                    <div className="em-med-id__section">
+                      <span className="em-med-id__section-label">
+                        <Stethoscope size={10} style={{ color: 'var(--hc-violet)' }} /> Conditions
+                      </span>
+                      <span className="em-med-id__section-val">{medIdConditions}</span>
+                    </div>
+                    {nhisCard?.nhisId && (
+                      <div className="em-med-id__section em-med-id__section--nhis">
+                        <span className="em-med-id__section-label">
+                          <Shield size={10} style={{ color: 'var(--hc-teal)' }} /> NHIS ID
+                        </span>
+                        <span className="em-med-id__section-val em-med-id__section-val--nhis">
+                          {nhisCard.nhisId}
+                          {nhisCard.expiryDate && <span className="em-med-id__nhis-exp">Exp: {nhisCard.expiryDate}</span>}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               <div className="em-med-id__actions">
-                <button className="em-med-id__show-btn" onClick={() => setShowPersonalCard(true)} type="button">
-                  <BookOpen size={14} /> Show Card
+                <button className="em-med-id__show-btn"
+                  onClick={() => setShowPersonalCard(true)}
+                  type="button">
+                  <BookOpen size={14} /> Full Card
                 </button>
-                <button className="em-med-id__edit" onClick={() => router.push('/profile?modal=medicalId')} type="button">
+                <button className="em-med-id__edit"
+                  onClick={() => router.push('/profile?modal=medicalId')}
+                  type="button">
                   <Edit2 size={13} /> Edit
                 </button>
               </div>
+            </section>
+
+            {/* ── Emergency QR Code ──────────────────────── */}
+            <section className={`em-section em-section--violet-deep em-qr-section${activeTab !== 'qr' ? ' em-mob-hidden' : ''}`} id="em-qr-section">
+              <div className="em-section__head">
+                <h2 className="em-section__title"><QrCode size={18} />Emergency QR Code</h2>
+                <span className="em-badge-offline">30-day link</span>
+              </div>
+              <p className="em-section__sub">
+                Generate a scannable QR for first responders. Save it to your lock screen or print it out.
+              </p>
+
+              {qrError && (
+                <div className="em-qr-error">
+                  <AlertCircle size={13} /> {qrError}
+                </div>
+              )}
+
+              {qrDataUrl ? (
+                <div className="em-qr-card">
+                  {/* QR image */}
+                  <div className="em-qr-card__image-wrap">
+                    <img
+                      src={qrDataUrl}
+                      alt="Emergency QR Code"
+                      width={200} height={200}
+                      className="em-qr-card__image"
+                    />
+                    <div className="em-qr-card__overlay-badge">
+                      <Shield size={10} /> Emergency Brief
+                    </div>
+                  </div>
+
+                  {/* Expiry */}
+                  {qrExpiresAt && (
+                    <p className="em-qr-card__expiry">
+                      <Clock size={11} /> Valid until {new Date(qrExpiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+
+                  {/* URL */}
+                  {qrBriefUrl && (
+                    <p className="em-qr-card__url">{qrBriefUrl}</p>
+                  )}
+
+                  {/* Actions */}
+                  <div className="em-qr-card__actions">
+                    <button
+                      className="em-section__add em-qr-card__regen"
+                      onClick={generateQr}
+                      disabled={isGeneratingQr}
+                      type="button"
+                    >
+                      <RefreshCw size={13} className={isGeneratingQr ? 'em-spin' : ''} />
+                      {isGeneratingQr ? 'Regenerating…' : 'Regenerate'}
+                    </button>
+                    <button
+                      className="em-qr-card__remove"
+                      onClick={removeQr}
+                      type="button"
+                    >
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="em-qr-generate-btn"
+                  onClick={generateQr}
+                  disabled={isGeneratingQr}
+                  type="button"
+                >
+                  {isGeneratingQr
+                    ? <><Loader2 size={15} className="em-spin" /> Generating…</>
+                    : <><QrCode size={15} /> Generate QR Code</>
+                  }
+                </button>
+              )}
             </section>
 
             {/* Live Location Card */}
@@ -1704,6 +2171,12 @@ const EmergencyPage: NextPage = () => {
                   >
                     <ExternalLink size={13} /> Open Maps
                   </a>
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`🆘 Emergency location: https://maps.google.com/?q=${location.lat},${location.lng}`)}`}
+                    target="_blank" rel="noopener noreferrer" className="em-location-card__btn em-location-card__btn--whatsapp"
+                  >
+                    <Phone size={13} /> WhatsApp
+                  </a>
                   <button
                     className="em-location-card__btn"
                     onClick={() => copyPhone('loc', `Emergency location: https://maps.google.com/?q=${location.lat},${location.lng}`)}
@@ -1715,12 +2188,19 @@ const EmergencyPage: NextPage = () => {
                 </div>
                 {nearestER && (
                   <div className="em-location-card__er">
-                    <span>🏥 Nearest ER:</span>
+                    <span aria-hidden="true">🏥</span>
+                    <span>Nearest ER:</span>
                     <button
-                      onClick={() => window.open(`https://maps.google.com/maps/search/hospital/@${location.lat},${location.lng},14z`, '_blank')}
+                      onClick={() => {
+                        if (nearestER?.lat && nearestER?.lng) {
+                          window.open(`https://maps.google.com/?q=${nearestER.lat},${nearestER.lng}`, '_blank');
+                        } else {
+                          window.open(`https://maps.google.com/maps/search/${encodeURIComponent(nearestER?.name || 'hospital')}/@${location.lat},${location.lng},14z`, '_blank');
+                        }
+                      }}
                       type="button"
                     >
-                      {nearestER.name} · {nearestER.distance} →
+                      {nearestER.name}, {nearestER.distance} away
                     </button>
                   </div>
                 )}

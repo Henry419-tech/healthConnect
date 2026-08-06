@@ -14,8 +14,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
-    const type  = searchParams.get('type') || undefined;
+    const limit    = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const typeRaw  = searchParams.get('type') || undefined;
+    // A filter bucket can map to multiple underlying activityType values
+    // (e.g. "Find Care" = facility_search + symptom_search + symptom_text_search),
+    // so accept a comma-separated list here, not just a single exact type.
+    const types = typeRaw ? typeRaw.split(',').map(t => t.trim()).filter(Boolean) : undefined;
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
@@ -27,7 +31,8 @@ export async function GET(request: NextRequest) {
     const where: any = {
       userId:    user.id,
       deletedAt: null,          // exclude soft-deleted entries
-      ...(type && { activityType: type }),
+      ...(types && types.length === 1 && { activityType: types[0] }),
+      ...(types && types.length > 1  && { activityType: { in: types } }),
     };
 
     // Fetch activities + counts + total in parallel
@@ -47,10 +52,15 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    const sumTypes = (wanted: string[]) =>
+      countGroups
+        .filter((c: any) => wanted.includes(c.activityType))
+        .reduce((sum: number, c: any) => sum + c._count, 0);
+
     const counts = {
-      facilities: countGroups.find((c: any) => c.activityType === 'facility_found')?._count    || 0,
-      symptoms:   countGroups.find((c: any) => c.activityType === 'symptom_checked')?._count   || 0,
-      emergency:  countGroups.find((c: any) => c.activityType === 'emergency_accessed')?._count || 0,
+      facilities: sumTypes(['facility_found']),
+      findcare:   sumTypes(['facility_search', 'symptom_search', 'symptom_text_search']),
+      emergency:  sumTypes(['emergency_guide', 'emergency_accessed', 'first_aid_viewed']),
     };
 
     return NextResponse.json({ activities, counts, total, success: true });
@@ -154,13 +164,17 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { id, all, type } = body;
 
-    // ── Delete all (optionally filtered by type) ──
+    // ── Delete all (optionally filtered by type, comma-separated for buckets) ──
     if (all === true) {
+      const types = typeof type === 'string'
+        ? type.split(',').map((t: string) => t.trim()).filter(Boolean)
+        : undefined;
       const result = await prisma.userActivity.updateMany({
         where: {
           userId:    user.id,
           deletedAt: null,
-          ...(type && { activityType: type }),
+          ...(types && types.length === 1 && { activityType: types[0] }),
+          ...(types && types.length > 1  && { activityType: { in: types } }),
         },
         data: { deletedAt: new Date() },
       });

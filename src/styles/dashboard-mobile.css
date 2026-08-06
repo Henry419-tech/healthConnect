@@ -10,6 +10,8 @@
 .mob-only { display: none; }
 
 
+
+
 /* ── Mobile sticky top bar ──────────────────────────────────── */
 /* Hidden by default; shown only on mobile via media query */
 .mob-topbar { display: none; }
@@ -69,7 +71,7 @@
   .mob-topbar__left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
   }
   .mob-topbar__logo-icon {
     color: var(--hc-teal);
@@ -81,7 +83,7 @@
     font-weight: 900;
     letter-spacing: -0.5px;
     /* Two-tone: "Health" teal, "Connect" text color */
-    background: linear-gradient(90deg, var(--hc-teal) 0%, var(--hc-teal) 48%, var(--hc-text) 48%);
+    background: linear-gradient(90deg, #00d2ff 0%, #00d2ff 48%, var(--hc-text) 48%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -96,31 +98,34 @@
   .mob-topbar__right {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 0;
   }
 
   .mob-topbar__btn {
-    width: 36px; height: 36px;
-    border-radius: 10px;
+    width: 40px; height: 40px;
+    border-radius: 50%;
     background: none;
-    border: 1px solid var(--hc-border);
+    border: none;
     color: var(--hc-text2);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    transition: background 0.18s, color 0.18s;
+    transition: background 0.15s;
     position: relative;
+    -webkit-tap-highlight-color: transparent;
   }
-  .mob-topbar__btn:hover {
-    background: var(--hc-teal-dim);
-    color: var(--hc-teal);
+  .mob-topbar__btn:active {
+    background: rgba(0, 210, 255, 0.10);
   }
   html.dark-mode .mob-topbar__btn {
-    border-color: rgba(0,210,255,0.12);
+    color: rgba(255, 255, 255, 0.75);
+  }
+  html.dark-mode .mob-topbar__btn:active {
+    background: rgba(0, 210, 255, 0.12);
   }
 
   .mob-topbar__bell-dot {
     position: absolute;
-    top: 7px; right: 7px;
+    top: 8px; right: 8px;
     width: 7px; height: 7px;
     border-radius: 50%;
     background: var(--hc-red);
@@ -133,21 +138,24 @@
     border: none;
     cursor: pointer;
     padding: 0;
+    display: flex;
+    align-items: center;
     margin-left: 2px;
+    -webkit-tap-highlight-color: transparent;
   }
   .mob-topbar__avatar {
-    width: 34px; height: 34px;
+    width: 32px; height: 32px;
     border-radius: 50%;
     background: var(--hc-teal-dim);
-    border: 2px solid color-mix(in srgb, var(--hc-teal) 35%, transparent);
+    border: 2px solid color-mix(in srgb, var(--hc-teal) 40%, transparent);
     display: flex; align-items: center; justify-content: center;
     font-family: 'Outfit', 'Inter', sans-serif;
-    font-size: 12px; font-weight: 800;
+    font-size: 11.5px; font-weight: 800;
     color: var(--hc-teal);
     overflow: hidden;
   }
   html.dark-mode .mob-topbar__avatar {
-    box-shadow: 0 0 10px rgba(0,210,255,0.20);
+    box-shadow: 0 0 8px rgba(0,210,255,0.22);
   }
   .mob-topbar__avatar img {
     width: 100%; height: 100%;
@@ -169,7 +177,7 @@
   .db-topbar { display: none !important; }
 
   /* mob-topbar floats: 10px gap + 50px height = 70px top clearance
-     mob-tab-bar floats: 56px height + 12px gap + safe area = 80px bottom clearance */
+     mob-tab-bar floats: 64px height + 12px gap + safe area = 88px bottom clearance */
   .db-page {
     padding: 72px 0 calc(80px + env(safe-area-inset-bottom, 0px)) !important;
     gap: 0 !important;
@@ -214,16 +222,16 @@
     display: flex;
     align-items: center;
     justify-content: space-around;
-    height: 56px;
-    padding: 0 6px;
+    height: 64px;
+    padding: 0 4px;
   }
 
   .mob-tab-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 6px 4px;
+    gap: 2px;
+    padding: 8px 2px 6px;
     background: none;
     border: none;
     cursor: pointer;
@@ -240,19 +248,19 @@
     -webkit-tap-highlight-color: transparent;
   }
   .mob-tab-btn svg { transition: transform 0.22s; }
-  .mob-tab-btn:active { transform: scale(0.90); }
+  .mob-tab-btn:active { transform: scale(0.92); }
   .mob-tab-btn.active { color: var(--hc-teal); }
-  .mob-tab-btn.active svg { transform: scale(1.05); }
+  .mob-tab-btn.active svg { transform: scale(1.08); }
 
-  /* Icon wrapper bubble */
+  /* Portrait capsule — narrower than wide, wraps only the icon */
   .mob-tab-btn__icon {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 28px;
-    border-radius: 14px;
+    width: 36px;
+    height: 30px;
+    border-radius: 15px;
     transition: background 0.22s, transform 0.22s;
   }
   .mob-tab-btn.active .mob-tab-btn__icon {
@@ -261,13 +269,13 @@
   }
   html.dark-mode .mob-tab-btn.active .mob-tab-btn__icon {
     background: rgba(0, 210, 255, 0.15);
-    box-shadow: 0 0 10px rgba(0, 210, 255, 0.18);
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.16);
   }
 
   /* Remove old top-line indicator */
   .mob-tab-btn.active::after { display: none; }
 
-  /* SOS button — plain phone icon + red dot, styled in dashboard-header.css */
+  /* Emergency tab — plain phone icon, styled in dashboard-header.css */
 
   /* ══════════════════════════════════════════════════════════
      PAGE HEADER — greeting row with bell on mobile
@@ -277,16 +285,17 @@
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 20px 18px 14px !important;
+    padding: 4px 0 0 !important;
     gap: 0 !important;
   }
 
   /* Text block */
-  .db-page-header > div:first-child {
+  .db-page-header > div:first-child,
+  .dbh-greeting-text {
     flex: 1;
+    min-width: 0;
   }
   .db-page-header__sub {
-    /* "Good afternoon 🌤" */
     font-size: 13px !important;
     font-weight: 500 !important;
     color: var(--hc-text2) !important;
@@ -295,30 +304,18 @@
     letter-spacing: 0.1px !important;
   }
 
-  /* Force full-colour emoji rendering — isolates emoji from parent
-     text colour and uses the OS emoji font directly.             */
-  .db-greeting-emoji {
-    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
-                 'Twemoji Mozilla', 'Android Emoji', sans-serif !important;
-    font-style: normal !important;
-    color: unset !important;
-    -webkit-text-fill-color: unset !important;
-    text-shadow: none !important;
-    display: inline-block;
-  }
+  /* Solid, weight-driven greeting — no gradient text-fill, matches
+     desktop treatment and respects font-size/style accessibility
+     settings applied to the page. */
   .db-page-header__greeting {
-    font-size: 28px !important;
-    font-weight: 900 !important;
-    line-height: 1.1 !important;
+    font-size: 23px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
     margin: 0 !important;
     color: var(--hc-text) !important;
-    letter-spacing: -1px !important;
-  }
-  html.dark-mode .db-page-header__greeting {
-    background: linear-gradient(135deg, #ffffff 30%, rgba(0,210,255,0.85) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    letter-spacing: -0.4px !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
   }
 
   /* Hide the desktop action buttons */
@@ -330,155 +327,87 @@
   /* ══════════════════════════════════════════════════════════
      HEALTH SCORE CARD
   ══════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+     HEALTH SCORE CARD — mobile
+     Stack: ring top-center, center meta full-width, pillars grid
+  ══════════════════════════════════════════════════════════ */
   .db-health-card {
     margin: 0 16px 16px !important;
     border-radius: 20px !important;
-    padding: 22px 18px 20px !important;
-    flex-wrap: nowrap !important;
-    flex-direction: column !important;
-    gap: 18px !important;
+    padding: 20px 18px 18px !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    gap: 16px !important;
     position: relative;
     overflow: hidden;
-    /* Light mode: framework card surface */
     background: var(--hc-surface) !important;
     border-color: var(--hc-border2) !important;
     box-shadow: 0 2px 16px rgba(0,0,0,0.07) !important;
   }
-
-  /* Dark mode: deep-space gradient */
   html.dark-mode .db-health-card {
-    background: linear-gradient(135deg,
-      #002844 0%,
-      #003858 100%) !important;
+    background: linear-gradient(135deg, #002844 0%, #003858 100%) !important;
     border-color: rgba(0, 210, 255, 0.18) !important;
     box-shadow:
       0 8px 40px rgba(0, 0, 0, 0.5),
       inset 0 1px 0 rgba(255,255,255,0.05) !important;
   }
-  /* Ambient glow */
-  html.dark-mode .db-health-card::after {
-    content: '';
-    position: absolute;
-    top: -30px; right: -20px;
-    width: 150px; height: 150px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,210,255,0.10) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
 
-  /* Left content */
-  .db-health-card__left {
-    flex: none !important;
-    width: 100% !important;
-    position: relative;
-    z-index: 1;
+  /* Column 1: Ring — centered top */
+  .db-health-card__ring-col {
+    order: 1;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 16px !important;
+    padding-right: 0 !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--hc-border2);
+    padding-bottom: 16px;
   }
-  .db-health-card__label {
-    font-size: 9.5px !important;
-    letter-spacing: 2.5px !important;
-  }
-  .db-health-card__score-row {
-    display: flex !important;
-    align-items: flex-end !important;
-    gap: 2px !important;
-    margin-bottom: 8px !important;
-  }
-  .db-health-card__score-num {
-    font-size: 60px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    letter-spacing: -3px !important;
-  }
-  .db-health-card__score-denom {
-    font-size: 22px !important;
-    font-weight: 700 !important;
-    margin-bottom: 8px !important;
-  }
-  .db-health-card__status {
-    font-size: 12.5px !important;
-    margin: 0 0 14px !important;
-  }
-  .db-health-card__badges {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 7px !important;
-  }
-  .db-health-card__badge {
-    font-size: 11px !important;
-    padding: 4px 11px !important;
-    border-radius: 100px !important;
-  }
-
-  /* Ring: absolutely positioned top-right */
   .db-health-card__ring-wrap {
-    position: absolute !important;
-    top: 18px !important;
-    right: 18px !important;
-    width: 88px !important;
-    height: 88px !important;
-    z-index: 2;
+    width: 100px !important;
+    height: 100px !important;
+    flex-shrink: 0;
   }
   .db-health-card__ring-wrap svg {
-    width: 88px !important;
-    height: 88px !important;
+    width: 100px !important;
+    height: 100px !important;
   }
-  .db-health-card__ring-pct {
-    font-size: 15px !important;
+  /* Adjust text positions for smaller ring (viewBox stays 120x120) */
+  .db-health-card__tier-label {
+    font-size: 18px !important;
     font-weight: 800 !important;
+    letter-spacing: -0.3px !important;
   }
 
-  /* Vitals — 3 col row */
-  .db-vitals {
+  /* Column 2: Center meta */
+  .db-health-card__center {
+    order: 2;
+    padding: 0 !important;
+    border-right: none !important;
+    gap: 8px !important;
+  }
+
+  /* Column 3: Pillars — 2×3 or 1×5 grid */
+  .db-health-card__pillars {
+    order: 3;
     display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 0 !important;
-    border-top: 1px solid var(--hc-border2) !important;
-    border-left: none !important;
-    padding: 16px 0 0 !important;
-    width: 100% !important;
-    position: relative;
-    z-index: 1;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px 12px !important;
+    padding-left: 0 !important;
+    border-top: 1px solid var(--hc-border2);
+    padding-top: 14px;
   }
-  html.dark-mode .db-vitals {
-    border-top-color: rgba(255,255,255,0.08) !important;
-  }
-  .db-vital {
-    padding: 0 10px !important;
-    margin: 0 !important;
-    min-width: unset !important;
-    border-right: 1px solid var(--hc-border2);
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  html.dark-mode .db-vital {
-    border-right-color: rgba(255,255,255,0.08);
-  }
-  .db-vital:last-child { border-right: none; }
-  /* Only show first 3 vitals on mobile */
-  .db-vital:nth-child(n+4) { display: none !important; }
+  /* Last pillar spans both columns on 5-item grid */
+  .db-pillar:last-child { grid-column: 1 / -1; }
 
-  .db-vital__top {
-    display: flex !important;
-    align-items: baseline !important;
-    gap: 2px !important;
-  }
-  .db-vital__val {
-    font-size: 21px !important;
-    font-weight: 800 !important;
-    line-height: 1 !important;
-  }
-  .db-vital__unit {
-    font-size: 10px !important;
-    font-weight: 600 !important;
-  }
-  .db-vital__label {
-    font-size: 8px !important;
-    font-weight: 700 !important;
-    letter-spacing: 1px !important;
-    text-transform: uppercase !important;
-  }
+  .db-health-card__label { font-size: 9px !important; letter-spacing: 2.5px !important; }
+  .db-health-card__status { font-size: 12px !important; }
+  .db-health-card__badges { gap: 6px !important; }
+  .db-health-card__badge { font-size: 10.5px !important; padding: 3px 9px !important; }
+  .db-health-card__hint { font-size: 11px !important; padding: 6px 10px !important; }
+  .db-pillar__label { font-size: 11px !important; }
+  .db-pillar__score { font-size: 11px !important; }
+  .db-pillar__track { height: 5px !important; }
 
   /* ══════════════════════════════════════════════════════════
      ADVISORY BANNER
@@ -502,70 +431,228 @@
   .db-advisory__cta   { display: none !important; }
 
   /* ══════════════════════════════════════════════════════════
-     QUICK ACTIONS — 2 × 2 grid
+     QUICK ACTIONS — mobile card redesign
+     ─────────────────────────────────────────────────────────
+     HTML structure (cannot change TSX):
+       .db-quick-action (button)
+         .db-quick-action__header
+           .db-quick-action__icon      ← sibling 1
+           p.db-quick-action__title    ← sibling 2
+           span.db-quick-action__count ← sibling 3
+           svg.db-quick-action__arrow  ← sibling 4
+         .db-quick-action__tags
+           span.db-quick-action__tag × N
+
+     Layout goal per card:
+     ┌────────────────────────────┐
+     │ ╔══════╗                  │
+     │ ║ icon ║  Title           │
+     │ ╚══════╝  ● status pill   │
+     │                        ›  │
+     ├────────────────────────────┤ thin divider
+     │ tag · tag · tag            │
+     └────────────────────────────┘
+
+     Technique: CSS Grid on __header with named areas.
+     icon   → column 1, rows 1–2 (spans title + pill rows)
+     title  → column 2, row 1
+     count  → column 2, row 2
+     arrow  → column 3, rows 1–2 (centred vertically)
   ══════════════════════════════════════════════════════════ */
+
+  /* ── Section wrapper ──────────────────────────────────── */
   .db-section {
     padding: 0 16px !important;
     margin-bottom: 20px !important;
   }
-  .db-section__head { margin-bottom: 14px !important; }
+  .db-section__head { margin-bottom: 12px !important; }
   .db-section__title {
-    font-size: 18px !important;
+    font-size: 17px !important;
     font-weight: 800 !important;
   }
 
+  /* ── 2-column grid, Emergency Hub spans full width ─────── */
   .db-quick-actions {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px !important;
   }
+
+  /* ── Card shell ───────────────────────────────────────── */
   .db-quick-action {
-    padding: 18px 15px 16px !important;
-    border-radius: 18px !important;
-    gap: 12px !important;
-    min-height: 128px !important;
+    padding: 0 !important;
+    border-radius: 16px !important;
+    gap: 0 !important;
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: stretch !important;
     justify-content: flex-start !important;
-  }
-  .db-quick-action__icon {
-    width: 46px !important;
-    height: 46px !important;
-    border-radius: 14px !important;
-  }
-  .db-quick-action__title {
-    font-size: 14.5px !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
-    margin: 0 0 4px !important;
-  }
-  .db-quick-action__sub {
-    font-size: 11.5px !important;
-    line-height: 1.4 !important;
-  }
-  .db-quick-action__badge {
-    top: 11px !important;
-    right: 11px !important;
-    width: 19px !important;
-    height: 19px !important;
-    font-size: 9px !important;
+    overflow: hidden !important;
   }
 
-  /* Dark mode: richer card backgrounds */
-  html.dark-mode .db-quick-action--teal {
-    background: linear-gradient(145deg, #001E30 0%, #002840 100%) !important;
-    border-color: rgba(0, 210, 255, 0.20) !important;
+  /* ── HEADER — CSS Grid with 3 named columns ─────────────
+     col 1: icon (fixed 38 px)
+     col 2: text block (grows)
+     col 3: chevron (fixed 22 px)
+  ─────────────────────────────────────────────────────── */
+  .db-quick-action__header {
+    display: grid !important;
+    grid-template-columns: 38px 1fr 22px !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 10px !important;
+    row-gap: 0 !important;
+    padding: 14px 12px 10px !important;
+    align-items: center !important;
+    /* reset any previous absolute/flex rules */
+    position: static !important;
   }
-  html.dark-mode .db-quick-action--violet {
-    background: linear-gradient(145deg, #16083A 0%, #1E0F4A 100%) !important;
-    border-color: rgba(139, 92, 246, 0.22) !important;
+
+  /* Icon — col 1, spans both rows, self-centres */
+  .db-quick-action__icon {
+    grid-column: 1 !important;
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+    /* icon SVG centred inside */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
-  html.dark-mode .db-quick-action--amber {
-    background: linear-gradient(145deg, #1E1200 0%, #261800 100%) !important;
-    border-color: rgba(245, 158, 11, 0.22) !important;
+
+  /* Title — col 2, row 1 */
+  .db-quick-action__title {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    align-self: end !important;          /* sits at bottom of its row → tight to pill */
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* 2-line clamp — never overflow card */
+    white-space: normal !important;
+    overflow: hidden !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    text-overflow: unset !important;
   }
-  html.dark-mode .db-quick-action--red {
-    background: linear-gradient(145deg, #200606 0%, #2A0808 100%) !important;
-    border-color: rgba(239, 68, 68, 0.22) !important;
+
+  /* Count / status pill — col 2, row 2 */
+  .db-quick-action__count {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    align-self: start !important;        /* sits at top of its row → tight to title */
+    justify-self: start !important;
+    margin-top: 5px !important;
+    font-size: 9.5px !important;
+    font-weight: 700 !important;
+    padding: 2px 8px !important;
+    border-radius: 100px !important;
+    white-space: nowrap !important;
+    line-height: 1.4 !important;
+    /* cancel any desktop width/display rules */
+    width: auto !important;
+    display: inline-flex !important;
+  }
+
+  /* Count accent — solid fill on mobile */
+  .db-quick-action__count--accent {
+    color: #0a1628 !important;
+    background: var(--qa-accent, var(--hc-teal)) !important;
+    border-color: var(--qa-accent, var(--hc-teal)) !important;
+  }
+
+  /* Chevron — col 3, spans both rows, self-centres */
+  .db-quick-action__arrow {
+    grid-column: 3 !important;
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+    justify-self: center !important;
+    /* cancel any absolute/transform rules */
+    position: static !important;
+    transform: none !important;
+    top: unset !important; right: unset !important;
+    width: 15px !important;
+    height: 15px !important;
+    flex-shrink: 0 !important;
+    opacity: 0.55 !important;
+    color: var(--hc-text3) !important;
+  }
+
+  /* ── TAGS ROW ─────────────────────────────────────────── */
+  .db-quick-action__tags {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+    padding: 8px 12px 12px !important;
+    align-items: flex-start !important;
+    /* clear separator */
+    border-top: 1px solid rgba(255,255,255,0.09) !important;
+    margin: 0 !important;
+  }
+  html:not(.dark-mode) .db-quick-action__tags {
+    border-top-color: rgba(0,0,0,0.07) !important;
+  }
+
+  /* Tag pills */
+  .db-quick-action__tag {
+    font-size: 9.5px !important;
+    font-weight: 500 !important;
+    padding: 2px 7px !important;
+    border-radius: 100px !important;
+    white-space: nowrap !important;
+    line-height: 1.4 !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.13) !important;
+    color: var(--hc-text2) !important;
+  }
+  html:not(.dark-mode) .db-quick-action__tag {
+    background: rgba(0,0,0,0.05) !important;
+    border-color: rgba(0,0,0,0.10) !important;
+    color: var(--hc-text3) !important;
+  }
+
+  /* ── Notification badge dot ───────────────────────────── */
+  .db-quick-action__badge {
+    top: 9px !important;
+    right: 9px !important;
+    min-width: 17px !important;
+    height: 17px !important;
+    font-size: 8.5px !important;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     EMERGENCY HUB — full-width, slightly bigger treatment
+     spans both columns already via grid-column: 1 / -1
+     in dashboard.css. Just tune sizing here.
+  ══════════════════════════════════════════════════════ */
+  .db-quick-action--red .db-quick-action__header {
+    grid-template-columns: 42px 1fr 22px !important;
+    padding: 15px 14px 11px !important;
+    column-gap: 12px !important;
+  }
+  .db-quick-action--red .db-quick-action__icon {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 11px !important;
+  }
+  .db-quick-action--red .db-quick-action__title {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    -webkit-line-clamp: 1 !important;
+  }
+  .db-quick-action--red .db-quick-action__count {
+    font-size: 10px !important;
+    margin-top: 5px !important;
+  }
+  .db-quick-action--red .db-quick-action__tags {
+    padding: 8px 14px 14px !important;
+    gap: 6px !important;
+  }
+  .db-quick-action--red .db-quick-action__arrow {
+    opacity: 0.70 !important;
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -577,8 +664,8 @@
     gap: 0 !important;
     width: 100% !important;
   }
-  .db-grid__side { order: 1; width: 100% !important; }
-  .db-grid__main { order: 2; width: 100% !important; }
+  .db-grid__side { order: 2; width: 100% !important; }
+  .db-grid__main { order: 1; width: 100% !important; }
 
   /* ── Cards ─────────────────────────────────────────────── */
   .db-grid__side > .db-card,
@@ -595,15 +682,98 @@
     font-size: 15px !important;
     font-weight: 700 !important;
   }
-  /* "View All" / action link style on mobile */
+  /* ── Restore db-card__action (non-facility uses) ────────────── */
   .db-card__action {
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    padding: 5px 11px !important;
+    border-radius: 8px !important;
+    background: var(--hc-surface2) !important;
+    border: 1px solid var(--hc-border) !important;
+    color: var(--hc-text2) !important;
+  }
+
+  /* ── Nearby Facilities card header — mobile two-row layout ─────
+     Top row:      title + "in Accra" badge
+     Bottom row:   [GPS | Saved] segmented control    View All →
+  ────────────────────────────────────────────────────────────── */
+  .db-card--facilities .db-card__header {
+    padding: 13px 15px 11px !important;
+    gap: 9px !important;
+  }
+  .db-fac-header__top {
+    gap: 7px !important;
+  }
+  .db-fac-header__top .db-card__title {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+  }
+  .db-fac-header__controls {
+    gap: 8px !important;
+  }
+
+  /* Tab rail — full contrast track so it's obviously a control */
+  .db-fac-tabs {
+    display: inline-flex !important;
+    align-items: center !important;
+    background: color-mix(in srgb, var(--hc-border) 60%, transparent) !important;
+    border: 1.5px solid var(--hc-border) !important;
+    border-radius: 11px !important;
+    padding: 3px !important;
+    gap: 2px !important;
+  }
+
+  /* Individual tab segment */
+  .db-fac-tab {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    height: 30px !important;
+    padding: 0 13px !important;
+    border-radius: 8px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    color: var(--hc-text2) !important;
     background: none !important;
     border: none !important;
-    color: var(--hc-teal) !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: background 0.14s, color 0.14s !important;
+  }
+
+  /* Active tab — solid fill, strong contrast */
+  .db-fac-tab--active {
+    background: var(--hc-teal) !important;
+    color: #021820 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 2px 10px rgba(0, 210, 255, 0.45) !important;
+  }
+  html:not(.dark-mode) .db-fac-tab--active {
+    background: #0369a1 !important;
+    color: #fff !important;
+    box-shadow: 0 2px 10px rgba(3, 105, 161, 0.35) !important;
+  }
+  .db-fac-tab:active {
+    transform: scale(0.92) !important;
+  }
+
+  /* View All — clearly a separate action, teal text + border */
+  .db-fac-viewall {
+    height: 30px !important;
+    padding: 0 12px !important;
+    border-radius: 8px !important;
     font-size: 12px !important;
-    font-weight: 600 !important;
-    padding: 4px 0 !important;
-    box-shadow: none !important;
+    font-weight: 700 !important;
+    color: var(--hc-teal) !important;
+    background: var(--hc-teal-dim) !important;
+    border: 1.5px solid color-mix(in srgb, var(--hc-teal) 30%, transparent) !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+  .db-fac-viewall:active {
+    filter: brightness(0.88) !important;
+    transform: scale(0.94) !important;
   }
 
   /* ── Facility items ─────────────────────────────────────── */
@@ -737,33 +907,49 @@
   .db-card--emergency {
     flex-direction: column !important;
     padding: 16px !important;
-    gap: 0 !important;
-    border: none !important;
-    background: #fff5f5 !important;
+    gap: 10px !important;
+    background: linear-gradient(145deg,
+      rgba(255, 40, 70, 0.12) 0%,
+      rgba(255, 255, 255, 0.96) 70%
+    ) !important;
+    border: 1px solid rgba(255, 77, 109, 0.28) !important;
     border-radius: 16px !important;
     overflow: hidden !important;
+    box-shadow: 0 4px 20px rgba(255, 40, 70, 0.10) !important;
   }
   html.dark-mode .db-card--emergency {
-    background: rgba(220, 38, 38, 0.10) !important;
-    border: 1px solid rgba(220, 38, 38, 0.18) !important;
+    background: linear-gradient(145deg,
+      rgba(255, 40, 70, 0.18) 0%,
+      rgba(7, 24, 40, 0.85) 70%
+    ) !important;
+    border: 1px solid rgba(255, 77, 109, 0.32) !important;
+    box-shadow: 0 4px 24px rgba(255, 40, 70, 0.14) !important;
   }
   /* Top row: icon circle + title side by side */
   .db-card--emergency .db-card__emergency-icon {
     width: 42px !important; height: 42px !important;
     border-radius: 12px !important;
-    background: rgba(220, 38, 38, 0.12) !important;
+    background: rgba(255, 77, 109, 0.16) !important;
+    border: 1.5px solid rgba(255, 77, 109, 0.35) !important;
+    box-shadow: 0 0 14px rgba(255, 40, 70, 0.18) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     flex-shrink: 0 !important;
+    color: #ff4d6d !important;
+    margin-bottom: 0 !important;
+  }
+  html:not(.dark-mode) .db-card--emergency .db-card__emergency-icon {
+    background: rgba(220, 38, 38, 0.10) !important;
+    border-color: rgba(220, 38, 38, 0.24) !important;
     color: #dc2626 !important;
-    margin-bottom: 10px !important;
+    box-shadow: none !important;
   }
   .db-card__emergency-body {
     display: flex !important;
     flex-direction: column !important;
     gap: 4px !important;
-    margin-bottom: 14px !important;
+    margin-bottom: 0 !important;
   }
   .db-card__emergency-title {
     font-size: 15px !important;
@@ -775,19 +961,20 @@
     font-size: 13px !important;
     line-height: 1.5 !important;
     margin: 0 !important;
-    color: var(--hc-text-muted) !important;
+    color: var(--hc-text2) !important;
   }
   .db-emergency-open-btn {
     width: 100% !important;
     padding: 12px 16px !important;
     font-size: 14px !important;
-    font-weight: 600 !important;
+    font-weight: 800 !important;
     white-space: nowrap !important;
     margin-top: 0 !important;
     border-radius: 12px !important;
-    background: #dc2626 !important;
+    background: linear-gradient(135deg, #ff4d6d, #e8002d) !important;
     color: #fff !important;
     text-align: center !important;
+    box-shadow: 0 6px 20px rgba(255, 40, 70, 0.38) !important;
   }
 
   /* ── Insights ───────────────────────────────────────────── */
@@ -842,9 +1029,35 @@
    Very small phones (≤ 390px) — minor tightening only
 ════════════════════════════════════════════════════════════════ */
 @media (max-width: 390px) {
-  .db-health-card__score-num { font-size: 52px !important; }
-  .db-page-header__greeting  { font-size: 22px !important; }
-  .db-quick-action__title    { font-size: 13.5px !important; }
+  .db-page-header__greeting  { font-size: 21px !important; }
+
+  /* Tighten the header grid columns slightly on tiny screens */
+  .db-quick-action__header {
+    grid-template-columns: 34px 1fr 20px !important;
+    column-gap: 8px !important;
+    padding: 12px 10px 9px !important;
+  }
+  .db-quick-action__icon  {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 9px !important;
+  }
+  .db-quick-action__title { font-size: 11.5px !important; }
+  .db-quick-action__count { font-size: 9px !important; padding: 2px 6px !important; }
+  .db-quick-action__tags  { padding: 7px 10px 11px !important; }
+  .db-quick-action__tag   { font-size: 9px !important; padding: 2px 6px !important; }
+
+  /* Emergency Hub on tiny phones */
+  .db-quick-action--red .db-quick-action__header {
+    grid-template-columns: 36px 1fr 20px !important;
+  }
+  .db-quick-action--red .db-quick-action__icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .db-quick-action--red .db-quick-action__title {
+    font-size: 13px !important;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -884,3 +1097,300 @@ html.dark-mode .hc-sidebar__logo-title {
 html.dark-mode .hc-sidebar__logo-sub {
   opacity: 0.55 !important;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MORE POPOVER — slim vertical pill anchored above the More tab
+   Hidden on desktop; all rules inside @media (max-width: 640px)
+════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════
+   MOB-TOPBAR ICON GROUP — Bell | Avatar | Dark mode
+   The ⋮ dropdown (Settings/Dark mode) was removed; Settings moved to
+   MobMorePopup and dark mode is now a standalone icon button here.
+   Hidden on desktop; all rules inside @media (max-width: 640px)
+════════════════════════════════════════════════════════════════ */
+
+.mob-tmenu { display: none; }
+
+@media (max-width: 640px) {
+  /* Wrapper — lays out bell / avatar / dark-mode button */
+  .mob-tmenu {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    height: 40px;
+  }
+}
+
+/* Desktop: never visible */
+.mob-more-scrim,
+.mob-more-pop { display: none; }
+
+@media (max-width: 640px) {
+
+  /* ── Invisible tap-away scrim ─────────────────────────── */
+  .mob-more-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 310;
+    background: transparent;
+  }
+
+  /* ── Vertical popover pill ────────────────────────────── */
+  .mob-more-pop {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: calc(12px + 56px + 10px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    width: 192px;
+    z-index: 320;
+    /* True glass — low opacity so dashboard content bleeds through */
+    background: rgba(255, 255, 255, 0.52);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    backdrop-filter: blur(24px) saturate(2.0) brightness(1.08);
+    -webkit-backdrop-filter: blur(24px) saturate(2.0) brightness(1.08);
+    border-radius: 22px;
+    box-shadow:
+      0 20px 56px rgba(0, 0, 0, 0.16),
+      0 4px 14px  rgba(0, 0, 0, 0.08),
+      0 1px 0     rgba(255, 255, 255, 0.80) inset;
+    overflow: hidden;
+    padding-bottom: 6px;
+    /* Smooth decelerate-in from bottom-right corner */
+    transform-origin: bottom right;
+    transform: scale(0.78) translateY(10px);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 0.30s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity   0.18s ease;
+  }
+  html.dark-mode .mob-more-pop {
+    /* Dark glass — dashboard content visible but tinted deep */
+    background: rgba(4, 14, 28, 0.52);
+    border-color: rgba(0, 210, 255, 0.20);
+    backdrop-filter: blur(28px) saturate(1.8) brightness(0.90);
+    -webkit-backdrop-filter: blur(28px) saturate(1.8) brightness(0.90);
+    box-shadow:
+      0 20px 56px rgba(0, 0, 0, 0.55),
+      0 4px 14px  rgba(0, 0, 0, 0.35),
+      0 1px 0     rgba(0, 210, 255, 0.10) inset;
+  }
+
+  /* Open state */
+  .mob-more-pop--open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Staggered row entrance — nth-child counts all children including the divider div
+     child 1 = profile button, 2 = divider div, 3 = Health Info, 4 = Settings
+     (lean 3-item popup — see HEALTHNAV handoff Section 7)                    */
+  .mob-more-pop--open > *:nth-child(1) {
+    animation: moreRowIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+  }
+  .mob-more-pop--open > *:nth-child(3) {
+    animation: moreRowIn 0.26s cubic-bezier(0.22, 1, 0.36, 1) 0.10s both;
+  }
+  .mob-more-pop--open > *:nth-child(4) {
+    animation: moreRowIn 0.26s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+  }
+  @keyframes moreRowIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+
+  /* ── Profile row ──────────────────────────────────────── */
+  .mob-more-row--profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 13px 15px 13px;
+    background: linear-gradient(135deg,
+      rgba(0, 210, 255, 0.13) 0%,
+      rgba(0, 210, 255, 0.04) 100%
+    );
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s ease;
+    position: relative;
+  }
+  /* No ::after — divider div handles the separation below */
+  html.dark-mode .mob-more-row--profile {
+    background: linear-gradient(135deg,
+      rgba(0, 210, 255, 0.12) 0%,
+      rgba(0, 210, 255, 0.03) 100%
+    );
+  }
+  .mob-more-row--profile:active {
+    background: rgba(0, 210, 255, 0.18);
+  }
+  .mob-more-row--profile.mob-more-row--active {
+    background: linear-gradient(135deg,
+      rgba(0, 210, 255, 0.20) 0%,
+      rgba(0, 210, 255, 0.08) 100%
+    );
+  }
+  .mob-more-row--profile.mob-more-row--active .mob-more-row__label--primary {
+    color: var(--hc-teal);
+  }
+
+  /* ── Nav rows (Vaccinations / Documents / Cycle) ── */
+  .mob-more-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 9px 14px;
+    /* Lighter row fill — container glass does the heavy lifting */
+    background: rgba(255, 255, 255, 0.18);
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.16s ease;
+    position: relative;
+  }
+  html.dark-mode .mob-more-row {
+    background: rgba(255, 255, 255, 0.03);
+    border-top-color: rgba(255, 255, 255, 0.05);
+  }
+  .mob-more-row:active {
+    background: rgba(0, 210, 255, 0.12);
+  }
+  html.dark-mode .mob-more-row:active {
+    background: rgba(0, 210, 255, 0.12);
+  }
+  .mob-more-row--active:not(.mob-more-row--profile) {
+    background: rgba(0, 210, 255, 0.10);
+  }
+  html.dark-mode .mob-more-row--active:not(.mob-more-row--profile) {
+    background: rgba(0, 210, 255, 0.13);
+  }
+  .mob-more-row--active .mob-more-row__label {
+    color: var(--hc-teal) !important;
+  }
+
+  /* Icon wrapper — rounded square */
+  .mob-more-row__icon {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: linear-gradient(135deg,
+      rgba(0, 210, 255, 0.18),
+      rgba(0, 210, 255, 0.08)
+    );
+    color: var(--hc-teal);
+    border: 1px solid rgba(0, 210, 255, 0.22);
+    box-shadow: 0 1px 4px rgba(0, 210, 255, 0.15);
+    transition: box-shadow 0.18s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html.dark-mode .mob-more-row__icon {
+    background: linear-gradient(135deg,
+      rgba(0, 210, 255, 0.16),
+      rgba(0, 210, 255, 0.06)
+    );
+    border-color: rgba(0, 210, 255, 0.20);
+    box-shadow: 0 1px 6px rgba(0, 210, 255, 0.20);
+  }
+  .mob-more-row--active .mob-more-row__icon {
+    box-shadow: 0 2px 10px rgba(0, 210, 255, 0.28);
+    transform: translateY(-1px);
+  }
+
+  /* Cycle icon — violet accent */
+  .mob-more-row__icon--cycle {
+    background: linear-gradient(135deg,
+      rgba(139, 92, 246, 0.18),
+      rgba(139, 92, 246, 0.07)
+    );
+    color: var(--hc-violet, #8b5cf6);
+    border-color: rgba(139, 92, 246, 0.22);
+    box-shadow: 0 1px 4px rgba(139, 92, 246, 0.15);
+  }
+  html.dark-mode .mob-more-row__icon--cycle {
+    background: linear-gradient(135deg,
+      rgba(139, 92, 246, 0.20),
+      rgba(139, 92, 246, 0.07)
+    );
+    border-color: rgba(139, 92, 246, 0.28);
+    box-shadow: 0 1px 6px rgba(139, 92, 246, 0.22);
+  }
+  .mob-more-row--active .mob-more-row__icon--cycle {
+    box-shadow: 0 2px 10px rgba(139, 92, 246, 0.30);
+  }
+
+  /* Label — secondary rows — --hc-text2 ensures readability over glass */
+  .mob-more-row__label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hc-text2);
+    letter-spacing: -0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.14s;
+  }
+
+  /* Label — Health Profile primary row — slightly heavier than nav rows */
+  .mob-more-row__label--primary {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--hc-text);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Chevron on profile row */
+  .mob-more-row__arrow {
+    color: var(--hc-text3);
+    flex-shrink: 0;
+    opacity: 0.50;
+    transition: opacity 0.15s, transform 0.20s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .mob-more-row--profile:active .mob-more-row__arrow,
+  .mob-more-row--profile.mob-more-row--active .mob-more-row__arrow {
+    opacity: 0.80;
+    transform: translateX(2px);
+  }
+
+  /* ── Divider — solid background, min-height ensures it renders ── */
+  .mob-more-pop__divider {
+    min-height: 1px;
+    height: 1px;
+    flex-shrink: 0;
+    background: rgba(0, 140, 180, 0.30);
+    box-shadow: none;
+  }
+  html.dark-mode .mob-more-pop__divider {
+    background: rgba(0, 210, 255, 0.22);
+  }
+
+  /* ── More tab active state when popover open ──────────── */
+  .mob-tab-btn[aria-expanded="true"] {
+    color: var(--hc-teal);
+  }
+  .mob-tab-btn[aria-expanded="true"] .mob-tab-btn__icon {
+    background: var(--hc-teal-dim);
+    transform: translateY(-1px);
+  }
+  html.dark-mode .mob-tab-btn[aria-expanded="true"] .mob-tab-btn__icon {
+    background: rgba(0, 210, 255, 0.15);
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.16);
+  }
+
+} /* end more-popover @media */

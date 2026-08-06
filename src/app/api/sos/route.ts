@@ -1,190 +1,226 @@
+// src/app/api/sos/route.ts
+// POST  — send SOS alert: email first, SMS fallback via Africa's Talking
+// DELETE — send "false alarm" cancellation to alerted contacts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import nodemailer from 'nodemailer';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-/* ─── Gmail SMTP transporter ─────────────────────────────────────────
-   Required env vars (.env.local + Vercel environment variables):
-     SMTP_HOST = smtp.gmail.com
-     SMTP_PORT = 465
-     SMTP_USER = you@gmail.com
-     SMTP_PASS = xxxx xxxx xxxx xxxx  (Gmail App Password — 16 chars)
-     SMTP_FROM = HealthConnect SOS <you@gmail.com>
-   Port 465 (SSL/secure:true) is required — Vercel blocks port 587.
-──────────────────────────────────────────────────────────────────── */
-function getTransporter() {
+/* ── Shared mailer ────────────────────────────────────────────────── */
+function createTransport() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT ?? 587);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  if (!user || !pass) return null;
-  return nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:   parseInt(process.env.SMTP_PORT || '465', 10),
-    secure: true,
-    auth:   { user, pass },
+  if (!host || !user || !pass) return null;
+  return nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
+}
+
+/* ── Africa's Talking SMS client (lazy — skipped if keys not set) ─── */
+async function createSmsClient() {
+  const apiKey   = process.env.AT_API_KEY;
+  const username = process.env.AT_USERNAME;
+  if (!apiKey || !username) return null;
+  try {
+    const AfricasTalking = (await import("africastalking")).default as any;
+    const AT = AfricasTalking({ apiKey, username });
+    return AT.SMS;
+  } catch {
+    console.warn("Africa's Talking package not available or misconfigured — SMS skipped.");
+  }
+}
+
+/* ── Phone number normalisation (Ghana default: 0XX → +233XX) ──────── */
+function normalisePhone(raw: string): string {
+  const trimmed = raw.trim().replace(/\s+/g, '');
+  if (trimmed.startsWith('+'))  return trimmed;
+  if (trimmed.startsWith('233')) return `+${trimmed}`;
+  if (trimmed.startsWith('0'))  return `+233${trimmed.slice(1)}`;
+  return trimmed; // already formatted or unknown prefix — pass through
+}
+
+/* ── User loader ──────────────────────────────────────────────────── */
+async function getUser(email: string) {
+  return prisma.user.findUnique({
+    where: { email },
+    include: { emergencyContacts: { orderBy: { priority: 'asc' } } },
   });
 }
 
-/* ─── HTML email template ────────────────────────────────────────── */
-function buildHtml(o: {
-  contactName: string; userName: string; userEmail: string;
-  lat?: number; lng?: number; city?: string; nearestER?: string; sentAt: string;
-}): string {
-  const hasCoords = typeof o.lat === 'number' && typeof o.lng === 'number';
-  const mapsLink  = hasCoords ? `https://maps.google.com/?q=${o.lat},${o.lng}` : null;
-  const place     = o.city || (hasCoords ? `${o.lat!.toFixed(5)}, ${o.lng!.toFixed(5)}` : null);
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>SOS Alert</title></head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:32px 16px;">
-<tr><td align="center"><table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
-  <tr><td style="background:linear-gradient(135deg,#ff1744,#d50000);border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
-    <div style="font-size:40px;margin-bottom:8px;">&#128680;</div>
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:900;letter-spacing:-0.5px;">SOS EMERGENCY ALERT</h1>
-    <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">${o.userName} needs immediate help</p>
-  </td></tr>
-  <tr><td style="background:#111827;padding:28px 32px;">
-    <p style="margin:0 0 20px;color:#e5e7eb;font-size:15px;line-height:1.6;">
-      Hi <strong style="color:#fff;">${o.contactName}</strong>,<br/><br/>
-      <strong style="color:#fff;">${o.userName}</strong> has activated an emergency SOS alert
-      on HealthConnect. Please check on them immediately or contact emergency services.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0"
-      style="background:#1f2937;border:1px solid #374151;border-radius:12px;margin-bottom:16px;">
-      <tr><td style="padding:18px 20px;">
-        <p style="margin:0 0 4px;color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">&#128205; Location</p>
-        ${place
-          ? `<p style="margin:0 0 ${mapsLink ? '14px' : '0'};color:#f9fafb;font-size:17px;font-weight:700;">${place}</p>`
-          : `<p style="margin:0;color:#9ca3af;font-size:14px;font-style:italic;">Location unavailable</p>`}
-        ${mapsLink ? `<a href="${mapsLink}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:10px 22px;border-radius:8px;font-size:13px;font-weight:700;">Open in Google Maps →</a>` : ''}
-      </td></tr>
-    </table>
-    ${o.nearestER ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#1f2937;border:1px solid #374151;border-radius:12px;margin-bottom:16px;"><tr><td style="padding:18px 20px;"><p style="margin:0 0 4px;color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">&#127973; Nearest Emergency Room</p><p style="margin:0;color:#f9fafb;font-size:17px;font-weight:700;">${o.nearestER}</p></td></tr></table>` : ''}
-    <table width="100%" cellpadding="0" cellspacing="0"
-      style="background:#7f1d1d;border:1px solid #991b1b;border-radius:12px;margin-bottom:24px;">
-      <tr><td style="padding:16px 20px;text-align:center;">
-        <p style="margin:0;color:#fca5a5;font-size:13px;font-weight:600;">
-          Ghana Ambulance: <strong style="color:#fff;font-size:16px;">193</strong>
-          &nbsp;|&nbsp; Police: <strong style="color:#fff;">191</strong>
-          &nbsp;|&nbsp; Fire: <strong style="color:#fff;">192</strong>
-        </p>
-      </td></tr>
-    </table>
-  </td></tr>
-  <tr><td style="background:#0d1117;border-radius:0 0 16px 16px;padding:18px 32px;text-align:center;border-top:1px solid #1f2937;">
-    <p style="margin:0;color:#6b7280;font-size:11px;line-height:1.6;">
-      Sent by <strong style="color:#9ca3af;">HealthConnect</strong> on behalf of
-      <strong style="color:#9ca3af;">${o.userName}</strong> (${o.userEmail})<br/>${o.sentAt}
-    </p>
-  </td></tr>
-</table></td></tr></table></body></html>`;
-}
-
-function buildText(o: {
-  contactName: string; userName: string; userEmail: string;
-  lat?: number; lng?: number; city?: string; nearestER?: string; sentAt: string;
-}): string {
-  const hasCoords = typeof o.lat === 'number' && typeof o.lng === 'number';
-  const place  = o.city || (hasCoords ? `${o.lat!.toFixed(5)}, ${o.lng!.toFixed(5)}` : 'Unavailable');
-  const mapUrl = hasCoords ? `https://maps.google.com/?q=${o.lat},${o.lng}` : null;
-  return [
-    'SOS EMERGENCY ALERT',
-    `Hi ${o.contactName},`,
-    `${o.userName} has activated an emergency SOS alert on HealthConnect. Please check on them immediately.`,
-    `Location: ${place}`,
-    mapUrl      ? `Map: ${mapUrl}`             : null,
-    o.nearestER ? `Nearest ER: ${o.nearestER}` : null,
-    'Ghana Ambulance: 193  |  Police: 191  |  Fire: 192',
-    `Sent by HealthConnect on behalf of ${o.userName} (${o.userEmail}) — ${o.sentAt}`,
-  ].filter(Boolean).join('\n\n');
-}
-
-/* ─── POST /api/sos ─────────────────────────────────────────────── */
+/* ── POST — Send SOS alert ────────────────────────────────────────── */
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json().catch(() => ({}));
     const { lat, lng, city, nearestER } = body as {
       lat?: number; lng?: number; city?: string; nearestER?: string;
     };
-    const hasLocation = typeof lat === 'number' && typeof lng === 'number';
 
-    const user = await prisma.user.findUnique({
-      where:   { email: session.user.email },
-      include: { emergencyContacts: { orderBy: { priority: 'asc' } } },
-    });
-    if (!user) return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    const user = await getUser(session.user.email);
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    if (!user.emergencyContacts.length) {
-      return NextResponse.json({ success: false, noContacts: true, sent: 0, total: 0, failed: 0, contacts: [] });
+    const contacts = user.emergencyContacts ?? [];
+    if (!contacts.length) {
+      return NextResponse.json({ success: false, noContacts: true, emailsSent: 0, smsSent: 0, failed: 0, total: 0 });
     }
 
-    const transporter = getTransporter();
-    if (!transporter) {
-      console.warn('[SOS] SMTP_USER or SMTP_PASS not configured.');
-      return NextResponse.json({
-        success: false, smtpMissing: true, sent: 0,
-        total:        user.emergencyContacts.length, failed: 0,
-        withoutEmail: user.emergencyContacts.filter(c => !c.email?.trim()).map(c => ({ name: c.name, number: c.number })),
-        contacts:     user.emergencyContacts.map(c => ({ name: c.name, number: c.number, hasEmail: !!c.email?.trim() })),
-      });
-    }
+    const transport = createTransport();
+    const smsClient = await createSmsClient();
 
-    const withEmail    = user.emergencyContacts.filter(c => c.email?.trim());
-    const withoutEmail = user.emergencyContacts.filter(c => !c.email?.trim());
+    console.log(`[SOS] SMTP ready: ${!!transport}, SMS ready: ${!!smsClient}, Contacts: ${contacts.length}`);
+    const mapLink    = lat && lng ? `https://maps.google.com/?q=${lat},${lng}` : null;
+    const locationText = city
+      ? `${city}${mapLink ? ` — ${mapLink}` : ''}`
+      : (mapLink ?? 'Location unavailable');
 
-    if (!withEmail.length) {
-      return NextResponse.json({
-        success: false, noEmails: true, sent: 0,
-        total:        user.emergencyContacts.length, failed: 0,
-        withoutEmail: withoutEmail.map(c => ({ name: c.name, number: c.number })),
-        contacts:     user.emergencyContacts.map(c => ({ name: c.name, number: c.number, hasEmail: false })),
-      });
-    }
+    // SMS body — kept under 160 chars
+    const smsBody = `EMERGENCY ALERT from ${user.name ?? 'a HealthConnect user'}. Location: ${city ?? (lat && lng ? `${lat},${lng}` : 'unavailable')}. Check their HealthConnect profile. Sent via HealthConnect Navigator.`.slice(0, 160);
 
-    const sentAt   = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Accra', dateStyle: 'medium', timeStyle: 'short' });
-    const userName = user.name || session.user.email;
-    const from     = process.env.SMTP_FROM || `HealthConnect SOS <${process.env.SMTP_USER}>`;
+    let emailsSent = 0;
+    let smsSent    = 0;
+    let failed     = 0;
 
-    /* Send individually to every contact with an email address */
-    const results = await Promise.allSettled(
-      withEmail.map(contact =>
-        transporter.sendMail({
-          from,
-          to:      contact.email!.trim(),
-          subject: `🚨 SOS Alert — ${userName} needs emergency help`,
-          text:    buildText({ contactName: contact.name, userName, userEmail: session.user!.email!, lat: hasLocation ? lat : undefined, lng: hasLocation ? lng : undefined, city, nearestER, sentAt }),
-          html:    buildHtml({ contactName: contact.name, userName, userEmail: session.user!.email!, lat: hasLocation ? lat : undefined, lng: hasLocation ? lng : undefined, city, nearestER, sentAt }),
-        })
-      )
-    );
+    for (const c of contacts) {
+      let notifiedViaEmail = false;
 
-    const sent   = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
-
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        console.error(`[SOS] Failed for ${withEmail[i].email}:`, (r as PromiseRejectedResult).reason?.message);
+      // 1. Attempt email
+      if (c.email && transport) {
+        try {
+          console.log(`[SOS] Attempting email to ${c.email}...`);
+          await transport.sendMail({
+            from:    `"HealthConnect Navigator" <${process.env.SMTP_USER}>`,
+            to:      c.email,
+            subject: `🆘 SOS ALERT — ${user.name ?? 'Someone you know'} needs help`,
+            html: `
+<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:20px">
+  <div style="background:#ff4d6d;color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;text-align:center">
+    <p style="font-size:32px;margin:0">🆘</p>
+    <h1 style="font-size:22px;font-weight:900;margin:8px 0 4px">Emergency Alert</h1>
+    <p style="margin:0;font-size:14px;opacity:0.9">${user.name ?? 'A HealthConnect user'} has activated an SOS alert</p>
+  </div>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:20px 24px">
+    <p style="font-size:14px;color:#374151;margin:0 0 14px"><strong>They may be in danger and need immediate help.</strong></p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:14px">
+      <p style="margin:0 0 6px;font-size:13px;color:#111"><strong>📍 Location</strong></p>
+      <p style="margin:0;font-size:13px;color:#374151">${locationText}</p>
+      ${nearestER ? `<p style="margin:6px 0 0;font-size:13px;color:#374151"><strong>🏥 Nearest ER:</strong> ${nearestER}</p>` : ''}
+    </div>
+    <a href="${mapLink ?? '#'}" style="display:block;text-align:center;background:#ff4d6d;color:#fff;padding:12px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin-bottom:14px">
+      Open Location in Maps
+    </a>
+    <p style="font-size:12px;color:#6b7280;margin:0">You are listed as an emergency contact for ${user.name ?? 'this user'} on HealthConnect Navigator. If this was a test or false alarm, you may receive a follow-up cancellation email.</p>
+  </div>
+</div>`,
+          });
+          emailsSent++;
+          notifiedViaEmail = true;
+          console.log(`[SOS] ✅ Email sent to ${c.email}`);
+        } catch (emailErr) {
+          console.error(`[SOS] ❌ Email failed for ${c.email}:`, emailErr);
+          // Email failed — fall through to SMS
+        }
       }
-    });
+
+      // 2. SMS fallback: no email OR email failed
+      if (!notifiedViaEmail && c.number && smsClient) {
+        try {
+          const phone = normalisePhone(c.number);
+          console.log(`[SOS] Attempting SMS to ${phone}...`);
+          await smsClient.send({ to: [phone], message: smsBody });
+          smsSent++;
+          console.log(`[SOS] ✅ SMS sent to ${phone}`);
+        } catch {
+          failed++;
+        }
+      } else if (!notifiedViaEmail && (!c.number || !smsClient)) {
+        failed++;
+      }
+    }
+
+    const success = emailsSent > 0 || smsSent > 0;
 
     return NextResponse.json({
-      success:      sent > 0,
-      sent, failed,
-      total:        user.emergencyContacts.length,
-      emailedCount: withEmail.length,
-      withoutEmail: withoutEmail.map(c => ({ name: c.name, number: c.number })),
-      contacts:     user.emergencyContacts.map(c => ({ name: c.name, number: c.number, hasEmail: !!c.email?.trim() })),
+      success,
+      emailsSent,
+      smsSent,
+      failed,
+      total: contacts.length,
+      // Legacy fields kept for backwards compat with emergency page
+      sent: emailsSent + smsSent,
+      emailedCount: emailsSent,
+      withoutEmail: contacts.filter(c => !c.email).map(c => ({ name: c.name, number: c.number })),
+      contacts: contacts.map(c => ({ name: c.name, number: c.number, hasEmail: !!c.email })),
     });
 
-  } catch (error) {
-    console.error('[SOS] Unexpected error:', error);
-    return NextResponse.json({ error: 'Failed to send SOS alert.' }, { status: 500 });
+  } catch (err) {
+    console.error('SOS POST error:', err);
+    return NextResponse.json({ success: false, emailsSent: 0, smsSent: 0, failed: 0, total: 0 }, { status: 500 });
+  }
+}
+
+/* ── DELETE — Send false-alarm cancellation ───────────────────────── */
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const { lat, lng, city } = body as { lat?: number; lng?: number; city?: string };
+
+    const user = await getUser(session.user.email);
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    const withEmail = (user.emergencyContacts ?? []).filter(c => c.email);
+    if (!withEmail.length) return NextResponse.json({ success: true, sent: 0 });
+
+    const transport = createTransport();
+    if (!transport) return NextResponse.json({ success: false, smtpMissing: true });
+
+    const mapLink = lat && lng ? `https://maps.google.com/?q=${lat},${lng}` : null;
+    const locationText = city ?? (mapLink ?? 'unknown location');
+
+    let sent = 0;
+    for (const c of withEmail) {
+      try {
+        await transport.sendMail({
+          from:    `"HealthConnect Navigator" <${process.env.SMTP_USER}>`,
+          to:      c.email!,
+          subject: `✅ False Alarm — ${user.name ?? 'Someone you know'}'s SOS alert was cancelled`,
+          html: `
+<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:20px">
+  <div style="background:#10b981;color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;text-align:center">
+    <p style="font-size:32px;margin:0">✅</p>
+    <h1 style="font-size:20px;font-weight:900;margin:8px 0 4px">SOS Alert Cancelled</h1>
+    <p style="margin:0;font-size:14px;opacity:0.9">This was a false alarm — no action is needed</p>
+  </div>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:20px 24px">
+    <p style="font-size:14px;color:#374151;margin:0 0 12px">
+      <strong>${user.name ?? 'A HealthConnect user'}</strong> has cancelled the SOS alert you just received.
+      They are safe — please disregard the earlier message.
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;margin-bottom:14px">
+      <p style="margin:0;font-size:13px;color:#166534">📍 Alert location: ${locationText}</p>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin:0">
+      If you are still concerned about ${user.name ?? 'this person'}, please reach out to them directly.
+    </p>
+  </div>
+</div>`,
+        });
+        sent++;
+      } catch { /* best-effort */ }
+    }
+
+    return NextResponse.json({ success: true, sent });
+  } catch (err) {
+    console.error('SOS DELETE error:', err);
+    return NextResponse.json({ success: false }, { status: 500 });
   }
 }
