@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
     // Resend outage or bad API key can't fail account creation. Awaited
     // rather than fire-and-forget since serverless functions can be frozen
     // as soon as the response is sent, which would otherwise race the send.
-    await sendWelcomeEmail(user.email, user.name)
+    const welcomeName = user.name ?? 'there'
+    await sendWelcomeEmail(user.email, welcomeName)
 
     return NextResponse.json(
       { message: 'Account created successfully.', user },
