@@ -1,0 +1,1075 @@
+/* ================================================================
+   profile-settings.css — /profile combined Profile + Settings page
+   (HEALTHNAV handoff Section 14 — visual redesign pass)
+
+   Scoped entirely under a "pfs-" prefix — deliberately NOT touching the
+   existing profile.css (5000+ lines, still shared by facilities.css-era
+   pages). This page intentionally has NO texture background (spec:
+   "Background: No texture") — it never uses the .db-page class, only
+   .pfs-page, so dashboard.css's body:has(.db-page) texture rule never
+   fires here. .db-topbar is still reused as-is for the desktop bar chrome.
+
+   Design intent: this is the "ownership & control" screen, not the
+   "find help now" screen — calm, considered, organised into legible
+   places rather than one long form. Each settings group gets its own
+   quiet identity (icon chip + accent) pulled from existing --hc-*
+   tokens only; no new colours are introduced. The one place the page
+   is allowed to be a little proud of itself is the Text Style grid,
+   where each option is a real specimen of itself, not a swatch.
+   ================================================================ */
+
+.pfs-page {
+  padding: 24px 32px 64px;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ── Fixed background layer ──────────────────────────────────────
+   This file's own header comment says this page intentionally has
+   NO texture background — but that's only true of the .pfs-page-
+   specific and body:has(.db-page) mechanisms. It doesn't touch
+   .hc-layout__main::before/::after (dashboard-header.css), which
+   paints a pattern + colour wash unconditionally on every
+   DashboardLayout page, Profile included — that's what was actually
+   visible and scrolling.
+   Two earlier attempts at fixing this landed in src/styles/profile.css,
+   which ProfileContent.tsx never imports (it's wired to the Facilities
+   page instead) — so neither ever took effect. This is the real fix,
+   in the file this page actually loads. Same technique as the
+   Emergency page's .em-bg-fixed: a real position:fixed element
+   (inserted as a DashboardLayout child in ProfileContent.tsx), not
+   background-attachment:fixed, which iOS Safari unreliably ignores.
+   Colours/opacity match .hc-layout__main::before/::after exactly, so
+   the only change is that it stops scrolling — nothing looks different. */
+.pr-bg-fixed {
+  /* !important: dashboard-header.css applies
+     ".hc-layout__main > *, .hc-layout__content > * { position: relative; z-index: 1; }"
+     to every direct child at equal specificity — without !important
+     that silently flips this back to position:relative. */
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none;
+}
+.pr-bg-fixed::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  opacity: 0.20;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.pr-bg-fixed::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(241,245,249,0.50) 0%,
+    rgba(224,242,254,0.35) 50%,
+    rgba(241,245,249,0.55) 100%
+  );
+  pointer-events: none;
+}
+html.dark-mode .pr-bg-fixed::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  opacity: 0.22;
+  mix-blend-mode: screen;
+}
+html.dark-mode .pr-bg-fixed::after {
+  background: linear-gradient(
+    160deg,
+    rgba(2,11,20,0.48) 0%,
+    rgba(7,24,40,0.35) 50%,
+    rgba(2,11,20,0.52) 100%
+  );
+}
+
+/* Switch off the shared shell's own scrolling background specifically
+   on this page — otherwise its pattern (still position:absolute,
+   still scrolling) renders underneath .pr-bg-fixed. */
+.hc-layout__main:has(.pr-bg-fixed)::before,
+.hc-layout__main:has(.pr-bg-fixed)::after {
+  display: none !important;
+}
+@media (max-width: 768px) {
+  .pfs-page { padding: 14px 14px 96px; gap: 16px; }
+}
+/* This page renders its own floating pill chrome (.mob-topbar /
+   .mob-tab-bar, both position:fixed) instead of the shared docked
+   hc-topbar — see DashboardHeader.tsx / dashboard-header.css's
+   `body:has(.mob-topbar)` rule, which zeroes out .hc-layout__main's
+   padding at this breakpoint so the page must supply its own top/
+   bottom clearance. Matches dashboard-mobile.css / facilities-mobile.css /
+   emergency.css: 80px reserves the mob-tab-bar's full footprint
+   (56px pill + 12px float gap) plus breathing room so content never
+   sits flush against it. */
+@media (max-width: 640px) {
+  .pfs-page {
+    padding: 72px 14px calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.pfs-page-head { display: flex; flex-direction: column; gap: 3px; }
+.pfs-page-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--hc-text);
+  margin: 0;
+}
+.pfs-page-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  margin: 0;
+  padding: 5px 14px 5px 9px;
+  border-radius: 100px;
+  background: rgba(0, 210, 255, 0.10);
+  border: 1px solid rgba(0, 210, 255, 0.28);
+  letter-spacing: 0.1px;
+  line-height: 1.4;
+  backdrop-filter: blur(8px);
+  align-self: flex-start;
+}
+html:not(.dark-mode) .pfs-page-sub {
+  background: color-mix(in srgb, var(--hc-teal) 10%, transparent);
+  border-color: color-mix(in srgb, var(--hc-teal) 28%, transparent);
+}
+.pfs-page-sub::before {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--hc-teal);
+  box-shadow: 0 0 8px var(--hc-teal-glow);
+  flex-shrink: 0;
+  animation: pfs-header-pulse 2.8s ease-out infinite;
+}
+@keyframes pfs-header-pulse {
+  0%   { opacity: 0.5; transform: scale(1); }
+  60%  { opacity: 0;   transform: scale(2.8); }
+  100% { opacity: 0;   transform: scale(2.8); }
+}
+@media (max-width: 640px) {
+  .pfs-page-sub {
+    font-size: 11.5px;
+    padding: 5px 12px 5px 8px;
+    white-space: normal;
+    max-width: 100%;
+  }
+}
+
+/* ── Shared card / section shell ─────────────────────────────── */
+.pfs-card {
+  position: relative;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 20px;
+  box-shadow: var(--hc-shadow);
+  padding: 20px;
+}
+
+.pfs-card__title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--hc-text);
+  margin: 0 0 3px;
+}
+.pfs-card__sub {
+  font-size: 12.5px;
+  color: var(--hc-text3);
+  margin: 0 0 18px;
+  line-height: 1.4;
+}
+.pfs-card__sub--tight { margin-bottom: 0; }
+
+/* The profile form now wraps two sibling cards (My Profile +
+   Emergency Contact) instead of being one card itself — it needs to
+   reproduce .pfs-page's own flex/gap so both cards, the banner, and
+   the save button stay evenly spaced. */
+.pfs-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+@media (max-width: 768px) {
+  .pfs-profile-form { gap: 16px; }
+}
+.pfs-form-actions { display: flex; }
+
+/* Identity showcase panel — a contained gradient band the avatar
+   overlaps, so "you" reads as a real focal point without becoming a
+   full hero banner. Sits inside the card's own padding. */
+.pfs-identity-panel {
+  position: relative;
+  overflow: visible;
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  margin-bottom: 40px;
+  background: linear-gradient(135deg, var(--hc-teal) 0%, var(--hc-blue) 100%);
+}
+.pfs-identity-panel::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 14% 18%, rgba(255,255,255,0.28), transparent 55%);
+  pointer-events: none;
+}
+
+/* Decorative bubbles — a separate clipped layer so the circles that
+   bleed off the card edge don't also clip the overlapping avatar,
+   which lives outside this layer as a sibling. */
+.pfs-identity-panel__deco {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+.pfs-identity-panel__circle {
+  position: absolute;
+  border-radius: 50%;
+}
+.pfs-identity-panel__circle--1 {
+  width: 150px; height: 150px;
+  top: -78px; right: -36px;
+  border: 1.5px solid rgba(255,255,255,0.30);
+  background: rgba(255,255,255,0.05);
+}
+.pfs-identity-panel__circle--2 {
+  width: 62px; height: 62px;
+  bottom: -30px; right: 78px;
+  background: rgba(255,255,255,0.14);
+}
+.pfs-identity-panel__circle--3 {
+  width: 26px; height: 26px;
+  top: 14px; right: 46px;
+  background: rgba(255,255,255,0.20);
+}
+html.dark-mode .pfs-identity-panel__circle--1 { border-color: rgba(4,16,24,0.20); background: rgba(4,16,24,0.05); }
+html.dark-mode .pfs-identity-panel__circle--2 { background: rgba(4,16,24,0.10); }
+html.dark-mode .pfs-identity-panel__circle--3 { background: rgba(4,16,24,0.14); }
+
+.pfs-identity-panel__eyebrow {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.88);
+}
+html.dark-mode .pfs-identity-panel__eyebrow { color: rgba(4,16,24,0.75); }
+
+/* Name + email now live inside the gradient, directly under the eyebrow,
+   so the label and what it's labeling read as one statement. The avatar
+   is the only element that breaks the panel's frame, overlapping onto
+   the card below for depth. */
+.pfs-identity-panel__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 12px;
+}
+.pfs-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: -34px;
+}
+.pfs-identity-panel__text {
+  min-width: 0;
+  padding-bottom: 8px;
+}
+
+/* ── Banner (save success/error) ─────────────────────────────── */
+.pfs-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  border: 1px solid var(--hc-border);
+}
+.pfs-banner--success { background: rgba(16,185,129,0.10); border-color: rgba(16,185,129,0.30); color: var(--hc-text); }
+.pfs-banner--success svg { color: var(--hc-mint); flex-shrink: 0; margin-top: 1px; }
+.pfs-banner--error    { background: rgba(239,68,68,0.10);  border-color: rgba(239,68,68,0.30); color: var(--hc-text); }
+.pfs-banner--error svg { color: var(--hc-red); flex-shrink: 0; margin-top: 1px; }
+
+/* ── Identity block ───────────────────────────────────────────
+   Presence at the top via the gradient panel below (see
+   .pfs-identity-panel) — the avatar overlaps it, not a full hero. */
+.pfs-identity {
+  overflow: hidden;
+}
+
+.pfs-avatar-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+  border-radius: 50%;
+  position: relative;
+}
+.pfs-avatar-btn:disabled { cursor: not-allowed; }
+.pfs-avatar-btn:focus-visible { outline: 2px solid var(--hc-teal); outline-offset: 3px; }
+.pfs-avatar-edit {
+  position: absolute;
+  right: -2px; bottom: -2px;
+  width: 25px; height: 25px;
+  border-radius: 50%;
+  background: var(--hc-teal);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--hc-surface);
+  box-shadow: var(--hc-shadow);
+  transition: transform 0.18s var(--hc-ease-spring);
+}
+html.dark-mode .pfs-avatar-edit { color: #041018; }
+.pfs-avatar-btn:hover:not(:disabled) .pfs-avatar-edit { transform: scale(1.1); }
+.pfs-avatar-btn:active:not(:disabled) .pfs-avatar-edit { transform: scale(0.94); }
+.pfs-avatar--loading { opacity: 0.55; }
+.pfs-avatar {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(155deg, var(--hc-teal) 0%, var(--hc-blue) 130%);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px var(--hc-card), var(--hc-shadow-lg);
+}
+.pfs-avatar img { width: 100%; height: 100%; object-fit: cover; }
+html.dark-mode .pfs-avatar { color: #041018; }
+
+.pfs-identity-panel__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pfs-identity-panel__email {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.8);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.dark-mode .pfs-identity-panel__name  { color: #041018; }
+html.dark-mode .pfs-identity-panel__email { color: rgba(4,16,24,0.72); }
+
+/* ── Form fields ──────────────────────────────────────────────── */
+.pfs-field { margin-bottom: 15px; }
+.pfs-field:last-child { margin-bottom: 0; }
+
+.pfs-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hc-text2);
+  margin-bottom: 7px;
+}
+.pfs-label__hint {
+  font-weight: 400;
+  color: var(--hc-text3);
+}
+
+.pfs-input {
+  width: 100%;
+  font-size: 16px; /* iOS zoom guard */
+  font-family: inherit;
+  color: var(--hc-text);
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  border-radius: 11px;
+  padding: 11px 13px;
+  box-sizing: border-box;
+  transition: border-color 0.15s var(--hc-ease), box-shadow 0.15s var(--hc-ease), background 0.15s var(--hc-ease);
+}
+.pfs-input:hover:not(:disabled):not(:focus) { border-color: var(--hc-text3); }
+.pfs-input:focus {
+  outline: none;
+  border-color: var(--hc-teal);
+  background: var(--hc-surface);
+  box-shadow: 0 0 0 3px var(--hc-teal-dim);
+}
+.pfs-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pfs-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .pfs-field-row { grid-template-columns: 1fr; }
+}
+
+.pfs-subsection-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hc-text3);
+  margin: 6px 0 12px;
+}
+.pfs-subsection-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hc-border2);
+}
+
+.pfs-btn {
+  appearance: none;
+  border: none;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 22px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  font-family: inherit;
+  transition: opacity 0.15s var(--hc-ease), transform 0.12s var(--hc-ease), background 0.15s var(--hc-ease), border-color 0.15s var(--hc-ease), box-shadow 0.15s var(--hc-ease);
+}
+.pfs-btn:active { transform: scale(0.97); }
+.pfs-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.pfs-btn--primary {
+  background: var(--hc-teal);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--hc-teal-glow);
+}
+html.dark-mode .pfs-btn--primary { color: #041018; }
+.pfs-btn--primary:hover:not(:disabled) { opacity: 0.92; }
+.pfs-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+}
+.pfs-btn--ghost:hover:not(:disabled) { border-color: var(--hc-text2); color: var(--hc-text); background: var(--hc-surface2); }
+.pfs-btn--danger {
+  background: transparent;
+  border: 1px solid rgba(239,68,68,0.32);
+  color: var(--hc-red);
+}
+.pfs-btn--danger:hover:not(:disabled) { background: rgba(239,68,68,0.09); border-color: rgba(239,68,68,0.5); }
+.pfs-btn--full { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pfs-spin { animation: none; }
+  .pfs-btn, .pfs-toggle, .pfs-toggle__thumb, .pfs-seg__btn, .pfs-font-card, .pfs-input,
+  .pfs-row--link, .pfs-confirm, .pfs-confirm-overlay { transition: none !important; animation: none !important; }
+}
+.pfs-spin { animation: pfs-spin 0.8s linear infinite; }
+@keyframes pfs-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Settings groups ──────────────────────────────────────────
+   Each group is its own quiet card-within-a-card: a distinct
+   surface, an icon chip carrying a subtle per-group accent, and
+   real padding — this is the "real visual separation, not just
+   whitespace" the brief calls for. ─────────────────────────── */
+.pfs-group {
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border2);
+  border-radius: 16px;
+  padding: 16px 16px 18px;
+  margin-bottom: 14px;
+}
+.pfs-group:last-child { margin-bottom: 0; }
+
+.pfs-group__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  color: var(--hc-text);
+  margin: 0 0 12px;
+}
+.pfs-group__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+}
+/* Per-group accent — quiet, drawn only from existing tokens */
+.pfs-group--display .pfs-group__icon      { background: var(--hc-violet-dim, rgba(139,92,246,0.12)); color: var(--hc-violet); }
+.pfs-group--language .pfs-group__icon     { background: var(--hc-amber-dim, rgba(196,127,0,0.12));   color: var(--hc-amber); }
+.pfs-group--notifications .pfs-group__icon{ background: var(--hc-blue-bg);  color: var(--hc-blue); }
+.pfs-group--account .pfs-group__icon      { background: var(--hc-teal-dim); color: var(--hc-teal); }
+.pfs-group--legal .pfs-group__icon        { background: var(--hc-surface); color: var(--hc-text3); border: 1px solid var(--hc-border2); }
+
+/* Generic settings row: label (+ optional description) on the left,
+   a control (toggle/link/text) on the right. */
+.pfs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 2px;
+  border-top: 1px solid var(--hc-border2);
+}
+.pfs-group > .pfs-row:first-of-type,
+.pfs-row:first-child { border-top: none; padding-top: 2px; }
+
+.pfs-row__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pfs-row__label { font-size: 13.5px; font-weight: 650; color: var(--hc-text); }
+.pfs-row__desc { font-size: 12px; color: var(--hc-text3); line-height: 1.45; }
+.pfs-row__value { font-size: 13px; color: var(--hc-text2); font-weight: 500; }
+
+.pfs-row--link {
+  appearance: none;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  border-radius: 8px;
+  transition: background 0.15s var(--hc-ease);
+}
+.pfs-row--link:hover { background: var(--hc-surface); }
+.pfs-row--link:hover .pfs-row__label { color: var(--hc-teal); }
+.pfs-row--link .pfs-row__chevron { color: var(--hc-text3); flex-shrink: 0; transition: transform 0.15s var(--hc-ease); }
+.pfs-row--link:hover .pfs-row__chevron { transform: translateX(2px); color: var(--hc-teal); }
+
+.pfs-row--disabled { opacity: 0.5; }
+
+/* Toggle switch — filled track, thumb carries a fading tick so the
+   on/off state doesn't rest on colour alone. */
+.pfs-toggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--hc-border);
+  border: 1px solid var(--hc-border2);
+  cursor: pointer;
+  transition: background 0.2s var(--hc-ease), border-color 0.2s var(--hc-ease);
+  padding: 0;
+}
+.pfs-toggle--on { background: var(--hc-teal); border-color: transparent; }
+.pfs-toggle:disabled { cursor: not-allowed; opacity: 0.55; }
+.pfs-toggle__thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: transform 0.22s var(--hc-ease-spring);
+}
+.pfs-toggle--on .pfs-toggle__thumb { transform: translateX(18px); }
+
+/* Segmented control — Text Size, Language */
+.pfs-seg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border2);
+  border-radius: 12px;
+  padding: 4px;
+}
+.pfs-seg--2 { grid-template-columns: repeat(2, 1fr); max-width: 220px; }
+
+.pfs-seg__btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--hc-text2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 4px;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 36px;
+  transition: color 0.15s var(--hc-ease), background 0.18s var(--hc-ease), box-shadow 0.18s var(--hc-ease);
+}
+.pfs-seg__btn:hover:not(.pfs-seg__btn--active) { color: var(--hc-text); }
+.pfs-seg__btn--active {
+  color: var(--hc-teal);
+  background: var(--hc-surface2);
+  box-shadow: 0 1px 0 0 var(--hc-border), 0 0 0 1px var(--hc-teal-border);
+}
+html.dark-mode .pfs-seg__btn--active { background: var(--hc-teal-dim); }
+
+/* ── Text Style specimen cards ────────────────────────────────
+   Signature moment of the page: each option renders an "Aa" glyph
+   in its own real typeface, not a generic swatch, so the control
+   demonstrates its own effect before you tap it. ──────────────── */
+.pfs-font-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 420px) {
+  .pfs-font-grid { grid-template-columns: 1fr; }
+}
+
+.pfs-font-card {
+  appearance: none;
+  text-align: left;
+  border: 1px solid var(--hc-border2);
+  background: var(--hc-surface);
+  border-radius: 14px;
+  padding: 12px 13px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s var(--hc-ease), box-shadow 0.15s var(--hc-ease), transform 0.12s var(--hc-ease);
+}
+.pfs-font-card:hover:not(.pfs-font-card--active) { border-color: var(--hc-text3); }
+.pfs-font-card:active { transform: scale(0.98); }
+.pfs-font-card--active {
+  border-color: var(--hc-teal);
+  box-shadow: 0 0 0 1px var(--hc-teal), 0 4px 14px var(--hc-teal-glow);
+}
+
+.pfs-font-card__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pfs-font-card__glyph {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--hc-text);
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--hc-surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pfs-font-card--active .pfs-font-card__glyph {
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+}
+.pfs-font-card__label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-text);
+}
+.pfs-font-card__check {
+  color: #fff;
+  background: var(--hc-teal);
+  border-radius: 50%;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.pfs-font-card__preview {
+  font-size: 13px;
+  color: var(--hc-text2);
+  line-height: 1.4;
+}
+
+/* Inline "change password" panel */
+.pfs-inline-panel {
+  margin-top: 10px;
+  padding: 15px;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border2);
+  border-radius: 13px;
+  animation: pfs-panel-in 0.18s var(--hc-ease);
+}
+@keyframes pfs-panel-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Empty state (Saved Facilities / My Activity) ─────────────── */
+.pfs-empty {
+  background: var(--hc-surface2);
+  border: 1px dashed var(--hc-border);
+  border-radius: 14px;
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--hc-text2);
+  line-height: 1.5;
+}
+
+/* ── Saved Facilities rows ────────────────────────────────────── */
+.pfs-saved-row {
+  padding: 13px 2px;
+  border-top: 1px solid var(--hc-border2);
+}
+.pfs-saved-row--first { border-top: none; padding-top: 2px; }
+
+.pfs-saved-row__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pfs-saved-row__info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pfs-saved-row__name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--hc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pfs-saved-row__badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pfs-saved-row__type {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hc-text3);
+  text-transform: capitalize;
+  background: var(--hc-surface2);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.pfs-saved-row__distance {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--hc-teal);
+}
+.pfs-saved-row__remove {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--hc-text3);
+  flex-shrink: 0;
+  padding: 5px;
+  border-radius: 7px;
+  transition: color 0.15s var(--hc-ease), background 0.15s var(--hc-ease);
+}
+.pfs-saved-row__remove:hover { color: var(--hc-red); background: rgba(239,68,68,0.08); }
+
+.pfs-saved-row__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+.pfs-saved-row__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  background: var(--hc-teal-dim);
+  border: none;
+  border-radius: 9px;
+  padding: 7px 13px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  transition: background 0.15s var(--hc-ease), transform 0.12s var(--hc-ease);
+}
+.pfs-saved-row__btn:hover { background: var(--hc-teal-border); }
+.pfs-saved-row__btn:active { transform: scale(0.96); }
+
+/* ── Activity History rows ────────────────────────────────────── */
+.pfs-activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--hc-border2);
+}
+.pfs-activity-row:first-child { border-top: none; padding-top: 2px; }
+.pfs-activity-row__icon {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pfs-activity-row__body { flex: 1; min-width: 0; }
+.pfs-activity-row__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hc-text);
+  margin: 0;
+}
+.pfs-activity-row__desc {
+  font-size: 12px;
+  color: var(--hc-text3);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pfs-activity-row__time {
+  font-size: 11px;
+  color: var(--hc-text3);
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.pfs-activity-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hc-border2);
+  flex-wrap: wrap;
+}
+
+/* ── Clear-history confirm dialog ───────────────────────────────
+   Reads as deliberate, not alarming: a neutral surface with a
+   single quiet red accent on the confirming action only. ──────── */
+.pfs-confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(4,10,18,0.55);
+  backdrop-filter: blur(3px);
+  z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: pfs-overlay-in 0.15s var(--hc-ease);
+}
+@keyframes pfs-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+.pfs-confirm {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 18px;
+  padding: 22px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+  animation: pfs-confirm-in 0.2s var(--hc-ease-spring);
+}
+@keyframes pfs-confirm-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pfs-confirm__icon {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  background: rgba(239,68,68,0.10);
+  color: var(--hc-red);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+.pfs-confirm__title { font-size: 15px; font-weight: 800; color: var(--hc-text); margin: 0 0 8px; }
+.pfs-confirm__body { font-size: 13px; color: var(--hc-text2); line-height: 1.55; margin: 0 0 18px; }
+.pfs-confirm__actions { display: flex; gap: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pfs-confirm-overlay, .pfs-confirm { animation: none !important; }
+}
+/* ══════════════════════════════════════════════════════════════
+   MEDICAL ID SECTION
+   ══════════════════════════════════════════════════════════════ */
+.pfs-medid-card { display: flex; flex-direction: column; gap: 22px; }
+
+/* Click-to-reveal header — Medical ID is sensitive (blood type, allergies,
+   conditions, NHIS number), so it stays collapsed until tapped instead of
+   rendering wide open on the page. */
+.pfs-medid-toggle {
+  appearance: none; border: none; background: transparent;
+  width: 100%; padding: 0; margin: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  text-align: left; cursor: pointer;
+}
+.pfs-medid-toggle__icon {
+  flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--hc-red);
+  background: rgba(239,68,68,0.12);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.pfs-medid-toggle__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pfs-card__title--as-span,
+.pfs-card__sub--as-span { display: block; }
+.pfs-card__sub--as-span { margin: 0; }
+.pfs-medid-toggle__chevron {
+  flex-shrink: 0; color: var(--hc-text3);
+  transition: transform 0.2s ease;
+}
+.pfs-medid-card--expanded .pfs-medid-toggle__chevron { transform: rotate(90deg); }
+
+.pfs-medid-body { display: flex; flex-direction: column; gap: 22px; }
+
+/* Each field group now reads as its own panel — icon chip + title +
+   one-line explanation of why the field matters, so the "why" isn't
+   left to guesswork. Color per panel gives quick visual scanning. */
+.pfs-medid-panel {
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+.pfs-medid-panel__head { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+.pfs-medid-panel__icon {
+  flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.pfs-medid-panel--blood     .pfs-medid-panel__icon { color: var(--hc-red);   background: rgba(239,68,68,0.12); }
+.pfs-medid-panel--allergy   .pfs-medid-panel__icon { color: var(--hc-amber); background: rgba(245,158,11,0.13); }
+.pfs-medid-panel--condition .pfs-medid-panel__icon { color: var(--hc-teal);  background: var(--hc-teal-dim); }
+.pfs-medid-panel--nhis      .pfs-medid-panel__icon { color: var(--hc-mint);  background: rgba(16,185,129,0.12); }
+.pfs-medid-panel__text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 150px; min-width: 0; }
+.pfs-medid-panel__title { font-size: 13.5px; font-weight: 700; color: var(--hc-text); }
+.pfs-medid-panel__sub { font-size: 11.5px; color: var(--hc-text3); line-height: 1.4; }
+.pfs-medid-panel__select { flex-shrink: 0; width: auto; min-width: 84px; }
+.pfs-medid-panel__spinner { flex-shrink: 0; color: var(--hc-text3); }
+@media (max-width: 480px) {
+  .pfs-medid-panel--blood .pfs-medid-panel__select { margin-left: 43px; }
+}
+
+.pfs-medid-empty { font-size: 12.5px; color: var(--hc-text3); margin: 0; }
+
+.pfs-medid-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 11px;
+}
+.pfs-medid-row__name { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--hc-text); }
+.pfs-medid-row__remove {
+  appearance: none; border: none; background: transparent;
+  width: 26px; height: 26px; border-radius: 7px;
+  color: var(--hc-text3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.pfs-medid-row__remove:hover:not(:disabled) { color: var(--hc-red); background: rgba(239,68,68,0.10); }
+.pfs-medid-row__remove:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pfs-medid-tag {
+  flex-shrink: 0;
+  font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  padding: 3px 8px; border-radius: 6px;
+}
+.pfs-medid-tag--mild      { background: rgba(16,185,129,0.12); color: var(--hc-mint); }
+.pfs-medid-tag--moderate  { background: rgba(245,158,11,0.14); color: var(--hc-amber); }
+.pfs-medid-tag--severe    { background: rgba(239,68,68,0.14);  color: var(--hc-red); }
+.pfs-medid-tag--status-managed  { background: rgba(0,210,255,0.12); color: var(--hc-teal); }
+.pfs-medid-tag--status-active   { background: rgba(239,68,68,0.14); color: var(--hc-red); }
+.pfs-medid-tag--status-resolved { background: var(--hc-border2);    color: var(--hc-text3); }
+
+.pfs-medid-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 480px) {
+  .pfs-medid-add-row { grid-template-columns: 1fr auto; }
+  .pfs-medid-add-row .pfs-input--narrow { grid-column: 1 / -1; }
+}
+.pfs-medid-add-btn { padding: 11px 14px; min-height: 44px; flex-shrink: 0; }
+
+/* NHIS "card" preview — a small mockup of the physical card so the form
+   reads as a wallet card, not just a bag of text inputs. Updates live as
+   the fields below are edited; unset fields show placeholder dots. */
+.pfs-nhis-preview {
+  position: relative;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  color: #ffffff;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(255,255,255,0.10), transparent 55%),
+    linear-gradient(135deg, #0d8f6c, #0a6e8a 65%, #0a5a8f);
+  box-shadow: 0 10px 26px rgba(6,60,55,0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
+}
+.pfs-nhis-expiry-badge {
+  position: absolute; top: -8px; right: 12px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.2px;
+  background: var(--hc-surface2);
+  color: var(--hc-text);
+  border: 1px solid var(--hc-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.pfs-nhis-expiry-badge--expiring { background: var(--hc-amber); color: #241300; border-color: transparent; }
+.pfs-nhis-expiry-badge--expired  { background: var(--hc-red);   color: #2b0605; border-color: transparent; }
+.pfs-nhis-preview__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pfs-nhis-preview__scheme { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.85; }
+.pfs-nhis-preview__chip { opacity: 0.85; }
+.pfs-nhis-preview__id {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 16px; font-weight: 700; letter-spacing: 1.2px;
+}
+.pfs-nhis-preview__bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.pfs-nhis-preview__label { display: block; font-size: 9px; letter-spacing: 0.4px; text-transform: uppercase; opacity: 0.75; }
+.pfs-nhis-preview__value { display: block; font-size: 12.5px; font-weight: 600; margin-top: 2px; }
+
+.pfs-input--select { cursor: pointer; }
+.pfs-input--narrow { width: auto; min-width: 118px; }
+
+/* Deep-link highlight when arriving via ?modal=medicalId from Emergency */
+.pfs-card--flash { animation: pfs-medid-flash 1.8s ease; }
+@keyframes pfs-medid-flash {
+  0%   { box-shadow: 0 0 0 3px var(--hc-teal-dim); }
+  70%  { box-shadow: 0 0 0 3px var(--hc-teal-dim); }
+  100% { box-shadow: var(--hc-shadow); }
+}

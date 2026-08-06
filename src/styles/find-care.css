@@ -1,0 +1,790 @@
+/* ================================================================
+   src/styles/find-care.css
+   Find Care page — symptom selector + live specialty match
+   Import after: dashboard.css + dashboard-header.css
+   Dark mode: html.dark-mode (set by DarkModeContext)
+   Mobile overrides: find-care-mobile.css
+   ================================================================ */
+
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --fc-radius-xl:  22px;
+  --fc-radius-lg:  16px;
+  --fc-radius-md:  12px;
+  --fc-radius-sm:  8px;
+  --fc-transition: 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --fc-spring:     0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Keyframes ─────────────────────────────────────────────── */
+@keyframes fc-spin     { to { transform: rotate(360deg); } }
+@keyframes fc-fade-up  {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes fc-pattern-in {
+  from { opacity: 0; }
+  to   { opacity: 0.20; }
+}
+@keyframes fc-card-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+
+.fc-spin { animation: fc-spin 1s linear infinite; }
+
+/* ================================================================
+   PAGE SHELL — primary destination page, texture background
+   ================================================================ */
+.fc-page {
+  display: flex;
+  flex-direction: column;
+  /* min-height:100% (not 100dvh/100vh) + let hc-layout__main own the
+     scroll — matches facilities.css exactly. 100vh here previously
+     could trap/expand scroll behaviour on mobile. */
+  min-height: 100%;
+  /* No background here — .fc-bg-fixed (a sibling, not a descendant)
+     now owns the visible layer underneath this page. An opaque
+     background here would sit at a higher z-index (see the shared
+     ".hc-layout__content > *" rule) and paint over it, hiding the
+     texture entirely. The shell (.hc-layout) still has its own solid
+     background: var(--hc-bg) behind everything, so there's no flash
+     of unstyled content either way. */
+  color: var(--hc-text);
+  font-family: 'Outfit', 'Inter', sans-serif;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* ── Fixed background layer ──────────────────────────────────────
+   Previously .fc-page::before/::after with position:absolute — kept
+   deliberately inside .fc-page's own box on the theory that a fixed
+   element would bypass hc-layout__main's margin-left sidebar offset
+   and push the layout wide on mobile. In practice the sidebar
+   (.hc-sidebar, z-index:200, opaque) already sits above this layer
+   everywhere else the app uses a real fixed element (Dashboard/
+   Emergency/Profile's *-bg-fixed), and those pages don't see any
+   width blow-up either — inset:0 on a position:fixed element doesn't
+   add to any ancestor's scroll width. Switched to that same proven
+   pattern: a real position:fixed element (inserted as a DashboardLayout
+   child in find-care/page.tsx), not background-attachment:fixed,
+   which iOS Safari unreliably ignores. */
+.fc-bg-fixed {
+  /* !important: dashboard-header.css applies
+     ".hc-layout__main > *, .hc-layout__content > * { position: relative; z-index: 1; }"
+     to every direct child at equal specificity — without !important
+     that silently flips this back to position:relative. */
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none;
+}
+.fc-bg-fixed::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url('/images/light_mode.png') top left / 520px auto repeat;
+  opacity: 0;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  animation: fc-pattern-in 0.6s ease 0.1s forwards;
+}
+html.dark-mode .fc-bg-fixed::before {
+  background: url('/images/dark_mode.png') top left / 520px auto repeat;
+  mix-blend-mode: screen;
+  animation-name: fc-pattern-in;
+}
+.fc-bg-fixed::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(241,245,249,0.50) 0%,
+    rgba(224,242,254,0.35) 50%,
+    rgba(241,245,249,0.55) 100%
+  );
+  pointer-events: none;
+}
+html.dark-mode .fc-bg-fixed::after {
+  background: linear-gradient(
+    160deg,
+    rgba(2,11,20,0.48) 0%,
+    rgba(7,24,40,0.32) 50%,
+    rgba(2,11,20,0.52) 100%
+  );
+}
+/* Switch off the shared shell's own scrolling background
+   (.hc-layout__main::before/::after in dashboard-header.css) on this
+   page — it's position:absolute inside the scrolling content column,
+   so it moves with the page unless silenced. .fc-bg-fixed above is
+   the one that's actually meant to be visible now; without this, both
+   render at once and the still-scrolling one is what you notice. Same
+   fix as Dashboard's .db-page / Emergency's .em-page. */
+.hc-layout__main:has(.fc-bg-fixed)::before,
+.hc-layout__main:has(.fc-bg-fixed)::after {
+  display: none !important;
+}
+
+.fc-page > * { position: relative; z-index: 1; }
+
+.fc-root {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 0 80px;
+}
+
+/* ================================================================
+   PAGE HEADER — mirrors act-page-header / vx-page-header
+   ================================================================ */
+.fc-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 40px 44px 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.fc-page-header__left { flex: 1; min-width: 0; }
+
+.fc-page-header__title {
+  font-family: 'Syne', 'Outfit', sans-serif;
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  margin: 0 0 8px;
+  line-height: 1;
+}
+html.dark-mode .fc-page-header__title {
+  background: linear-gradient(135deg, #ffffff 30%, rgba(0, 210, 255, 0.85) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+html:not(.dark-mode) .fc-page-header__title {
+  background: linear-gradient(135deg, #111827 30%, rgba(0, 165, 200, 0.80) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.fc-page-header__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  margin: 0;
+  padding: 5px 14px 5px 9px;
+  border-radius: 100px;
+  background: color-mix(in srgb, var(--hc-teal) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-teal) 28%, transparent);
+}
+
+.fc-page-header__stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--hc-text3);
+}
+.fc-page-header__stats strong { color: var(--hc-text2); font-weight: 800; }
+.fc-page-header__dot { opacity: 0.6; }
+
+/* ================================================================
+   MODE TOGGLE placement — .fc-toggle itself is defined in
+   find-care-toggle.css (shared with /facilities)
+   ================================================================ */
+.fc-page-toggle {
+  margin: 0 44px 24px;
+}
+
+/* ================================================================
+   LOCATION STATUS
+   ================================================================ */
+.fc-location__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--fc-radius-sm);
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-text2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fc-location__fallback {
+  background: color-mix(in srgb, var(--hc-amber) 8%, var(--hc-surface2));
+  border: 1px solid color-mix(in srgb, var(--hc-amber) 30%, transparent);
+  border-radius: var(--fc-radius-md);
+  padding: 14px 16px;
+}
+.fc-location__fallback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-amber);
+  margin-bottom: 12px;
+}
+.fc-location__fallback-row span { flex: 1; }
+.fc-location__retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  border: 1px solid color-mix(in srgb, var(--hc-amber) 40%, transparent);
+  background: transparent;
+  color: var(--hc-amber);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--fc-transition);
+  white-space: nowrap;
+}
+.fc-location__retry:hover { background: color-mix(in srgb, var(--hc-amber) 12%, transparent); }
+
+.fc-district-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.fc-district-select-wrap svg {
+  position: absolute;
+  right: 14px;
+  color: var(--hc-text3);
+  pointer-events: none;
+}
+.fc-district-select {
+  width: 100%;
+  appearance: none;
+  padding: 11px 38px 11px 14px;
+  border-radius: var(--fc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--hc-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.fc-district-select:focus { outline: none; border-color: var(--hc-teal); }
+
+/* Mobile shows the inline copy above the grid; desktop shows the copy
+   embedded in the sticky side panel instead. Both render the same
+   `locationStatus` JSX — only one is visible at a time. */
+.fc-location { width: 100%; }
+.fc-location--inline { margin: 0 44px 24px; }
+.fc-location--side    { display: none; }
+
+/* ================================================================
+   TWO-COLUMN LAYOUT
+   Mobile/tablet (<1024px): single column, symptoms → matches → CTA.
+   Desktop (≥1024px): symptom picker (main) + sticky results panel (side).
+   ================================================================ */
+.fc-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 0 44px;
+  align-items: start;
+}
+
+.fc-main,
+.fc-side__sticky {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--fc-radius-xl);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--hc-shadow);
+  padding: 24px;
+}
+
+/* ================================================================
+   SECTIONS (shared shell for symptom selector + match list)
+   fc-section itself carries no box styling — padding/background/border
+   come from the parent card (.fc-main). It's kept as a semantic wrapper
+   so fc-section__header/__title read clearly in JSX.
+   ================================================================ */
+.fc-section { display: block; }
+.fc-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.fc-section__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--hc-text);
+  margin: 0;
+}
+.fc-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  border: 1px solid var(--hc-border);
+  background: transparent;
+  color: var(--hc-text2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--fc-transition);
+  white-space: nowrap;
+}
+.fc-clear-btn:hover {
+  color: var(--hc-red);
+  border-color: color-mix(in srgb, var(--hc-red) 40%, transparent);
+  background: color-mix(in srgb, var(--hc-red) 8%, transparent);
+}
+
+/* ── Symptom groups ── */
+.fc-symptom-group { margin-bottom: 22px; }
+.fc-symptom-group:last-child { margin-bottom: 0; }
+.fc-symptom-group__title {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--hc-text3);
+  margin: 0 0 10px;
+}
+.fc-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 100px;
+  border: 1.5px solid var(--hc-border);
+  background: var(--hc-surface2);
+  color: var(--hc-text2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--fc-transition);
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+.fc-chip:hover {
+  border-color: color-mix(in srgb, var(--hc-teal) 45%, var(--hc-border));
+  color: var(--hc-text);
+  transform: translateY(-1px);
+}
+.fc-chip--selected {
+  background: var(--hc-teal);
+  border-color: var(--hc-teal);
+  color: #ffffff;
+  box-shadow: 0 4px 14px var(--hc-teal-glow);
+}
+html.dark-mode .fc-chip--selected { color: #001018; }
+.fc-chip__check { flex-shrink: 0; }
+
+/* ================================================================
+   MODE A — facility type chips + NHIS toggle
+   (fc-chip / fc-chip-grid above are reused as-is for the type chips;
+   these are the Mode-A-specific additions.)
+   ================================================================ */
+.fc-mode-a { margin: 0 44px 24px; }
+.fc-mode-a .fc-chip-grid { margin-bottom: 14px; }
+.fc-mode-divider { margin: 8px 44px 24px; }
+.fc-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.fc-chip:disabled:hover { transform: none; border-color: var(--hc-border); color: var(--hc-text2); }
+
+.fc-nhis-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-text2);
+  cursor: pointer;
+}
+.fc-nhis-toggle input { width: 16px; height: 16px; accent-color: var(--hc-teal); cursor: pointer; }
+.fc-nhis-toggle svg { color: var(--hc-teal); flex-shrink: 0; }
+.fc-nhis-toggle:hover { color: var(--hc-text); }
+
+
+/* ================================================================
+   GEMINI FREE-TEXT SYMPTOM BAR — "Can't find your symptom above?"
+   Sits below the symptom chip groups inside .fc-main, intentionally
+   below the fold. Routing only — never a diagnosis (Section 3.1).
+   ================================================================ */
+.fc-freetext-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 22px;
+  color: var(--hc-text3);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.fc-freetext-divider::before,
+.fc-freetext-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hc-border);
+}
+
+.fc-freetext-section { animation: fc-fade-up 0.3s ease both; }
+
+.fc-freetext-form { display: flex; flex-direction: column; gap: 10px; }
+
+.fc-freetext-input-wrap {
+  position: relative;
+  border-radius: var(--fc-radius-md);
+  border: 1.5px solid var(--hc-border);
+  background: var(--hc-surface2);
+  transition: border-color var(--fc-transition), box-shadow var(--fc-transition);
+}
+.fc-freetext-input-wrap:focus-within {
+  border-color: var(--hc-teal);
+  box-shadow: 0 0 0 3px var(--hc-teal-dim);
+}
+.fc-freetext-sparkle {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  color: var(--hc-teal);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.fc-freetext-input {
+  width: 100%;
+  resize: none;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 12px 14px 12px 38px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--hc-text);
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.fc-freetext-input::placeholder { color: var(--hc-text3); font-weight: 400; }
+.fc-freetext-input:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.fc-freetext-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fc-freetext-count {
+  font-size: 11px;
+  color: var(--hc-text3);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.fc-freetext-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border: none;
+  border-radius: 100px;
+  background: linear-gradient(135deg, var(--hc-teal), #0ea5e9);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--fc-transition);
+  box-shadow: 0 6px 18px var(--hc-teal-glow);
+  white-space: nowrap;
+}
+html.dark-mode .fc-freetext-submit { color: #001018; }
+.fc-freetext-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px var(--hc-teal-glow); }
+.fc-freetext-submit:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+.fc-freetext-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--fc-radius-sm);
+  background: color-mix(in srgb, var(--hc-red) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-red) 28%, transparent);
+  color: var(--hc-red);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  animation: fc-fade-up 0.22s ease both;
+}
+.fc-freetext-error svg { flex-shrink: 0; margin-top: 1px; }
+
+.fc-freetext-matched {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--fc-radius-md);
+  background: color-mix(in srgb, var(--hc-mint) 10%, var(--hc-surface2));
+  border: 1px solid color-mix(in srgb, var(--hc-mint) 32%, transparent);
+  animation: fc-card-in 0.3s var(--fc-spring) both;
+}
+.fc-freetext-matched__icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--fc-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--hc-mint) 18%, transparent);
+  color: var(--hc-mint);
+}
+.fc-freetext-matched__body { flex: 1; min-width: 0; }
+.fc-freetext-matched__title {
+  margin: 0 0 2px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--hc-text);
+}
+.fc-freetext-matched__reason {
+  margin: 0;
+  font-size: 12px;
+  color: var(--hc-text2);
+  line-height: 1.5;
+}
+
+.fc-freetext-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: var(--hc-text3);
+  line-height: 1.5;
+}
+.fc-freetext-disclaimer svg { flex-shrink: 0; margin-top: 2px; opacity: 0.8; }
+.fc-freetext-disclaimer a { color: var(--hc-blue); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ================================================================
+   SIDE PANEL — sticky results column (desktop) / stacked card (mobile)
+   ================================================================ */
+.fc-side__sticky { display: flex; flex-direction: column; gap: 18px; }
+
+.fc-match-section { animation: fc-fade-up 0.3s ease both; }
+
+.fc-match-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 32px 16px;
+  border-radius: var(--fc-radius-md);
+  border: 1.5px dashed var(--hc-border);
+  color: var(--hc-text3);
+}
+.fc-match-placeholder svg { color: var(--hc-teal); opacity: 0.7; }
+.fc-match-placeholder p { margin: 0; font-size: 13px; line-height: 1.5; max-width: 240px; }
+
+.fc-match-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--fc-radius-md);
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+  font-size: 13.5px;
+}
+.fc-match-empty svg { flex-shrink: 0; color: var(--hc-amber); }
+
+.fc-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fc-match-card {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--fc-radius-lg);
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  animation: fc-card-in 0.28s var(--fc-spring) both;
+}
+.fc-match-card--primary {
+  border-color: color-mix(in srgb, var(--hc-teal) 45%, var(--hc-border));
+  background: color-mix(in srgb, var(--hc-teal) 8%, var(--hc-surface2));
+  box-shadow: 0 4px 20px var(--hc-teal-dim);
+}
+
+.fc-match-card__icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--fc-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+}
+
+.fc-match-card__body { flex: 1; min-width: 0; }
+.fc-match-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.fc-match-card__name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--hc-text);
+  margin: 0;
+}
+.fc-match-card__desc {
+  font-size: 12.5px;
+  color: var(--hc-text2);
+  margin: 0;
+  line-height: 1.5;
+}
+.fc-match-card__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--fc-radius-sm);
+  background: color-mix(in srgb, var(--hc-amber) 10%, transparent);
+  color: var(--hc-amber);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.fc-match-card__note svg { flex-shrink: 0; margin-top: 1px; }
+
+.fc-confidence-badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.fc-confidence-badge--high {
+  background: color-mix(in srgb, var(--hc-mint) 15%, transparent);
+  color: var(--hc-mint);
+}
+.fc-confidence-badge--moderate {
+  background: color-mix(in srgb, var(--hc-teal) 15%, transparent);
+  color: var(--hc-teal);
+}
+.fc-confidence-badge--low {
+  background: color-mix(in srgb, var(--hc-text3) 20%, transparent);
+  color: var(--hc-text2);
+}
+
+/* ================================================================
+   MOBILE FLOATING MATCH BAR
+   Hidden by default (desktop) — .fc-side's sticky panel already
+   surfaces the match there. Shown only under the 640px breakpoint in
+   find-care-mobile.css, where the layout collapses to one column and
+   .fc-side stacks below the entire symptom grid instead of staying
+   in view.
+   ================================================================ */
+.fc-mobile-match-bar { display: none; }
+
+/* ================================================================
+   CTA
+   ================================================================ */
+.fc-cta-wrap { animation: fc-fade-up 0.3s ease both; }
+.fc-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 16px 24px;
+  border: none;
+  border-radius: var(--fc-radius-md);
+  background: linear-gradient(135deg, var(--hc-teal), #0ea5e9);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--fc-transition);
+  box-shadow: 0 8px 24px var(--hc-teal-glow);
+}
+html.dark-mode .fc-cta-btn { color: #001018; }
+.fc-cta-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 28px var(--hc-teal-glow); }
+.fc-cta-btn:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+.fc-cta-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--hc-text3);
+  margin: 8px 0 0;
+}
+
+/* ================================================================
+   DESKTOP — two-column grid with sticky results panel
+   ================================================================ */
+@media (min-width: 1024px) {
+  .fc-layout {
+    grid-template-columns: 1fr 380px;
+    gap: 32px;
+  }
+
+  /* Sidebar copy of location status takes over; hide the inline one
+     that sits above the grid on mobile/tablet. */
+  .fc-location--inline { display: none; }
+  .fc-location--side    { display: block; }
+
+  .fc-side { position: relative; }
+  .fc-side__sticky {
+    position: sticky;
+    top: calc(var(--hc-topbar-h, 56px) + 24px);
+    max-height: calc(100vh - var(--hc-topbar-h, 56px) - 48px);
+    overflow-y: auto;
+  }
+}

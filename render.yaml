@@ -1,0 +1,74 @@
+services:
+  - type: web
+    name: healthconnect-navigator
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+
+      # ── Database (Neon, not Render's own Postgres — see chat) ──────────
+      - key: DATABASE_URL
+        sync: false
+
+      # ── NextAuth ─────────────────────────────────────────────────────
+      - key: NEXTAUTH_URL          # e.g. https://healthconnect-navigator.onrender.com
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # ── Passkeys / WebAuthn — MUST match the new domain, see chat ─────
+      - key: WEBAUTHN_ORIGIN        # e.g. https://healthconnect-navigator.onrender.com
+        sync: false
+      - key: WEBAUTHN_RP_ID         # e.g. healthconnect-navigator.onrender.com
+        sync: false
+      - key: PASSKEY_TOKEN_SECRET
+        sync: false
+
+      # ── Gemini (symptom-match fallback) ────────────────────────────────
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # ── Cloudinary (documents storage) ──────────────────────────────────
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # ── Email ────────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+      # ── Web push ─────────────────────────────────────────────────────
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        sync: false
+
+      # ── Admin / misc ─────────────────────────────────────────────────
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: NEXT_PUBLIC_TWI_EMERGENCY_APPROVED
+        value: "true"

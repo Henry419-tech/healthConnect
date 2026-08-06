@@ -1,0 +1,317 @@
+/* ================================================================
+   src/styles/find-care-mobile.css
+   Find Care page — mobile chrome + responsive overrides
+   Pairs with find-care.css. Mobile pill chrome (mob-topbar,
+   mob-tab-bar, mob-more-pop) is activated by hc-layout--has-mob-topbar
+   on DashboardLayout.
+
+   CLEARANCE MATH (mirrors facilities-mobile.css):
+   mob-topbar floats: 10px + 50px = 60px, +12px breathing room = 72px.
+   mob-tab-bar floats: 56px + 12px gap = 68px, + safe-area-inset-bottom.
+   That clearance is applied to .fc-root (the outer content wrapper)
+   rather than to individual sections, so nothing can render underneath
+   the fixed pill chrome regardless of which state (empty/loading/etc.)
+   is showing at the top of the page.
+   ================================================================ */
+
+   @media (max-width: 1023px) {
+    .fc-root { max-width: 100%; }
+  }
+  
+  @media (max-width: 640px) {
+  
+    /* NOTE: .hc-layout__main's own padding-top/bottom reset to 0 on
+       mob-topbar pages is already handled globally in
+       dashboard-header.css (`body:has(.mob-topbar) .hc-layout__main`).
+       We do NOT redeclare that here — doing so from a page-specific
+       stylesheet risks touching shared layout classes used by every
+       other page. All find-care-specific clearance lives on .fc-root
+       below, which is scoped to this page only. */
+  
+    /* Single source of horizontal inset for the whole page — mirrors
+       .facility-finder-content in facilities.css exactly. Every child
+       below relies on THIS padding for its left/right spacing and
+       declares none of its own, so there is nothing left for any other
+       stylesheet (e.g. the shared find-care-toggle.css) to conflict
+       with on width — regardless of client-side navigation CSS-chunk
+       ordering between /facilities and /find-care. */
+    .fc-root {
+      padding: 72px 16px calc(88px + env(safe-area-inset-bottom, 0px));
+    }
+  
+    /* Desktop-scale header → compact mobile header, sits directly
+       under the floating mob-topbar pill (72px clearance above). */
+    .fc-page-header {
+      padding: 0 0 14px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .fc-page-header__title {
+      font-size: clamp(24px, 7.5vw, 30px) !important;
+      letter-spacing: -1px !important;
+    }
+    .fc-page-header__sub {
+      font-size: 11px !important;
+      padding: 4px 11px 4px 8px !important;
+    }
+    .fc-page-header__stats { font-size: 11.5px; margin-top: 8px; }
+  
+    /* No margin/width override here on purpose — .fc-toggle's own
+       width:100% (find-care-toggle.css) is already correct once its
+       parent (.fc-root) provides the inset instead of the toggle
+       providing its own. One rule, one file, no cascade race. */
+    .fc-page-toggle { margin: 0 0 18px; }
+  
+    .fc-mode-a { margin: 0 0 20px; }
+    .fc-mode-divider { margin: 4px 0 20px; }
+  
+    .fc-location--inline { margin: 0 0 20px; }
+  
+    .fc-layout { padding: 0; gap: 18px; }
+  
+    .fc-main,
+    .fc-side__sticky {
+      padding: 18px 16px;
+      border-radius: var(--fc-radius-lg);
+    }
+  
+    .fc-section__title { font-size: 14.5px; }
+  
+    .fc-chip {
+      padding: 8px 14px;
+      font-size: 12.5px;
+      min-height: 40px; /* keeps 44px+ tap target with vertical padding */
+    }
+  
+    /* .fc-side (the full "Matched facility type" card + its own CTA)
+       is now a straight duplicate of the floating match bar below on
+       phones — same live data, same action, just requiring a scroll to
+       reach. Hidden here, at the same breakpoint the floating bar turns
+       on, so the bar is the only match UI on phones. Left untouched on
+       tablets (641–1023px, where the floating bar doesn't render and
+       this stacked card is still the only match UI) and on desktop
+       (≥1024px, sticky sidebar). */
+    .fc-side { display: none; }
+  
+    .fc-match-card { padding: 14px; gap: 12px; }
+    .fc-match-card__icon { width: 38px; height: 38px; }
+    .fc-match-card__name { font-size: 14px; }
+    .fc-match-card__top { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+    /* Floating match bar — sits above mob-tab-bar with a proper 12px
+       gap (68px = nav's own 12px bottom offset + 56px height, then
+       +12px breathing room = 80px, matching the same floating-bar
+       pattern used in facilities-mobile.css) so it visibly floats as
+       its own pill instead of butting flush against the nav below it.
+       Fades/slides in the moment a symptom is selected
+       (.fc-mobile-match-bar only renders in the DOM when
+       selectedSlugs.length > 0), giving instant feedback without
+       requiring a scroll past the whole symptom grid to find it. */
+    .fc-mobile-match-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: calc(79.2px + env(safe-area-inset-bottom, 0px));
+      z-index: 40;
+      padding: 10px 10px 12px;
+      border-radius: var(--fc-radius-lg);
+      background: var(--hc-surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--hc-border);
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+      animation: fc-fade-up 0.25s ease both;
+    }
+    /* Text + close live in their own row so the close button can be a
+       real 44x44 tap target (Apple HIG / Material minimums) without
+       overlapping the CTA below — previously it was a 22px circle
+       absolutely positioned over the same row as the CTA button. */
+    .fc-mobile-match-bar__row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    /* Wraps the reasoning/generalFirst/alternates content (formerly a
+       bare Fragment) — needs its own gap since it's now one direct child
+       of .fc-mobile-match-bar rather than three, so the parent's own
+       gap: 10px no longer spaces them individually. */
+    .fc-mobile-match-bar__detail {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .fc-mobile-match-bar__text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--hc-text2);
+      /* button reset — plain <div> for the "no match" case (nothing to
+         expand), but a real <button> otherwise (toggles the reasoning/
+         alternates section below), so this needs to look identical
+         either way rather than picking up default button chrome. */
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      width: 100%;
+    }
+    .fc-mobile-match-bar__text:disabled { cursor: default; opacity: 1; }
+    .fc-mobile-match-bar__text svg { flex-shrink: 0; color: var(--hc-teal); }
+    .fc-mobile-match-bar__text strong { color: var(--hc-text); }
+    .fc-mobile-match-bar__text .fc-confidence-badge {
+      margin-left: 6px;
+      padding: 2px 8px;
+      font-size: 9px;
+    }
+    .fc-mobile-match-bar__chevron {
+      flex-shrink: 0;
+      margin-left: auto;
+      color: var(--hc-text3);
+      transition: transform 0.2s ease;
+    }
+    .fc-mobile-match-bar__chevron.is-open { transform: rotate(180deg); }
+    /* First-time-only attention cue: 3 gentle pulses (~2s total), then
+       stops on its own even if untapped — this should catch a new
+       user's eye once, not nag forever. Permanently gone after their
+       first real tap (markExpandDiscovered persists that to
+       localStorage), and never shown at all for returning users (see
+       hasDiscoveredExpand's SSR-safe default in page.tsx). */
+    .fc-mobile-match-bar__text[data-first-time-hint] .fc-mobile-match-bar__chevron {
+      color: var(--hc-teal);
+      animation: fc-chevron-hint 0.7s ease-in-out 3;
+    }
+    @keyframes fc-chevron-hint {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(3px); }
+    }
+    /* "Based on: ..." — which selected symptoms drove the top match.
+       Slightly higher-contrast than __secondary since it's the direct
+       reason for the CTA below, not a side note. */
+    .fc-mobile-match-bar__reason {
+      margin: 0;
+      font-size: 11px;
+      color: var(--hc-text2);
+      line-height: 1.4;
+    }
+    .fc-mobile-match-bar__alt {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .fc-mobile-match-bar__alt-label {
+      font-size: 11px;
+      color: var(--hc-text3);
+      flex-shrink: 0;
+    }
+    .fc-mobile-match-bar__alt-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      min-height: 32px;
+      border-radius: 100px;
+      border: 1px solid var(--hc-border);
+      background: var(--hc-bg-2, rgba(0, 0, 0, 0.04));
+      color: var(--hc-text2);
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .fc-mobile-match-bar__alt-chip:hover,
+    .fc-mobile-match-bar__alt-chip:active { border-color: var(--hc-teal); color: var(--hc-text); }
+    /* Folded-in generalFirst safety note — this info used to live only
+       on the full card, which is now hidden on phones (see .fc-side
+       above), so it needs a home here instead of disappearing. */
+    .fc-mobile-match-bar__note {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 0;
+      font-size: 11px;
+      color: var(--hc-text3);
+      line-height: 1.4;
+    }
+    .fc-mobile-match-bar__note svg { flex-shrink: 0; margin-top: 2px; color: var(--hc-text3); }
+    .fc-mobile-match-bar__close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: none;
+      color: var(--hc-text2);
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .fc-mobile-match-bar__close:hover,
+    .fc-mobile-match-bar__close:active { background: var(--hc-bg-2, rgba(0, 0, 0, 0.06)); color: var(--hc-text); }
+    .fc-mobile-match-bar__btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 16px;
+      border-radius: 100px;
+      border: none;
+      background: var(--hc-teal);
+      color: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .fc-mobile-match-bar__btn:disabled { opacity: 0.6; cursor: default; }
+
+    /* NOTE: .fc-cta-btn/.fc-match-placeholder below style content inside
+       .fc-side, which this breakpoint now hides entirely (see .fc-side
+       rule above) — the floating bar is the only match UI on phones.
+       Left in place (harmless, just unreachable at this width) since
+       tablets between this breakpoint and 1024px still render .fc-side
+       normally and may pick up shared rules; not worth the churn to prune. */
+  
+    .fc-match-placeholder { padding: 24px 12px; }
+  
+    .fc-cta-btn { padding: 15px 20px; font-size: 14px; }
+  
+    .fc-district-select { font-size: 16px; } /* prevents iOS zoom on focus */
+
+    .fc-freetext-divider { margin: 22px 0 18px; font-size: 10px; }
+    .fc-freetext-input { font-size: 16px; padding: 11px 12px 11px 36px; } /* 16px prevents iOS zoom on focus */
+    .fc-freetext-sparkle { top: 13px; left: 12px; }
+    .fc-freetext-row { flex-wrap: wrap; }
+    .fc-freetext-submit { width: 100%; padding: 12px 18px; font-size: 13.5px; }
+    .fc-freetext-count { order: 2; width: 100%; text-align: right; }
+    .fc-freetext-matched { padding: 12px; }
+    .fc-freetext-disclaimer { font-size: 10.5px; }
+  }
+  
+  @media (max-width: 390px) {
+    .fc-chip { font-size: 12px; padding: 7px 12px; }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .fc-bg-fixed::before,
+    .fc-match-section,
+    .fc-match-card,
+    .fc-cta-wrap,
+    .fc-mobile-match-bar__text[data-first-time-hint] .fc-mobile-match-bar__chevron {
+      animation: none !important;
+    }
+  }

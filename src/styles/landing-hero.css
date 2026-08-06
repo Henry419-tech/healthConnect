@@ -1,0 +1,284 @@
+/* ================================================================
+   src/styles/landing-hero.css
+   (replaces landing-mobile-hero.css — this is no longer mobile-only)
+
+   The hero: an asymmetric split — anchored copy on one side, the
+   feature feed as the "dominant media plane" on the other, replacing
+   the old floating phone-mockup screenshot. The feed shows real
+   interface fragments (facility distance chips, an emergency-call
+   affordance, a Medical ID stat) — not an abstract device frame.
+
+   The signature moment: a route-line draws itself once on load and
+   resolves into a heartbeat pulse behind the feed card. Ties the
+   product name ("Navigator" — wayfinding) to its purpose (health —
+   vital signs) in one animated line, instead of decorative orbs.
+   ================================================================ */
+
+.lp-hero {
+  position: relative; z-index: 10;
+  display: flex; align-items: center;
+  padding: 40px 56px 56px; max-width: 1240px; margin: 0 auto;
+  min-height: calc(100dvh - 73px);
+}
+
+/* ── Copy column ──────────────────────────────────────────────────
+   Grid rather than flex: the carousel now lives in the DOM between
+   .lp-hero__sub and .lp-hero__cta (so it stacks above the CTA on
+   tablet/mobile), but on desktop it still needs to read as a second
+   column, not a break in the middle of the text column. Explicit
+   grid-column/grid-row placement below puts each piece where it
+   visually belongs regardless of DOM order; on narrower breakpoints
+   this switches to a plain flex column and DOM order takes over. */
+.lp-hero__copy {
+  display: grid; grid-template-columns: 1.05fr 0.95fr; grid-template-rows: repeat(5, auto);
+  column-gap: 48px; align-items: center; width: 100%;
+  animation: lp-rise .7s var(--lp-ease-out) both;
+}
+.lp-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--lp-teal); margin-bottom: 22px;
+  background: var(--lp-teal-dim); border: 1px solid rgba(0,212,255,.16);
+  padding: 5px 14px; border-radius: 20px;
+  grid-column: 1; grid-row: 1;
+}
+.lp-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--lp-teal); box-shadow: 0 0 8px var(--lp-teal);
+  animation: lp-blink 1.6s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes lp-blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+.lp-hero__title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(38px, 4.4vw, 64px);
+  font-weight: 400; line-height: 1.02; letter-spacing: -1.8px;
+  color: #fff; margin: 0 0 18px;
+  grid-column: 1; grid-row: 2;
+}
+.lp-hero__title em { font-style: italic; color: var(--lp-teal); }
+.lp-hero__sub { font-size: 15.5px; line-height: 1.7; color: var(--lp-text2); max-width: 460px; margin: 0 0 28px; grid-column: 1; grid-row: 3; }
+.lp-hero__cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; grid-column: 1; grid-row: 4; }
+
+.lp-trust-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; grid-column: 1; grid-row: 5; }
+.lp-trust-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--lp-text3); font-weight: 500; }
+.lp-trust-pill svg { color: var(--lp-amber); flex-shrink: 0; }
+
+/* ── Media column: the feed ──────────────────────────────────── */
+.lp-hero__media {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  min-height: 420px;
+  animation: lp-rise .7s .12s var(--lp-ease-out) both;
+  grid-column: 2; grid-row: 1 / 6;
+}
+
+/* Signature route-pulse line — drawn once on load, then sits quiet.
+   Pure SVG stroke-draw, no blur(100px) orb, no image asset. */
+.lp-signature { position: absolute; inset: -10% -6%; z-index: 0; pointer-events: none; overflow: visible; }
+.lp-signature__path {
+  fill: none; stroke: var(--lp-teal); stroke-width: 1.5; stroke-linecap: round;
+  opacity: .55;
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: lp-draw 2.2s .3s var(--lp-ease-out) forwards;
+}
+.lp-signature__pulse {
+  fill: var(--lp-teal); opacity: 0;
+  animation: lp-pulse-in .5s 2.1s var(--lp-ease-spring) forwards, lp-pulse-live 2.4s 2.6s ease-in-out infinite;
+}
+@keyframes lp-draw { to { stroke-dashoffset: 0; } }
+@keyframes lp-pulse-in { to { opacity: 1; } }
+@keyframes lp-pulse-live { 0%, 100% { r: 4; opacity: .9; } 50% { r: 7; opacity: .35; } }
+
+/* The feed itself — a stack of interface-fragment cards, one visible
+   (active) at a time, auto-advancing. Sized/framed like a real content
+   card, not a phone chrome. */
+.lp-feed { position: relative; z-index: 1; width: 100%; max-width: 380px; }
+.lp-feed__stage { position: relative; height: 292px; }
+.lp-feed__slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 26px 24px; border-radius: 22px;
+  background: var(--lp-navy2); border: 1px solid var(--lp-border2);
+  box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+  opacity: 0; transform: translateY(14px) scale(.98);
+  transition: opacity .5s var(--lp-ease-out), transform .5s var(--lp-ease-out);
+  pointer-events: none;
+}
+.lp-feed__slide.is-active { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+.lp-feed__top { display: flex; align-items: flex-start; justify-content: space-between; }
+/* Category color lives on the icon tile itself — a soft ambient glow
+   rather than a bar bolted across the top of the card. Reuses the
+   --lp-*-glow tokens already in the palette (see landing.css root),
+   so it reads as the same light source as the rest of the app, not a
+   one-off accent invented for this card. */
+.lp-feed__icon { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+.lp-feed__slide--teal   .lp-feed__icon { background: var(--lp-teal-dim);   color: var(--lp-teal);   box-shadow: 0 0 0 1px rgba(0,212,255,.12) inset, 0 6px 20px -4px var(--lp-teal-glow); }
+.lp-feed__slide--violet .lp-feed__icon { background: var(--lp-violet-dim); color: var(--lp-violet); box-shadow: 0 0 0 1px rgba(167,139,250,.12) inset, 0 6px 20px -4px var(--lp-violet-glow); }
+.lp-feed__slide--red    .lp-feed__icon { background: var(--lp-red-dim);    color: var(--lp-red);    box-shadow: 0 0 0 1px rgba(255,77,109,.12) inset, 0 6px 20px -4px var(--lp-red-glow); }
+.lp-feed__slide--amber  .lp-feed__icon { background: var(--lp-amber-dim);  color: var(--lp-amber);  box-shadow: 0 0 0 1px rgba(251,191,36,.12) inset, 0 6px 20px -4px var(--lp-amber-glow); }
+.lp-feed__badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; padding: 4px 10px; border-radius: 20px; }
+.lp-feed__slide--teal   .lp-feed__badge { background: var(--lp-teal-dim);   color: var(--lp-teal); }
+.lp-feed__slide--violet .lp-feed__badge { background: var(--lp-violet-dim); color: var(--lp-violet); }
+.lp-feed__slide--red    .lp-feed__badge { background: var(--lp-red-dim);    color: var(--lp-red); }
+.lp-feed__slide--amber  .lp-feed__badge { background: var(--lp-amber-dim);  color: var(--lp-amber); }
+
+.lp-feed__title { font-size: 18px; font-weight: 700; color: #fff; margin: 16px 0 6px; line-height: 1.25; }
+.lp-feed__desc { font-size: 12.5px; color: var(--lp-text2); line-height: 1.6; margin: 0 0 16px; }
+
+/* Realistic UI fragment — mimics the app's actual facility/notification
+   card pattern (icon + title + meta chips), not an abstract shape. */
+.lp-feed__chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lp-feed__chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 600; color: var(--lp-text2);
+  background: var(--lp-surf); border: 1px solid var(--lp-border); border-radius: 8px;
+  padding: 5px 9px;
+}
+.lp-feed__chip svg { flex-shrink: 0; }
+.lp-feed__chip--accent { color: var(--lp-teal); border-color: var(--lp-teal-border, rgba(0,212,255,.25)); background: var(--lp-teal-dim); }
+.lp-feed__slide--red .lp-feed__chip--accent { color: var(--lp-red); border-color: rgba(255,77,109,.3); background: var(--lp-red-dim); }
+
+.lp-feed__nav {
+  position: relative; /* anchors .lp-feed__pause without disturbing dot centering */
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 20px; touch-action: pan-y;
+}
+
+/* Pause/play control — auto-advancing content that changes every 6s
+   needs a way to stop it (WCAG 2.2.2); previously there was none.
+   Pinned to the row's right edge via absolute positioning so the dots
+   stay centered regardless of whether this is present. Requires the
+   JSX/state hookup described alongside this fix — see page.tsx. */
+.lp-feed__pause {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 8px; border: none; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--lp-teal-dim); color: var(--lp-teal);
+  transition: background .18s ease;
+}
+.lp-feed__pause:hover { background: rgba(0,212,255,.18); }
+.lp-feed__pause:focus-visible { outline: 2px solid var(--lp-teal); outline-offset: 2px; }
+.lp-feed__pause svg { width: 12px; height: 12px; }
+.lp-feed__dot {
+  width: 22px; height: 3px; border-radius: 2px; border: none; padding: 0; cursor: pointer;
+  background: var(--lp-border2);
+  position: relative;
+  transition: background .2s ease, width .25s var(--lp-ease-out);
+}
+.lp-feed__dot.is-active { background: var(--lp-border2); width: 34px; }
+.lp-feed__dot:focus-visible { outline: 2px solid var(--lp-teal); outline-offset: 3px; }
+
+/* Invisible hit-area — the visual dash stays 3px tall (that's the whole
+   point of a dot-fill progress indicator), but the actual tappable
+   region is a lot taller. Absolutely positioned so it doesn't add to
+   .lp-feed__nav's flow height the way a taller button would — the
+   mobile hero is tightly budgeted to fit above the fold (see the
+   640px block below), so growing the row itself wasn't an option.
+   Width is exactly the 8px gap between dots (see .lp-feed__nav), so
+   each dot's zone meets its neighbour's at the midpoint with no
+   overlap and no dead zone. */
+.lp-feed__dot::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% + 8px);
+  height: 28px;
+}
+
+/* Progress-fill, not a flat color swap — the active dot fills left-to-
+   right over the same 6s as the auto-advance timer, so the dot row
+   doubles as a countdown instead of just a position marker. Colored to
+   match the active slide's category rather than always teal. Remounted
+   (React key=carouselIdx, see page.tsx) on every slide change — manual,
+   swiped, or auto — so it always restarts at 0% in step with the timer. */
+.lp-feed__dot-fill {
+  position: absolute; inset: 0; transform: scaleX(0); transform-origin: left center;
+  border-radius: inherit; /* was relying on the dot's overflow:hidden for this; that
+                              property is gone now (see .lp-feed__dot::after above) */
+  animation: lp-dot-fill 6s linear forwards;
+}
+.lp-feed__dot-fill--teal   { background: var(--lp-teal); }
+.lp-feed__dot-fill--violet { background: var(--lp-violet); }
+.lp-feed__dot-fill--red    { background: var(--lp-red); }
+.lp-feed__dot-fill--amber  { background: var(--lp-amber); }
+@keyframes lp-dot-fill { to { transform: scaleX(1); } }
+
+/* Paused (manually or via prefers-reduced-motion, see page.tsx) — freeze the
+   fill wherever it is rather than letting it run to 100% and sit there
+   looking like an advance is still imminent. */
+.lp-feed__nav.is-paused .lp-feed__dot-fill { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-hero__copy, .lp-hero__media { animation: none; opacity: 1; }
+  .lp-signature__path { animation: none; stroke-dashoffset: 0; opacity: .35; }
+  .lp-signature__pulse { animation: lp-pulse-in .01s forwards; }
+  .lp-feed__slide { transition: opacity .3s ease; }
+  .lp-feed__dot-fill { animation: none; transform: scaleX(1); }
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .lp-hero { padding: 32px 40px 48px; min-height: auto; }
+  .lp-hero__copy {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+  }
+  .lp-hero__media { min-height: 0; align-self: stretch; }
+  .lp-hero__sub { max-width: 100%; }
+  .lp-hero__cta, .lp-trust-row { justify-content: center; }
+}
+@media (max-width: 640px) {
+  /* Top padding is light — .lp-mobile-mast (in landing.css) already
+     opens the page above this, so the hero doesn't need to repeat it. */
+  .lp-hero { padding: 6px 20px 14px; }
+
+  /* .lp-hero__copy is a flex column here (see 980px block above), so
+     the carousel — which lives in the DOM between .lp-hero__sub and
+     .lp-hero__cta — reads in that exact spot: above the sign-in/up
+     buttons, below the headline. Everything below is sized down so
+     the full stack (eyebrow → headline → sub → carousel → CTA →
+     trust row) fits inside one screen with nothing pushed below the
+     fold. */
+  .lp-eyebrow { margin-bottom: 10px; }
+  .lp-hero__title { letter-spacing: -0.6px; font-size: clamp(24px, 7.5vw, 34px); line-height: 1.08; margin-bottom: 8px; }
+  .lp-hero__sub {
+    font-size: 13px; line-height: 1.45; margin-bottom: 10px;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .lp-hero__cta { flex-direction: column; align-items: stretch; width: 100%; margin: 0 0 8px; gap: 8px; }
+  .lp-hero__cta .lp-btn { width: 100%; justify-content: center; padding: 14px 20px; font-size: 14px; min-height: 44px; }
+  .lp-trust-row { gap: 10px 16px; margin-bottom: 10px; }
+  .lp-trust-pill { font-size: 10.5px; }
+
+  /* Carousel: this is the visual centerpiece now that the top bar is
+     gone, so it gets more room than the old compact strip — the
+     savings above (tighter CTA/trust-row margins, sub clamped to one
+     line) buy back the extra height so eyebrow→CTA still fits one
+     screen with nothing pushed below the fold. */
+  .lp-feed { max-width: 100%; margin-bottom: 12px; }
+  .lp-feed__stage { height: 184px; }
+  .lp-feed__slide { padding: 18px 20px; border-radius: 20px; }
+  .lp-feed__icon { width: 38px; height: 38px; border-radius: 11px; }
+  .lp-feed__icon svg { width: 17px; height: 17px; }
+  .lp-feed__badge { font-size: 8.5px; padding: 3px 9px; }
+  .lp-feed__title { font-size: 16px; margin: 11px 0 4px; line-height: 1.2; }
+  .lp-feed__desc {
+    font-size: 11.5px; line-height: 1.42; margin: 0 0 11px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .lp-feed__chip-row { gap: 6px; }
+  .lp-feed__chip { font-size: 10px; padding: 4px 9px; gap: 4px; }
+  .lp-feed__nav { margin-top: 12px; }
+  .lp-feed__dot { width: 18px; height: 3px; }
+  .lp-feed__dot.is-active { width: 30px; }
+}
+@media (max-width: 380px) {
+  /* Oldest/smallest phones: drop the sub copy entirely rather than
+     shrink the carousel or CTA further — headline, proof, and the
+     sign-up path stay full-strength, the one line of description is
+     what gives. */
+  .lp-hero__sub { display: none; }
+  .lp-hero__title { margin-bottom: 12px; }
+}

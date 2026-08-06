@@ -1,0 +1,945 @@
+/* ================================================================
+   dashboard-launchpad.css — /dashboard focused launchpad content
+   (HEALTHNAV handoff Section 10 — visual redesign pass)
+
+   Scoped entirely under a "dbh-" (dashboard home) prefix so this file
+   never collides with the existing .db-* classes in dashboard.css,
+   which are still shared by other kept pages (emergency, find-care).
+   Uses only --hc-* tokens from globals.css / dashboard-header.css —
+   no new colors are introduced. Texture/background comes from
+   dashboard.css's .db-page rule — this file only styles the
+   launchpad content sitting on top of it.
+
+   Design intent: calm, trustworthy, mobile-first. One clear "most
+   important thing" per screenful (Find Care), everything else quiet
+   until it's needed. Emergency stays visually distinct without
+   shouting on every visit. See handoff notes at bottom of file.
+   ================================================================ */
+
+.dbh-page {
+  gap: 22px;
+}
+@media (min-width: 641px) {
+  /* The shared .db-page shell is a wide flex column (max-width 1400px)
+     built for other pages. This launchpad is a single reading column,
+     so cap it to a comfortable width instead of stretching edge to
+     edge on desktop. */
+  .dbh-page {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}
+
+/* ── Desktop topbar brand (replaces the old search bar — the launchpad
+   doesn't need a search box, Find Care owns search) ─────────────── */
+.dbh-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dbh-topbar-brand__text {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--hc-text);
+  letter-spacing: -0.2px;
+}
+@media (max-width: 900px) {
+  .dbh-topbar-brand__text { display: none; }
+}
+
+/* ── Section eyebrows — used above card groups where a category
+   label genuinely helps scanning (Updates, Coverage, Emergency
+   numbers). Not used where the content already speaks for itself. ── */
+.dbh-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hc-text3);
+}
+.dbh-eyebrow svg { flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════
+   GREETING
+════════════════════════════════════════════════════════════════ */
+.dbh-greeting-row {
+  padding-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  /* dashboard-mobile.css sets `.db-page-header { gap: 0 !important; }` —
+     this element carries both classes, so we need matching !important
+     specificity here to keep the avatar/text spacing on mobile. */
+  .dbh-greeting-row {
+    gap: 14px !important;
+  }
+}
+
+/* Avatar — tappable through to Profile. Sits to the left of the
+   date/greeting/location text block. */
+.dbh-greeting-avatar-btn {
+  appearance: none;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+.dbh-greeting-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--hc-teal-dim);
+  border: 2px solid color-mix(in srgb, var(--hc-teal) 40%, transparent);
+  color: var(--hc-teal);
+  font-size: 18px;
+  font-weight: 800;
+  overflow: hidden;
+  transition: transform 0.18s var(--hc-ease-spring);
+}
+.dbh-greeting-avatar-btn:hover .dbh-greeting-avatar {
+  transform: scale(1.04);
+}
+.dbh-greeting-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Sun/moon badge — overlaps the bottom-right of the avatar, toggles
+   dark mode independently of the avatar's tap-to-profile target. */
+.dbh-greeting-avatar__badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--hc-border);
+  color: var(--hc-amber);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25), 0 0 0 2px var(--hc-bg);
+  cursor: pointer;
+}
+html.dark-mode .dbh-greeting-avatar__badge {
+  background: #0a2033;
+  border-color: rgba(0, 210, 255, 0.35);
+  color: var(--hc-teal);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 2px var(--hc-bg);
+}
+
+.dbh-greeting-date {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-text3);
+  margin: 0 0 4px;
+  letter-spacing: 0.1px;
+}
+.dbh-greeting-date::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--hc-teal);
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HERO CARD — Find a Facility
+   The one clear "most important thing" in this screenful: generous,
+   calm, soft-elevated. A quiet concentric-ring motif behind the icon
+   reads as "searching outward from where you are" without shouting.
+════════════════════════════════════════════════════════════════ */
+.dbh-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dbh-hero-card {
+  appearance: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 22px 20px;
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  font-family: inherit;
+  background: color-mix(in srgb, var(--hc-teal) 7%, var(--hc-surface));
+  border: 1px solid var(--hc-teal-border);
+  box-shadow: var(--hc-shadow);
+  transition: transform 0.18s var(--hc-ease-spring), box-shadow 0.18s var(--hc-ease), border-color 0.18s var(--hc-ease);
+}
+.dbh-hero-card:hover {
+  box-shadow: var(--hc-shadow-lg);
+  border-color: var(--hc-teal);
+}
+.dbh-hero-card:active { transform: scale(0.98); }
+
+.dbh-hero-card__rings {
+  position: absolute;
+  right: -34px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 150px;
+  height: 150px;
+  pointer-events: none;
+}
+.dbh-hero-card__rings span {
+  position: absolute;
+  inset: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hc-teal);
+  opacity: 0.16;
+}
+.dbh-hero-card__rings span:last-child { inset: 0; opacity: 0.08; }
+@media (prefers-reduced-motion: no-preference) {
+  .dbh-hero-card__rings span { animation: dbh-ring-pulse 4s ease-in-out infinite; }
+  .dbh-hero-card__rings span:last-child { animation-delay: 1.2s; }
+}
+@keyframes dbh-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.16; }
+  50%      { transform: scale(1.07); opacity: 0.04; }
+}
+
+.dbh-hero-card__icon {
+  position: relative;
+  z-index: 1;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--hero-icon-color, var(--hc-teal)) 80%, white 20%);
+  color: var(--hc-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--hero-icon-color, var(--hc-teal)) 28%, transparent);
+  transition: background-color 0.9s ease, box-shadow 0.9s ease;
+}
+html.dark-mode .dbh-hero-card__icon { color: #04140f; }
+
+.dbh-hero-card__icon-swap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dbh-hero-card__icon-swap { animation: dbh-hero-icon-pop 0.7s ease; }
+}
+@keyframes dbh-hero-icon-pop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.dbh-hero-card__body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dbh-hero-card__label {
+  font-size: 16.5px;
+  font-weight: 800;
+  color: var(--hc-text);
+  letter-spacing: -0.2px;
+}
+.dbh-hero-card__sub {
+  font-size: 12.5px;
+  color: var(--hc-text2);
+  line-height: 1.4;
+}
+.dbh-hero-card__arrow {
+  position: relative;
+  z-index: 1;
+  color: var(--hc-teal);
+  flex-shrink: 0;
+}
+
+/* ── Emergency rail — echoes the Emergency page's Call 193 card
+   (plate housing, circular icon, tag pill) so the two feel like the
+   same product, but pitched a size quieter than the hero card above
+   it. --dbh-red is a locally-desaturated read of --hc-red: the app's
+   global red (#ef4444 / #FF4D6D) is a touch hot for a card someone
+   looks at every time they open the dashboard, so this softens it
+   the same way the Emergency page's own palette was calmed down,
+   without changing --hc-red for the badges/alerts that use it
+   elsewhere. ──────────────────────────────────────────────────── */
+.dbh-emergency-rail {
+  --dbh-red: color-mix(in srgb, var(--hc-red) 78%, #2b0b10 22%);
+  --dbh-red-bright: color-mix(in srgb, var(--hc-red) 88%, #2b0b10 12%);
+  appearance: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 18px;
+  text-align: left;
+  font-family: inherit;
+  background: color-mix(in srgb, var(--dbh-red) 4%, var(--hc-surface));
+  border: 1px solid color-mix(in srgb, var(--dbh-red) 14%, var(--hc-border));
+  box-shadow: var(--hc-shadow);
+  transition: box-shadow 0.18s var(--hc-ease), transform 0.12s var(--hc-ease);
+}
+html.dark-mode .dbh-emergency-rail {
+  background: color-mix(in srgb, var(--dbh-red) 7%, var(--hc-surface));
+  border-color: color-mix(in srgb, var(--dbh-red) 20%, var(--hc-border));
+}
+.dbh-emergency-rail:hover {
+  background: color-mix(in srgb, var(--dbh-red) 7%, var(--hc-surface));
+  border-color: color-mix(in srgb, var(--dbh-red) 22%, var(--hc-border));
+  box-shadow: var(--hc-shadow-lg);
+  transition: background 0.18s var(--hc-ease), border-color 0.18s var(--hc-ease), box-shadow 0.18s var(--hc-ease), transform 0.12s var(--hc-ease);
+}
+html.dark-mode .dbh-emergency-rail:hover {
+  background: color-mix(in srgb, var(--dbh-red) 11%, var(--hc-surface));
+  border-color: color-mix(in srgb, var(--dbh-red) 32%, var(--hc-border));
+}
+.dbh-emergency-rail:active { transform: scale(0.985); }
+
+.dbh-emergency-rail__icon {
+  position: relative;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  background: linear-gradient(160deg, var(--dbh-red-bright) 0%, var(--dbh-red) 100%);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--dbh-red) 32%, transparent);
+}
+.dbh-emergency-rail__body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dbh-emergency-rail__label {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--hc-text);
+  letter-spacing: -0.1px;
+}
+.dbh-emergency-rail__sub {
+  font-size: 11.5px;
+  color: var(--hc-text2);
+  line-height: 1.4;
+}
+.dbh-emergency-rail__dot {
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dbh-red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dbh-red) 14%, transparent);
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dbh-emergency-rail__dot { animation: dbh-dot-pulse 2.2s ease-in-out infinite; }
+}
+@keyframes dbh-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+.dbh-emergency-rail__arrow {
+  position: relative;
+  z-index: 1;
+  color: var(--hc-text3);
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HEALTH UPDATES CARD (alerts lane + AI tip lane, one card)
+════════════════════════════════════════════════════════════════ */
+.dbh-updates-card {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 18px;
+  box-shadow: var(--hc-shadow);
+  overflow: hidden;
+}
+
+.dbh-updates-card__alert {
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px 16px;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s var(--hc-ease);
+}
+.dbh-updates-card__alert:hover { background: var(--hc-surface2); }
+
+.dbh-updates-card__alert-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.dbh-updates-card__alert--red .dbh-updates-card__alert-icon    { background: color-mix(in srgb, var(--hc-red) 14%, transparent);    color: var(--hc-red); }
+.dbh-updates-card__alert--amber .dbh-updates-card__alert-icon  { background: color-mix(in srgb, var(--hc-amber) 16%, transparent);  color: var(--hc-amber); }
+.dbh-updates-card__alert--teal .dbh-updates-card__alert-icon   { background: var(--hc-teal-dim);                                    color: var(--hc-teal); }
+.dbh-updates-card__alert--violet .dbh-updates-card__alert-icon { background: color-mix(in srgb, var(--hc-violet) 14%, transparent); color: var(--hc-violet); }
+
+.dbh-updates-card__alert-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dbh-updates-card__alert-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--hc-text);
+}
+.dbh-updates-card__alert-body {
+  font-size: 12.5px;
+  color: var(--hc-text2);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dbh-updates-card__alert-cta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.dbh-updates-card__divider {
+  height: 1px;
+  background: var(--hc-border2);
+  margin: 0 16px;
+}
+
+.dbh-updates-card__tip {
+  padding: 15px 16px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.dbh-updates-card__tip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hc-violet);
+  background: color-mix(in srgb, var(--hc-violet) 11%, transparent);
+  border-radius: 999px;
+  padding: 4px 9px 4px 8px;
+}
+
+.dbh-updates-card__tip-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--hc-text);
+  margin: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NHIS CARD
+════════════════════════════════════════════════════════════════ */
+.dbh-nhis-card {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 18px;
+  box-shadow: var(--hc-shadow);
+  padding: 17px 16px 8px;
+}
+
+.dbh-nhis-card__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.dbh-nhis-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--hc-teal-dim);
+  color: var(--hc-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dbh-nhis-card__title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--hc-text);
+}
+
+.dbh-nhis-card__tip {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--hc-text2);
+  margin: 0 0 13px;
+}
+
+.dbh-nhis-card__links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dbh-nhis-card__link {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 2px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  border-top: 1px solid var(--hc-border2);
+  min-height: 40px;
+  transition: color 0.15s var(--hc-ease);
+}
+.dbh-nhis-card__links .dbh-nhis-card__link:first-child { border-top: none; }
+.dbh-nhis-card__link:hover { color: color-mix(in srgb, var(--hc-teal) 80%, var(--hc-text)); }
+
+/* ════════════════════════════════════════════════════════════════
+   EMERGENCY NUMBERS STRIP — always visible, icon-led (no emoji)
+════════════════════════════════════════════════════════════════ */
+.dbh-emergency-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.dbh-emergency-strip__item {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 15px;
+  padding: 14px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  min-height: 44px;
+  transition: border-color 0.15s var(--hc-ease), background 0.15s var(--hc-ease), transform 0.12s var(--hc-ease);
+}
+.dbh-emergency-strip__item:hover {
+  border-color: color-mix(in srgb, var(--hc-red) 45%, var(--hc-border));
+  background: color-mix(in srgb, var(--hc-red) 5%, var(--hc-surface));
+}
+.dbh-emergency-strip__item:active { transform: scale(0.97); }
+
+.dbh-emergency-strip__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-red) 12%, transparent);
+  color: var(--hc-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+.dbh-emergency-strip__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--hc-text2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dbh-emergency-strip__number {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--hc-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SAVED & RECENT
+════════════════════════════════════════════════════════════════ */
+.dbh-recent {
+  padding-bottom: 8px;
+}
+
+.dbh-recent__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 10px;
+}
+
+/* Shares .dbh-eyebrow's visual treatment (see line ~53) for consistency with
+   the other section headers on this page; only needs its margin reset since
+   it sits inside .dbh-recent__head's flex row, which already provides the
+   spacing below via its own margin-bottom. */
+.dbh-recent__title {
+  margin: 0;
+}
+
+.dbh-recent__seeall {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  padding: 0;
+}
+
+.dbh-recent__empty {
+  background: var(--hc-surface);
+  border: 1px dashed var(--hc-border);
+  border-radius: 15px;
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--hc-text2);
+}
+
+.dbh-recent__empty--link {
+  appearance: none;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--hc-teal);
+  font-weight: 700;
+}
+
+.dbh-recent__row {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 15px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  transition: border-color 0.15s var(--hc-ease);
+}
+.dbh-recent__row:hover { border-color: var(--hc-border2); }
+
+.dbh-recent__row-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Saved rows: small filled teal dot ("you saved this"). */
+.dbh-recent__row-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hc-teal);
+  flex-shrink: 0;
+}
+
+/* Recently-viewed rows: a muted clock chip instead of fading the
+   whole row's opacity — keeps text at full, accessible contrast
+   while still reading clearly as "secondary, not saved". */
+.dbh-recent__row-badge--recent {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dbh-recent__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dbh-recent__row-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--hc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dbh-recent__row-type {
+  font-size: 11.5px;
+  color: var(--hc-text3);
+  text-transform: capitalize;
+}
+
+.dbh-recent__row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dbh-recent__row-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s var(--hc-ease), border-color 0.15s var(--hc-ease);
+}
+.dbh-recent__row-btn:hover {
+  background: var(--hc-teal-dim);
+  border-color: var(--hc-teal);
+}
+
+/* ── NHIS bottom sheet modal ──────────────────────────────────── */
+.dbh-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+}
+
+.dbh-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  background: var(--hc-surface);
+  border-radius: 22px 22px 0 0;
+  max-height: 82dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.30);
+  border: 1px solid var(--hc-border);
+  border-bottom: none;
+}
+
+@media (min-width: 640px) {
+  .dbh-modal {
+    left: 50%;
+    right: auto;
+    bottom: 5vh;
+    transform: translateX(-50%);
+    width: 480px;
+    max-height: 85dvh;
+    border-radius: 20px;
+    border-bottom: 1px solid var(--hc-border);
+  }
+}
+
+.dbh-modal__handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hc-border);
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+@media (min-width: 640px) {
+  .dbh-modal__handle { display: none; }
+}
+
+.dbh-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  flex-shrink: 0;
+}
+
+.dbh-modal__title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--hc-text);
+  margin: 0;
+}
+
+.dbh-modal__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s var(--hc-ease);
+}
+.dbh-modal__close:hover { background: var(--hc-teal-dim); color: var(--hc-teal); }
+
+.dbh-modal__body {
+  overflow-y: auto;
+  padding: 4px 18px 24px;
+}
+
+.dbh-modal__section {
+  padding: 13px 0;
+  border-top: 1px solid var(--hc-border2);
+}
+.dbh-modal__section:first-child { border-top: none; }
+
+.dbh-modal__section h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--hc-text);
+  margin: 0 0 4px;
+}
+
+.dbh-modal__section p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--hc-text2);
+  margin: 0;
+}
+
+.dbh-modal__hotline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hc-teal);
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dbh-hero-card,
+  .dbh-emergency-rail,
+  .dbh-emergency-strip__item,
+  .dbh-recent__row-btn,
+  .dbh-recent__row,
+  .dbh-hero-card__rings span,
+  .dbh-emergency-rail__dot {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── Mobile gutter + section spacing ──────────────────────────────
+   dashboard-mobile.css forces .db-page to `gap: 0` and zero side
+   padding at <=640px so pages with their own full-bleed layouts
+   (maps, edge-to-edge lists) can control spacing themselves. This
+   page doesn't — it needs the standard card gutter and rhythm back,
+   scoped to .dbh-page only so other pages sharing .db-page are
+   unaffected.
+
+   IMPORTANT: this element always renders with BOTH classes at once
+   (className="db-page dbh-page" in dashboard/page.tsx), and this rule
+   must beat dashboard-mobile.css's `.db-page { padding: ... !important }`.
+   A bare `.dbh-page` selector has the exact same specificity as `.db-page`
+   (one class each), so with both sides using !important the winner comes
+   down to stylesheet/DOM insertion order — and Next.js does not guarantee
+   a stable relative order between separately-imported CSS files across
+   client-side route transitions, so this would intermittently lose the
+   tie-break after navigating away and back. Using the compound selector
+   `.db-page.dbh-page` (two classes) makes this strictly more specific
+   than `.db-page` alone, so it always wins regardless of load order. */
+@media (max-width: 640px) {
+  .db-page.dbh-page {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .dbh-page > * {
+    margin-bottom: 20px;
+  }
+  .dbh-page > *:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* Keyboard focus — visible on every interactive element in this file */
+.dbh-hero-card:focus-visible,
+.dbh-emergency-rail:focus-visible,
+.dbh-emergency-strip__item:focus-visible,
+.dbh-nhis-card__link:focus-visible,
+.dbh-recent__seeall:focus-visible,
+.dbh-recent__row-btn:focus-visible,
+.dbh-recent__empty--link:focus-visible,
+.dbh-updates-card__alert:focus-visible,
+.dbh-modal__close:focus-visible {
+  outline: 2px solid var(--hc-teal);
+  outline-offset: 2px;
+}

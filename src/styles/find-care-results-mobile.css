@@ -1,0 +1,76 @@
+/* ================================================================
+   src/styles/find-care-results-mobile.css
+   Mobile overrides for /facilities' RESULTS STATE — strictly ≤ 640px.
+   (Originally for the now-deleted standalone /find-care/results page;
+   see the header comment in find-care-results.css.)
+   Desktop (find-care-results.css) is unaffected outside this query.
+   ================================================================ */
+
+@media (max-width: 640px) {
+
+  .fcr-root {
+    padding: calc(66px + env(safe-area-inset-top, 0px)) 16px 90px;
+  }
+
+  .fcr-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+
+  .fcr-back {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    margin: 0 0 12px;
+    justify-content: center;
+    border: 1px solid var(--hc-border);
+    border-radius: 10px;
+    background: var(--hc-surface2);
+    box-shadow: var(--hc-shadow);
+    transition: transform 0.15s, background 0.15s;
+  }
+  .fcr-back:active { background: var(--hc-border2); transform: scale(0.92); }
+  html.dark-mode .fcr-back { border-color: rgba(0,210,255,0.12); }
+  .fcr-back svg { width: 18px; height: 18px; }
+  .fcr-back__label { display: none; } /* app topbar stays unchanged in RESULTS STATE — this icon button is the only back affordance on mobile */
+
+  .fcr-page-header__title { font-size: 21px; }
+  .fcr-page-header__icon { width: 32px; height: 32px; }
+
+  .fcr-page-header__ghost-icon {
+    top: 8px;
+    right: 4px;
+    transform: none;
+  }
+  .fcr-page-header__ghost-icon svg { width: 84px; height: 84px; }
+
+  .fcr-filter-toggle { flex: 1; justify-content: center; }
+
+  .fcr-filters { padding: 14px; }
+
+  /* iOS zoom prevention — all inputs/selects min 16px on mobile */
+  .fcr-select { font-size: 16px; }
+
+  .fcr-grid { grid-template-columns: 1fr; }
+
+  .fcr-card__actions { flex-direction: row; }
+  .fcr-action-btn { min-width: 0; }
+
+  .fcr-empty-state { padding: 36px 18px; }
+
+  .fcr-emergency-footer {
+    margin: 8px 16px 16px;
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+
+  .fcr-map-wrap .leaflet-container { height: 320px !important; }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .fcr-card { animation: none; }
+}

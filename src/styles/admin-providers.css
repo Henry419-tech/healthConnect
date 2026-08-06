@@ -1,0 +1,437 @@
+/* ================================================================
+   admin-providers.css — /admin/providers page
+
+   Provider verification queue. Same utility, no-texture treatment as
+   admin-alerts.css (see that file's header note) — built for one admin
+   working through PENDING submissions quickly. Uses only the global
+   --hc-* tokens defined in globals.css / dashboard-header.css. Class
+   prefix "ap-" (Admin Providers) to avoid colliding with "aa-" (Admin
+   Alerts) if both stylesheets are ever loaded on the same page.
+   ================================================================ */
+
+.ap-page {
+  min-height: 100dvh;
+  background: var(--hc-bg);
+  color: var(--hc-text);
+  padding: 24px 16px 64px;
+}
+
+.ap-container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.ap-header {
+  margin-bottom: 20px;
+}
+
+.ap-header__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hc-text2);
+  margin: 0 0 6px;
+}
+
+.ap-header__eyebrow a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ap-header__eyebrow a:hover {
+  color: var(--hc-teal);
+}
+
+.ap-header__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--hc-text);
+  margin: 0 0 4px;
+}
+
+.ap-header__subtitle {
+  font-size: 13px;
+  color: var(--hc-text2);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Result banner ────────────────────────────────────────────── */
+.ap-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  border: 1px solid var(--hc-border);
+}
+
+.ap-banner--success {
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.30);
+  color: var(--hc-text);
+}
+
+.ap-banner--error {
+  background: rgba(239, 68, 68, 0.10);
+  border-color: rgba(239, 68, 68, 0.30);
+  color: var(--hc-text);
+}
+
+.ap-banner__close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--hc-text2);
+  display: flex;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Status tabs ──────────────────────────────────────────────── */
+.ap-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ap-tab {
+  appearance: none;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface2);
+  color: var(--hc-text2);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ap-tab:hover {
+  border-color: var(--hc-teal);
+}
+
+.ap-tab--active {
+  background: var(--hc-teal-dim);
+  border-color: var(--hc-teal);
+  color: var(--hc-teal);
+}
+
+.ap-tab__count {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--hc-surface);
+  color: var(--hc-text3);
+  border-radius: 999px;
+  padding: 1px 7px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.ap-tab--active .ap-tab__count {
+  background: var(--hc-teal);
+  color: #ffffff;
+}
+
+.ap-tab--pending .ap-tab__count {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--hc-amber);
+}
+
+/* ── Search ───────────────────────────────────────────────────── */
+.ap-search {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.ap-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--hc-text3);
+  pointer-events: none;
+}
+
+.ap-search input {
+  width: 100%;
+  font-size: 16px; /* prevents iOS zoom */
+  font-family: inherit;
+  color: var(--hc-text);
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  padding: 10px 12px 10px 36px;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ap-search input:focus {
+  outline: none;
+  border-color: var(--hc-teal);
+  box-shadow: 0 0 0 3px var(--hc-teal-dim);
+}
+
+/* ── List header / empty / loading ───────────────────────────── */
+.ap-list-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ap-list-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.ap-list-count {
+  font-size: 12.5px;
+  color: var(--hc-text3);
+}
+
+.ap-empty {
+  background: var(--hc-surface);
+  border: 1px dashed var(--hc-border);
+  border-radius: 14px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--hc-text2);
+  font-size: 13.5px;
+}
+
+/* ── Provider card ────────────────────────────────────────────── */
+.ap-card {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ap-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ap-card__thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--hc-surface2);
+  border: 1px solid var(--hc-border);
+}
+
+.ap-card__thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hc-text3);
+}
+
+.ap-card__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.ap-card__name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ap-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--hc-text);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ap-card__specialty {
+  font-size: 12.5px;
+  color: var(--hc-text2);
+  margin: 2px 0 0;
+}
+
+.ap-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ap-badge--type {
+  background: var(--hc-surface2);
+  color: var(--hc-text2);
+  border: 1px solid var(--hc-border);
+}
+
+.ap-badge--status-pending { background: rgba(245, 158, 11, 0.14); color: var(--hc-amber); }
+.ap-badge--status-verified { background: var(--hc-teal-dim); color: var(--hc-teal); }
+.ap-badge--status-suspended { background: rgba(239, 68, 68, 0.14); color: var(--hc-red); }
+
+.ap-card__bio {
+  font-size: 13px;
+  color: var(--hc-text2);
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ap-card__details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+  font-size: 12.5px;
+  color: var(--hc-text2);
+}
+
+@media (max-width: 480px) {
+  .ap-card__details {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ap-card__detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ap-card__detail svg {
+  flex-shrink: 0;
+  color: var(--hc-text3);
+}
+
+.ap-card__detail span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-card__meta {
+  font-size: 12px;
+  color: var(--hc-text3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.ap-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ap-icon-btn {
+  appearance: none;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface2);
+  color: var(--hc-text2);
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 7px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ap-icon-btn:hover {
+  border-color: var(--hc-teal);
+  color: var(--hc-teal);
+}
+
+.ap-icon-btn--primary {
+  background: var(--hc-teal);
+  border-color: var(--hc-teal);
+  color: #ffffff;
+}
+
+.ap-icon-btn--primary:hover {
+  opacity: 0.92;
+  color: #ffffff;
+}
+
+.ap-icon-btn--danger:hover {
+  border-color: var(--hc-red);
+  color: var(--hc-red);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ap-icon-btn--warn:hover {
+  border-color: var(--hc-amber);
+  color: var(--hc-amber);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.ap-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Spinner for in-flight verify/suspend/delete actions */
+.ap-spin {
+  animation: ap-spin 0.8s linear infinite;
+}
+
+@keyframes ap-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-spin { animation: none; }
+}
+
+/* Desktop: a touch more breathing room */
+@media (min-width: 768px) {
+  .ap-page {
+    padding: 40px 24px 80px;
+  }
+}
