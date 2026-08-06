@@ -25,6 +25,15 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 }
 
+// REQUIRED because this layout calls getServerSession() and passes the
+// result into SessionProvider below. Without forcing dynamic rendering,
+// this route is not guaranteed to render per-request — if it's ever
+// cached (CDN, host route cache, a proxy that ignores Vary: Cookie),
+// whichever user's session was active during that cached render gets
+// served to every visitor who hits the cache, showing one person's
+// name/photo/data to other signed-in users. Do not remove this.
+export const dynamic = 'force-dynamic'
+
 export default async function RootLayout({
   children,
 }: {

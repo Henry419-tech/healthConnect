@@ -124,5 +124,5 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // Run on every request except Next.js static assets.
   // The function above handles all allow/deny logic explicitly.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*) '],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
